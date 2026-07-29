@@ -1,0 +1,51 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-heading: "Georgia", "Times New Roman", serif;
+  --font-sans: "Inter", "Segoe UI", system-ui, sans-serif;
+  --color-red-royal: #8b0000;
+  --color-red-feather: #dc2626;
+}
+
+body {
+  background: #000;
+  color: #fef2f2;
+  font-family: var(--font-sans);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+.lesson-progress-bar {
+  height: 4px;
+  transition: width 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.modal-enter {
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+
+.shake {
+  animation: shake 0.3s ease-in-out;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px rgba(220, 38, 38, 0.3); }
+  50% { box-shadow: 0 0 20px rgba(220, 38, 38, 0.6); }
+}
+
+.card-glow:hover {
+  animation: pulse-glow 1.5s ease-in-out infinite;
+}

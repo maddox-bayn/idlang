@@ -1,0 +1,72 @@
+{
+  "human_anatomy_head": {
+    "head": "ikpéyí",
+    "face": "éyì",
+    "forehead": "omù",
+    "eye-lid": "okpuęyí",
+    "eyebrow": "onwueyí",
+    "nose": "éhun",
+    "mouth": "òkónu",
+    "tongue": "ìgbènyì",
+    "tooth": "àhúnù",
+    "neck": "òkò",
+    "beard": "ònwuàgbà"
+  },
+  "human_anatomy_trunk": {
+    "hand": "abó",
+    "thumb": "abódoléè",
+    "armpit": "àchá",
+    "finger": "àìígàbò",
+    "foot": "ikpo",
+    "leg": "ìkpó",
+    "knee": "òkwúkwù",
+    "toe": "òchúgbodúpó",
+    "skin": "òkpíye",
+    "bone": "ùkpòkpú",
+    "stomach": "ìpún",
+    "back": "ìgbíhì",
+    "hip": "òhí"
+  },
+  "fauna_elements": {
+    "dog": "èwo",
+    "fish": "Èbínyi",
+    "snake": "Égwā",
+    "goat": "Èwü",
+    "horse": "Ònyà",
+    "fowl": "Ügū",
+    "tree": "ōchi",
+    "stone": "ēchō",
+    "water": "ēnyi",
+    "fire": "Olà"
+  },
+  "verbs_actions": {
+    "eat": "Lé",
+    "drink": "Gwá",
+    "hear": "apo",
+    "listen": "jáhó",
+    "touch": "kwó",
+    "smell": "púnpi",
+    "steal": "lìpóbódabáję",
+    "sit": "chíchę",
+    "walk": "yàhù"
+  },
+  "pronouns": {
+    "you": "aho",
+    "we": "àlò",
+    "he": "anú",
+    "they": "àwá"
+  },
+  "key_phrases": {
+    "I have come": "M gà",
+    "You have come": "Á gà ē",
+    "He has come": "Ó gà ē",
+    "We have come": "Àlà gà ē",
+    "I am coming": "Ònmà wã",
+    "He is coming": "Ònmà wā",
+    "I am drinking water": "M ká gwà ènyí",
+    "He is drinking water": "Ó ká gwà ènyí",
+    "Come": "Wā dã m",
+    "Sit down": "Chíchẽ àjè",
+    "Let us sit down": "Àlò chíchẽ àjè"
+  }
+}

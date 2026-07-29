@@ -1,0 +1,32 @@
+{
+  "core_vocabulary": {
+    "father": "Adah",
+    "mother": "ēnē",
+    "child": "Oyí",
+    "husband": "Obá",
+    "wife": "ōnyā",
+    "friend": "Òyá",
+    "king": "Óché",
+    "queen": "Óchànyá",
+    "house": "Olé",
+    "water": "ēnyi",
+    "fire": "Olà",
+    "market": "Ōjā",
+    "tree": "ōchi",
+    "love": "Ihōtū",
+    "death": "ikwū",
+    "word": "Élà",
+    "prayer": "Ókògbá",
+    "head": "ikpéyí",
+    "mouth": "òkónu",
+    "dog": "èwo",
+    "stone": "Èchó"
+  },
+  "demo_sentences": {
+    "i am coming": "Ònmà wã",
+    "sit down": "Chíchẽ àjè",
+    "he is drinking water": "Ó ká gwà ènyí",
+    "he will come": "Ó gè wa",
+    "let us sit down": "Àlò chíchẽ àjè"
+  }
+}
