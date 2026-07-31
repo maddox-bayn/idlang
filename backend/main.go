@@ -124,14 +124,7 @@ func loadDictionary(path string) (dictionary, error) {
 
 func corsMiddleware(next http.Handler) http.Handler {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        // Accept localhost, local network IPs, and Vercel deployments
-        origin := r.Header.Get("Origin")
-        if origin != "" {
-            w.Header().Set("Access-Control-Allow-Origin", origin)
-        } else {
-            w.Header().Set("Access-Control-Allow-Origin", "*")
-        }
-        
+        w.Header().Set("Access-Control-Allow-Origin", "*")
         w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
         w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
@@ -208,19 +201,29 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Not in dictionary — try OmniRoute with context injection
-	resourceContext := buildResourceContext()
-	resp, err := callOmniRouteTranslate(req.Text, resourceContext)
-	if err != nil {
-		log.Printf("OmniRoute translate failed: %v", err)
-		resp = &TranslateResponse{
-			Translation: "Missing from Idlang archives.",
-			Explanation: "This word or phrase is not yet documented in the Idlang Idoma dictionary archives.",
-		}
-	}
+	// 2. Not in dictionary — AI gateway fallback with deferred recovery
+	(func() {
+		var resp *TranslateResponse
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("OmniRoute panic recovered: %v", r)
+			}
+			if resp == nil {
+				resp = &TranslateResponse{
+					Translation: "Missing from Idlang archives.",
+					Explanation: "This word or phrase is not yet documented in the Idlang Idoma dictionary archives.",
+				}
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(resp)
+		}()
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+		resourceContext := buildResourceContext()
+		resp, err := callOmniRouteTranslate(req.Text, resourceContext)
+		if err != nil {
+			log.Printf("OmniRoute translate failed: %v", err)
+		}
+	})()
 }
 
 func lookupDictionary(text string) *TranslateResponse {
