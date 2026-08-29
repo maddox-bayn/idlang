@@ -1,34 +1,43 @@
-# Build stage
-FROM node:18-alpine AS builder
-
+# ==========================================
+# STAGE 1: Build the Node frontend assets
+# ==========================================
+FROM node:18-alpine AS frontend-builder
 WORKDIR /app
-
-# Copy package files
 COPY package*.json ./
-
-# Install dependencies
-RUN npm ci --only=production
-
-# Copy source
+RUN npm ci
 COPY . .
-
-# Build
 RUN npm run build
 
-# Production stage
-FROM node:18-alpine
-
+# ==========================================
+# STAGE 2: Final Production environment
+# ==========================================
+FROM python:3.11-slim
 WORKDIR /app
 
-# Install nginx
-RUN apk add --no-cache nginx
+# Install system audio dependencies (required by Wav2Vec2/VITS)
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy built assets
-COPY --from=builder /app/dist ./public
+# Install Python requirements
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy nginx config
-COPY nginx.conf /etc/nginx/nginx.conf
+# Copy all python server files
+COPY . .
 
-EXPOSE 3000
+# Copy the compiled production frontend files from Stage 1 
+# (Assuming your npm run build creates a 'dist' or 'build' folder)
+COPY --from=frontend-builder /app/dist ./dist
 
-CMD ["nginx", "-g", "daemon off;"]
+# Expose Hugging Face's mandatory port
+EXPOSE 7860
+
+# Force your app to use port 7860 via environment variable override
+ENV PORT=7860
+ENV HOST=0.0.0.0
+
+# Start your FastAPI backend application
+CMD ["python", "main.py"]
+
