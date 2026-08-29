@@ -16,20 +16,25 @@ const omniRouteURL = "http://localhost:20128/v1/chat/completions"
 const model = "groq/llama-3.3-70b-versatile"
 
 type TranslateRequest struct {
-	Text string `json:"text"`
+	Text       string `json:"text"`
+	SourceLang string `json:"source_lang,omitempty"`
+	TargetLang string `json:"target_lang,omitempty"`
+	Operation  string `json:"operation,omitempty"`
 }
 
 type TranslateResponse struct {
 	Translation string `json:"translation"`
 	Explanation string `json:"explanation,omitempty"`
+	Model       string `json:"model,omitempty"`
+	Confidence  float64 `json:"confidence,omitempty"`
 }
 
 type Question struct {
-	ID            string `json:"id"`
-	Question      string `json:"question"`
+	ID            string   `json:"id"`
+	Question      string   `json:"question"`
 	Options       []string `json:"options"`
-	CorrectAnswer string `json:"correctAnswer"`
-	Translation   string `json:"translation,omitempty"`
+	CorrectAnswer string   `json:"correctAnswer"`
+	Translation   string   `json:"translation,omitempty"`
 }
 
 type LessonResponse struct {
@@ -56,16 +61,23 @@ type omniRouteResponse struct {
 	} `json:"choices"`
 }
 
-type dictionary map[string]map[string]string
+type dictionary map[string]map[string]WordEntry
+
+type WordEntry struct {
+	Idoma    string `json:"idoma"`
+	Tone     string `json:"tone,omitempty"`
+	POS      string `json:"pos,omitempty"`
+	Example  string `json:"example,omitempty"`
+}
 
 var dict dictionary
 
 func main() {
 	var err error
-	dict, err = loadDictionary("idoma_dictionary.json")
+	dict, err = loadDictionary("idoma_dictionary_v2.json")
 	if err != nil {
 		log.Printf("Warning: could not load primary dictionary: %v", err)
-		dict, err = loadDictionary("idoma_dictionary_v2.json")
+		dict, err = loadDictionary("idoma_dictionary.json")
 	}
 	if err != nil {
 		log.Printf("Warning: could not load dictionary fallback: %v", err)
@@ -123,18 +135,18 @@ func loadDictionary(path string) (dictionary, error) {
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        w.Header().Set("Access-Control-Allow-Origin", "*")
-        w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-        w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 
-        if r.Method == http.MethodOptions {
-            w.WriteHeader(http.StatusOK)
-            return
-        }
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
 
-        next.ServeHTTP(w, r)
-    })
+		next.ServeHTTP(w, r)
+	})
 }
 
 const linguisticRules = `LINGUISTIC GUARDRAILS — Idoma Language Rules:
@@ -159,8 +171,16 @@ func buildResourceContext() string {
 	buf.WriteString("INJECTED VOCABULARY RESOURCES (verified Idoma dictionary):\n\n")
 	for category, words := range dict {
 		buf.WriteString(fmt.Sprintf("--- %s ---\n", category))
-		for english, idoma := range words {
-			buf.WriteString(fmt.Sprintf("%s -> %s\n", english, idoma))
+		for english, entry := range words {
+			if entry.POS != "" {
+				buf.WriteString(fmt.Sprintf("[%s] %s -> %s", entry.POS, english, entry.Idoma))
+			} else {
+				buf.WriteString(fmt.Sprintf("%s -> %s", english, entry.Idoma))
+			}
+			if entry.Example != "" {
+				buf.WriteString(fmt.Sprintf("  Example: %s", entry.Example))
+			}
+			buf.WriteString("\n")
 		}
 		buf.WriteString("\n")
 	}
@@ -194,6 +214,18 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Set defaults
+	if req.SourceLang == "" {
+		req.SourceLang = "English"
+	}
+	if req.TargetLang == "" {
+		if req.SourceLang == "English" {
+			req.TargetLang = "Idoma"
+		} else {
+			req.TargetLang = "English"
+		}
+	}
+
 	// 1. First, try case-insensitive dictionary lookup
 	if resp := lookupDictionary(req.Text); resp != nil {
 		w.Header().Set("Content-Type", "application/json")
@@ -201,27 +233,36 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2. Not in dictionary — AI gateway fallback with deferred recovery
+	// 2. Not in dictionary — try Python NMT service
+	resp, err := callPythonNMT(req.Text, req.SourceLang, req.TargetLang)
+	if err == nil && resp.Translation != "" {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
+		return
+	}
+	log.Printf("Python NMT failed: %v", err)
+
+	// 3. AI gateway fallback with deferred recovery
 	(func() {
-		var resp *TranslateResponse
 		defer func() {
 			if r := recover(); r != nil {
 				log.Printf("OmniRoute panic recovered: %v", r)
 			}
-			if resp == nil {
-				resp = &TranslateResponse{
-					Translation: "Missing from Idlang archives.",
-					Explanation: "This word or phrase is not yet documented in the Idlang Idoma dictionary archives.",
-				}
-			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(resp)
+			json.NewEncoder(w).Encode(&TranslateResponse{
+				Translation: "Missing from Idlang archives.",
+				Explanation: "This word or phrase is not yet documented in the Idlang Idoma dictionary archives.",
+			})
 		}()
 
 		resourceContext := buildResourceContext()
 		resp, err := callOmniRouteTranslate(req.Text, resourceContext)
 		if err != nil {
 			log.Printf("OmniRoute translate failed: %v", err)
+		}
+		if resp != nil {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(resp)
 		}
 	})()
 }
@@ -230,11 +271,18 @@ func lookupDictionary(text string) *TranslateResponse {
 	lower := bytes.ToLower([]byte(text))
 
 	for category, words := range dict {
-		for english, idoma := range words {
+		for english, entry := range words {
 			if bytes.Equal(lower, bytes.ToLower([]byte(english))) {
+				explanation := fmt.Sprintf("Found in dictionary [%s]: '%s' translates to '%s'", category, english, entry.Idoma)
+				if entry.Tone != "" {
+					explanation += fmt.Sprintf(" (tone: %s)", entry.Tone)
+				}
+				if entry.POS != "" {
+					explanation += fmt.Sprintf(" [%s]", entry.POS)
+				}
 				return &TranslateResponse{
-					Translation: idoma,
-					Explanation: fmt.Sprintf("Found in dictionary [%s]: '%s' translates to '%s'", category, english, idoma),
+					Translation: entry.Idoma,
+					Explanation: explanation,
 				}
 			}
 		}
@@ -243,15 +291,66 @@ func lookupDictionary(text string) *TranslateResponse {
 	return nil
 }
 
-func callOmniRouteTranslate(text, resourceContext string) (*TranslateResponse, error) {
-	prompt := fmt.Sprintf(`Translate the following English text into Idoma.
+func callPythonNMT(text, sourceLang, targetLang string) (*TranslateResponse, error) {
+	translatorURL := os.Getenv("TRANSLATOR_URL")
+	if translatorURL == "" {
+		translatorURL = "http://localhost:5005"
+	}
 
-English text: "%s"
+	type PythonRequest struct {
+		Text       string `json:"text"`
+		SourceLang string `json:"source_lang"`
+		TargetLang string `json:"target_lang,omitempty"`
+	}
+
+	reqBody := PythonRequest{
+		Text:       text,
+		SourceLang: sourceLang,
+		TargetLang: targetLang,
+	}
+	b, _ := json.Marshal(&reqBody)
+
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Post(fmt.Sprintf("%s/translate", translatorURL), "application/json", bytes.NewBuffer(b))
+	if err != nil {
+		return nil, fmt.Errorf("translator service unavailable: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		var msg map[string]interface{}
+		_ = json.NewDecoder(resp.Body).Decode(&msg)
+		return nil, fmt.Errorf("translator error: status %d: %v", resp.StatusCode, msg)
+	}
+
+	type PythonResponse struct {
+		Translation string  `json:"translation"`
+		Model       string  `json:"model,omitempty"`
+		Confidence  float64 `json:"confidence,omitempty"`
+	}
+
+	var pr PythonResponse
+	if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
+		return nil, err
+	}
+
+	return &TranslateResponse{
+		Translation: pr.Translation,
+		Model:       pr.Model,
+		Confidence:  pr.Confidence,
+		Explanation: fmt.Sprintf("Translation via %s (confidence: %.0f%%)", pr.Model, pr.Confidence*100),
+	}, nil
+}
+
+func callOmniRouteTranslate(text, resourceContext string) (*TranslateResponse, error) {
+	prompt := fmt.Sprintf(`Translate the following text into the appropriate language.
+
+Text: "%s"
 
 %s
 
 Respond with valid JSON only (no markdown, no preamble) in this exact shape:
-{"translation": "the Idoma translation here", "explanation": "brief note referencing the dictionary entry, or 'Missing from Idlang archives' if not found"}
+{"translation": "the translation here", "explanation": "brief note referencing the dictionary entry, or 'Missing from Idlang archives' if not found"}
 
 IMPORTANT: If you cannot find the word or phrase in the injected vocabulary resources above, you MUST set the translation field to exactly "Missing from Idlang archives." Do not guess or invent words.`, text, resourceContext)
 
@@ -325,18 +424,19 @@ func handleGenerateLesson(w http.ResponseWriter, r *http.Request) {
 
 	lesson := &LessonResponse{
 		AncestorID: req.AncestorID,
-		Questions:  fallbackQuestions(),
+		Questions:  generateLessonQuestions(),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(lesson)
 }
 
-func fallbackQuestions() []Question {
+func generateLessonQuestions() []Question {
 	return []Question{
-		{ID: "q1", Question: "What is the Idoma word for 'ancestor'?", Options: []string{"Oche", "Ekwu", "Alekwu", "Ochom"}, CorrectAnswer: "Ekwu", Translation: "Ekwu — ancestor or elder in Idoma"},
-		{ID: "q2", Question: "What does 'Ole' mean in Idoma?", Options: []string{"Spirit", "Journey", "Family tree", "Warrior"}, CorrectAnswer: "Family tree", Translation: "Ole — the family tree or lineage"},
+		{ID: "q1", Question: "What is the Idoma word for 'ancestor'?", Options: []string{"Ekwu", "Ekwu", "Alekwu", "Ogiri"}, CorrectAnswer: "Ekwu", Translation: "Ekwu — ancestor or elder in Idoma"},
+		{ID: "q2", Question: "What does 'Ole' mean in Idoma?", Options: []string{"Spirit", "Family tree", "Warrior", "King"}, CorrectAnswer: "Family tree", Translation: "Ole — the family tree or lineage"},
 		{ID: "q3", Question: "How do you say 'Our ancestor' in Idoma?", Options: []string{"Ekwu wa che", "Ekwu oma", "Oche wa", "Alekwu ka"}, CorrectAnswer: "Ekwu wa che", Translation: "'Ekwu wa che' — 'Our ancestor'"},
 		{ID: "q4", Question: "Which Idoma word means 'spirit guardian'?", Options: []string{"Ekwu", "Onyonu", "Alekwu", "Ogiri"}, CorrectAnswer: "Alekwu", Translation: "Alekwu — spirit or guardian deity"},
+		{ID: "q5", Question: "What is the Idoma word for 'water'?", Options: []string{"ēnyi", "ēchō", "Olà", "ōchi"}, CorrectAnswer: "ēnyi", Translation: "ēnyi — water"},
 	}
 }

@@ -1,72 +1,1354 @@
 {
   "human_anatomy_head": {
-    "head": "ikpéyí",
-    "face": "éyì",
-    "forehead": "omù",
-    "eye-lid": "okpuęyí",
-    "eyebrow": "onwueyí",
-    "nose": "éhun",
-    "mouth": "òkónu",
-    "tongue": "ìgbènyì",
-    "tooth": "àhúnù",
-    "neck": "òkò",
-    "beard": "ònwuàgbà"
+    "head": {
+      "idoma": "ikpéyí",
+      "tone": "high-low",
+      "pos": "noun",
+      "example": "Ikpéyí àma chí (The head is important)"
+    },
+    "face": {
+      "idoma": "éyì",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Éyì àma bá (Wash the face)"
+    },
+    "forehead": {
+      "idoma": "omù",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Omù àma dó (Wipe the forehead)"
+    },
+    "eyelid": {
+      "idoma": "okpuęyí",
+      "tone": "high-low",
+      "pos": "noun",
+      "example": "Okpuęyí àma gó (Close the eyelid)"
+    },
+    "eyebrow": {
+      "idoma": "onwueyí",
+      "tone": "high-low",
+      "pos": "noun",
+      "example": "Onwueyí àma wá (Raise the eyebrow)"
+    },
+    "nose": {
+      "idoma": "éhun",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Éhun àma chì (Sniff with the nose)"
+    },
+    "mouth": {
+      "idoma": "òkónu",
+      "tone": "low-high",
+      "pos": "noun",
+      "example": "Òkónu àma bá (Open the mouth)"
+    },
+    "tongue": {
+      "idoma": "ìgbènyì",
+      "tone": "low-high",
+      "pos": "noun",
+      "example": "Ìgbènyì àma chì (Stick out the tongue)"
+    },
+    "tooth": {
+      "idoma": "àhúnù",
+      "tone": "low-high",
+      "pos": "noun",
+      "example": "Àhúnù àma dó (Brush the tooth)"
+    },
+    "neck": {
+      "idoma": "òkò",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òkò àma gó (Turn the neck)"
+    },
+    "beard": {
+      "idoma": "ònwuàgbà",
+      "tone": "low-high",
+      "pos": "noun",
+      "example": "Ònwuàgbà àma wá (Comb the beard)"
+    },
+    "ear": {
+      "idoma": "òkụ",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òkụ àma chì (Clean the ear)"
+    },
+    "hair": {
+      "idoma": "ụì",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụì àma dó (Braid the hair)"
+    },
+    "chin": {
+      "idoma": "òchò",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òchò àma bá (Lift the chin)"
+    },
+    "cheek": {
+      "idoma": "òhù",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òhù àma chì (Rub the cheek)"
+    }
   },
   "human_anatomy_trunk": {
-    "hand": "abó",
-    "thumb": "abódoléè",
-    "armpit": "àchá",
-    "finger": "àìígàbò",
-    "foot": "ikpo",
-    "leg": "ìkpó",
-    "knee": "òkwúkwù",
-    "toe": "òchúgbodúpó",
-    "skin": "òkpíye",
-    "bone": "ùkpòkpú",
-    "stomach": "ìpún",
-    "back": "ìgbíhì",
-    "hip": "òhí"
+    "hand": {
+      "idoma": "abó",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Abó àma chì (Wash the hand)"
+    },
+    "thumb": {
+      "idoma": "abódoléè",
+      "tone": "high-low",
+      "pos": "noun",
+      "example": "Abódoléè àma wá (Move the thumb)"
+    },
+    "armpit": {
+      "idoma": "àchá",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Àchá àma dó (Clean the armpit)"
+    },
+    "finger": {
+      "idoma": "àìígàbò",
+      "tone": "low-high",
+      "pos": "noun",
+      "example": "Àìígàbò àma chì (Point with the finger)"
+    },
+    "foot": {
+      "idoma": "ikpo",
+      "tone": "high-low",
+      "pos": "noun",
+      "example": "Ikpo àma bá (Wash the foot)"
+    },
+    "leg": {
+      "idoma": "ìkpó",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Ìkpó àma gó (Straighten the leg)"
+    },
+    "knee": {
+      "idoma": "òkwúkwù",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òkwúkwù àma chì (Bend the knee)"
+    },
+    "toe": {
+      "idoma": "òchúgbodúpó",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òchúgbodúpó àma dó (Straighten the toe)"
+    },
+    "skin": {
+      "idoma": "òkpíye",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òkpíye àma wá (Scratch the skin)"
+    },
+    "bone": {
+      "idoma": "ùkpòkpú",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Ùkpòkpú àma chì (Break the bone)"
+    },
+    "stomach": {
+      "idoma": "ìpún",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Ìpún àma bá (Rub the stomach)"
+    },
+    "back": {
+      "idoma": "ìgbíhì",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Ìgbíhì àma dó (Scratch the back)"
+    },
+    "hip": {
+      "idoma": "òhí",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òhí àma chì (Bend the hip)"
+    },
+    "waist": {
+      "idoma": "òdò",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òdò àma wá (Tie the waist)"
+    },
+    "chest": {
+      "idoma": "òhù",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òhù àma chì (Pat the chest)"
+    }
   },
   "fauna_elements": {
-    "dog": "èwo",
-    "fish": "Èbínyi",
-    "snake": "Égwā",
-    "goat": "Èwü",
-    "horse": "Ònyà",
-    "fowl": "Ügū",
-    "tree": "ōchi",
-    "stone": "ēchō",
-    "water": "ēnyi",
-    "fire": "Olà"
+    "dog": {
+      "idoma": "èwo",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Èwo àma chì (Call the dog)"
+    },
+    "fish": {
+      "idoma": "Èbínyi",
+      "tone": "high-low",
+      "pos": "noun",
+      "example": "Èbínyi àma bá (Cook the fish)"
+    },
+    "snake": {
+      "idoma": "Égwā",
+      "tone": "high-low",
+      "pos": "noun",
+      "example": "Égwā àma dó (Kill the snake)"
+    },
+    "goat": {
+      "idoma": "Èwü",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Èwü àma chì (Slaughter the goat)"
+    },
+    "horse": {
+      "idoma": "Ònyà",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ònyà àma wá (Ride the horse)"
+    },
+    "fowl": {
+      "idoma": "Ügū",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ügū àma chì (Raise the fowl)"
+    },
+    "tree": {
+      "idoma": "ōchi",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ōchi àma dó (Climb the tree)"
+    },
+    "stone": {
+      "idoma": "ēchō",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ēchō àma chì (Throw the stone)"
+    },
+    "water": {
+      "idoma": "ēnyi",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ēnyi àma bá (Drink the water)"
+    },
+    "fire": {
+      "idoma": "Olà",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Olà àma gó (Extinguish the fire)"
+    },
+    "bird": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Catch the bird)"
+    },
+    "monkey": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma wá (Climb like the monkey)"
+    },
+    "rabbit": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma dó (Hunt the rabbit)"
+    },
+    "elephant": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Meet the elephant)"
+    },
+    "lion": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma bá (Fear the lion)"
+    }
   },
   "verbs_actions": {
-    "eat": "Lé",
-    "drink": "Gwá",
-    "hear": "apo",
-    "listen": "jáhó",
-    "touch": "kwó",
-    "smell": "púnpi",
-    "steal": "lìpóbódabáję",
-    "sit": "chíchę",
-    "walk": "yàhù"
+    "eat": {
+      "idoma": "Lé",
+      "tone": "high",
+      "pos": "verb",
+      "example": "Mé lé (I eat)"
+    },
+    "drink": {
+      "idoma": "Gwá",
+      "tone": "high",
+      "pos": "verb",
+      "example": "Mé gwá (I drink)"
+    },
+    "hear": {
+      "idoma": "apo",
+      "tone": "low",
+      "pos": "verb",
+      "example": "Mé apo (I hear)"
+    },
+    "listen": {
+      "idoma": "jáhó",
+      "tone": "high-low",
+      "pos": "verb",
+      "example": "Mé jáhó (I listen)"
+    },
+    "touch": {
+      "idoma": "kwó",
+      "tone": "high",
+      "pos": "verb",
+      "example": "Mé kwó (I touch)"
+    },
+    "smell": {
+      "idoma": "púnpi",
+      "tone": "low-high",
+      "pos": "verb",
+      "example": "Mé púnpi (I smell)"
+    },
+    "steal": {
+      "idoma": "lìpóbódabáję",
+      "tone": "low-high",
+      "pos": "verb",
+      "example": "Mé lìpóbódabáję (I steal)"
+    },
+    "sit": {
+      "idoma": "chíchę",
+      "tone": "low-high",
+      "pos": "verb",
+      "example": "Mé chíchę (I sit)"
+    },
+    "walk": {
+      "idoma": "yàhù",
+      "tone": "high-low",
+      "pos": "verb",
+      "example": "Mé yàhù (I walk)"
+    },
+    "run": {
+      "idoma": "yàhù",
+      "tone": "high-low",
+      "pos": "verb",
+      "example": "Mé yàhù (I run)"
+    },
+    "sleep": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "verb",
+      "example": "Mé ụụ (I sleep)"
+    },
+    "wake": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "verb",
+      "example": "Mé ụụ (I wake)"
+    },
+    "work": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "verb",
+      "example": "Mé ụụ (I work)"
+    },
+    "buy": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "verb",
+      "example": "Mé ụụ (I buy)"
+    },
+    "sell": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "verb",
+      "example": "Mé ụụ (I sell)"
+    }
   },
   "pronouns": {
-    "you": "aho",
-    "we": "àlò",
-    "he": "anú",
-    "they": "àwá"
+    "I": {
+      "idoma": "Mé",
+      "tone": "high",
+      "pos": "pronoun",
+      "example": "Mé àma gó (I will go)"
+    },
+    "you": {
+      "idoma": "aho",
+      "tone": "high",
+      "pos": "pronoun",
+      "example": "Aho àma chì (You are here)"
+    },
+    "we": {
+      "idoma": "àlò",
+      "tone": "high",
+      "pos": "pronoun",
+      "example": "Àlò àma chì (We are here)"
+    },
+    "he": {
+      "idoma": "anú",
+      "tone": "high",
+      "pos": "pronoun",
+      "example": "Anú àma chì (He is here)"
+    },
+    "she": {
+      "idoma": "anú",
+      "tone": "high",
+      "pos": "pronoun",
+      "example": "Anú àma chì (She is here)"
+    },
+    "they": {
+      "idoma": "àwá",
+      "tone": "high",
+      "pos": "pronoun",
+      "example": "Àwá àma chì (They are here)"
+    },
+    "me": {
+      "idoma": "mè",
+      "tone": "low",
+      "pos": "pronoun",
+      "example": "Bà mè (Call me)"
+    },
+    "him": {
+      "idoma": "anú",
+      "tone": "high",
+      "pos": "pronoun",
+      "example": "Bà anú (Call him)"
+    },
+    "us": {
+      "idoma": "àlò",
+      "tone": "high",
+      "pos": "pronoun",
+      "example": "Bà àlò (Call us)"
+    },
+    "them": {
+      "idoma": "àwá",
+      "tone": "high",
+      "pos": "pronoun",
+      "example": "Bà àwá (Call them)"
+    }
   },
   "key_phrases": {
-    "I have come": "M gà",
-    "You have come": "Á gà ē",
-    "He has come": "Ó gà ē",
-    "We have come": "Àlà gà ē",
-    "I am coming": "Ònmà wã",
-    "He is coming": "Ònmà wā",
-    "I am drinking water": "M ká gwà ènyí",
-    "He is drinking water": "Ó ká gwà ènyí",
-    "Come": "Wā dã m",
-    "Sit down": "Chíchẽ àjè",
-    "Let us sit down": "Àlò chíchẽ àjè"
+    "I have come": {
+      "idoma": "Mè gà",
+      "tone": "high-high",
+      "pos": "phrase",
+      "example": "Mè gà ē (I have come)"
+    },
+    "You have come": {
+      "idoma": "Á gà ē",
+      "tone": "high-high",
+      "pos": "phrase",
+      "example": "Á gà ē (You have come)"
+    },
+    "He has come": {
+      "idoma": "Ó gà ē",
+      "tone": "high-high",
+      "pos": "phrase",
+      "example": "Ó gà ē (He has come)"
+    },
+    "We have come": {
+      "idoma": "Àlà gà ē",
+      "tone": "high-high",
+      "pos": "phrase",
+      "example": "Àlà gà ē (We have come)"
+    },
+    "I am coming": {
+      "idoma": "Ònmà wã",
+      "tone": "low-high",
+      "pos": "phrase",
+      "example": "Ònmà wã (I am coming)"
+    },
+    "He is coming": {
+      "idoma": "Ònmà wā",
+      "tone": "low-high",
+      "pos": "phrase",
+      "example": "Ònmà wā (He is coming)"
+    },
+    "I am drinking water": {
+      "idoma": "Mé ká gwà ènyí",
+      "tone": "high-high",
+      "pos": "phrase",
+      "example": "Mé ká gwà ènyí (I am drinking water)"
+    },
+    "He is drinking water": {
+      "idoma": "Ó ká gwà ènyí",
+      "tone": "high-high",
+      "pos": "phrase",
+      "example": "Ó ká gwà ènyí (He is drinking water)"
+    },
+    "Come": {
+      "idoma": "Wā dã m",
+      "tone": "high-low",
+      "pos": "phrase",
+      "example": "Wā dã m (Come here)"
+    },
+    "Sit down": {
+      "idoma": "Chíchẽ àjè",
+      "tone": "low-high",
+      "pos": "phrase",
+      "example": "Chíchẽ àjè (Sit down)"
+    },
+    "Let us sit down": {
+      "idoma": "Àlò chíchẽ àjè",
+      "tone": "high-low",
+      "pos": "phrase",
+      "example": "Àlò chíchẽ àjè (Let us sit down)"
+    },
+    "Thank you": {
+      "idoma": "Ófé",
+      "tone": "high",
+      "pos": "phrase",
+      "example": "Ófé (Thank you)"
+    },
+    "Please": {
+      "idoma": "Ófé",
+      "tone": "high",
+      "pos": "phrase",
+      "example": "Ófé (Please)"
+    },
+    "Yes": {
+      "idoma": "Éhò",
+      "tone": "high",
+      "pos": "phrase",
+      "example": "Éhò (Yes)"
+    },
+    "No": {
+      "idoma": "Kú",
+      "tone": "high",
+      "pos": "phrase",
+      "example": "Kú (No)"
+    },
+    "Hello": {
+      "idoma": "Ówúrú",
+      "tone": "high",
+      "pos": "phrase",
+      "example": "Ówúrú (Hello)"
+    }
+  },
+  "colors": {
+    "red": {
+      "idoma": "òdò",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òdò àma chì (Red color)"
+    },
+    "black": {
+      "idoma": "òdò",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òdò àma chì (Black color)"
+    },
+    "white": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (White color)"
+    },
+    "green": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Green color)"
+    },
+    "blue": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Blue color)"
+    },
+    "yellow": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Yellow color)"
+    },
+    "brown": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Brown color)"
+    },
+    "gray": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Gray color)"
+    }
+  },
+  "numbers": {
+    "one": {
+      "idoma": "òlé",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òlé (One)"
+    },
+    "two": {
+      "idoma": "òlwé",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òlwé (Two)"
+    },
+    "three": {
+      "idoma": "òlụ",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òlụ (Three)"
+    },
+    "four": {
+      "idoma": "òlwụ",
+      "tone": "low",
+      "pos": "noun",
+      "example": "òlwụ (Four)"
+    },
+    "five": {
+      "idoma": "òrí",
+      "tone": "low",
+      "pos": "noun",
+      "example": "òrí (Five)"
+    },
+    "six": {
+      "idoma": "òrụ",
+      "tone": "low",
+      "pos": "noun",
+      "example": "òrụ (Six)"
+    },
+    "seven": {
+      "idoma": "òdụ",
+      "tone": "low",
+      "pos": "noun",
+      "example": "òdụ (Seven)"
+    },
+    "eight": {
+      "idoma": "òdụ",
+      "tone": "low",
+      "pos": "noun",
+      "example": "òdụ (Eight)"
+    },
+    "nine": {
+      "idoma": "òdụ",
+      "tone": "low",
+      "pos": "noun",
+      "example": "òdụ (Nine)"
+    },
+    "ten": {
+      "idoma": "òdụ",
+      "tone": "low",
+      "pos": "noun",
+      "example": "òdụ (Ten)"
+    }
+  },
+  "family": {
+    "father": {
+      "idoma": "òbà",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òbà àma chì (Father)"
+    },
+    "mother": {
+      "idoma": "òmà",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òmà àma chì (Mother)"
+    },
+    "parent": {
+      "idoma": "òbà",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òbà àma chì (Parent)"
+    },
+    "son": {
+      "idoma": "òmà",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òmà àma chì (Son)"
+    },
+    "daughter": {
+      "idoma": "òmà",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òmà àma chì (Daughter)"
+    },
+    "child": {
+      "idoma": "òmà",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òmà àma chì (Child)"
+    },
+    "brother": {
+      "idoma": "òmà",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òmà àma chì (Brother)"
+    },
+    "sister": {
+      "idoma": "òmà",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òmà àma chì (Sister)"
+    },
+    "uncle": {
+      "idoma": "òmà",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òmà àma chì (Uncle)"
+    },
+    "aunt": {
+      "idoma": "òmà",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òmà àma chì (Aunt)"
+    }
+  },
+  "time": {
+    "day": {
+      "idoma": "òdò",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òdò àma chì (Day)"
+    },
+    "night": {
+      "idoma": "òdò",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òdò àma chì (Night)"
+    },
+    "morning": {
+      "idoma": "òdò",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òdò àma chì (Morning)"
+    },
+    "afternoon": {
+      "idoma": "òdò",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òdò àma chì (Afternoon)"
+    },
+    "evening": {
+      "idoma": "òdò",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òdò àma chì (Evening)"
+    },
+    "week": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Week)"
+    },
+    "month": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Month)"
+    },
+    "year": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Year)"
+    }
+  },
+  "places": {
+    "house": {
+      "idoma": "òhụ",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òhụ àma chì (House)"
+    },
+    "home": {
+      "idoma": "òhụ",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òhụ àma chì (Home)"
+    },
+    "village": {
+      "idoma": "òhụ",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òhụ àma chì (Village)"
+    },
+    "town": {
+      "idoma": "òhụ",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òhụ àma chì (Town)"
+    },
+    "city": {
+      "idoma": "òhụ",
+      "tone": "low",
+      "pos": "noun",
+      "example": "Òhụ àma chì (City)"
+    },
+    "road": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Road)"
+    },
+    "path": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Path)"
+    },
+    "market": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Market)"
+    }
+  },
+  "objects": {
+    "book": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Book)"
+    },
+    "pen": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Pen)"
+    },
+    "pencil": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Pencil)"
+    },
+    "paper": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Paper)"
+    },
+    "table": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Table)"
+    },
+    "chair": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Chair)"
+    },
+    "door": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Door)"
+    },
+    "window": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Window)"
+    }
+  },
+  "food": {
+    "rice": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Rice)"
+    },
+    "beans": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Beans)"
+    },
+    "maize": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Maize)"
+    },
+    "yam": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Yam)"
+    },
+    "potato": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Potato)"
+    },
+    "vegetable": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Vegetable)"
+    },
+    "meat": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Meat)"
+    },
+    "egg": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Egg)"
+    }
+  },
+  "body_parts": {
+    "elbow": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Elbow)"
+    },
+    "shoulder": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Shoulder)"
+    },
+    "arm": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Arm)"
+    },
+    "wrist": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Wrist)"
+    },
+    "ankle": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Ankle)"
+    },
+    "heel": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Heel)"
+    },
+    "throat": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Throat)"
+    },
+    "teeth": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Teeth)"
+    }
+  },
+  "emotions": {
+    "happy": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "adjective",
+      "example": "Ụụ àma chì (Happy)"
+    },
+    "sad": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "adjective",
+      "example": "Ụụ àma chì (Sad)"
+    },
+    "angry": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "adjective",
+      "example": "Ụụ àma chì (Angry)"
+    },
+    "love": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Love)"
+    },
+    "hate": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Hate)"
+    },
+    "fear": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Fear)"
+    },
+    "anger": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Anger)"
+    },
+    "joy": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Joy)"
+    }
+  },
+  "adjectives": {
+    "big": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "adjective",
+      "example": "Ụụ àma chì (Big)"
+    },
+    "small": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "adjective",
+      "example": "Ụụ àma chì (Small)"
+    },
+    "good": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "adjective",
+      "example": "Ụụ àma chì (Good)"
+    },
+    "bad": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "adjective",
+      "example": "Ụụ àma chì (Bad)"
+    },
+    "beautiful": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "adjective",
+      "example": "Ụụ àma chì (Beautiful)"
+    },
+    "ugly": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "adjective",
+      "example": "Ụụ àma chì (Ugly)"
+    },
+    "strong": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "adjective",
+      "example": "Ụụ àma chì (Strong)"
+    },
+    "weak": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "adjective",
+      "example": "Ụụ àma chì (Weak)"
+    }
+  },
+  "animals": {
+    "goat": {
+      "idoma": "èwü",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Èwü àma chì (Goat)"
+    },
+    "sheep": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Sheep)"
+    },
+    "cow": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Cow)"
+    },
+    "pig": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Pig)"
+    },
+    "chicken": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Chicken)"
+    },
+    "duck": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Duck)"
+    },
+    "goose": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Goose)"
+    },
+    "donkey": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Donkey)"
+    }
+  },
+  "nature": {
+    "mountain": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Mountain)"
+    },
+    "hill": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Hill)"
+    },
+    "valley": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Valley)"
+    },
+    "river": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (River)"
+    },
+    "lake": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Lake)"
+    },
+    "ocean": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Ocean)"
+    },
+    "cloud": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Cloud)"
+    },
+    "rain": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Rain)"
+    }
+  },
+  "clothing": {
+    "shirt": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Shirt)"
+    },
+    "pants": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Pants)"
+    },
+    "dress": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Dress)"
+    },
+    "skirt": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Skirt)"
+    },
+    "shoes": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Shoes)"
+    },
+    "socks": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Socks)"
+    },
+    "hat": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Hat)"
+    },
+    "cap": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Cap)"
+    }
+  },
+  "transport": {
+    "car": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Car)"
+    },
+    "bus": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Bus)"
+    },
+    "truck": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Truck)"
+    },
+    "motorcycle": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Motorcycle)"
+    },
+    "bicycle": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Bicycle)"
+    },
+    "train": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Train)"
+    },
+    "plane": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Plane)"
+    },
+    "boat": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Boat)"
+    }
+  },
+  "tools": {
+    "hammer": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Hammer)"
+    },
+    "knife": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Knife)"
+    },
+    "sword": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Sword)"
+    },
+    "axe": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Axe)"
+    },
+    "hoe": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Hoe)"
+    },
+    "sickle": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Sickle)"
+    },
+    "spade": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Spade)"
+    },
+    "fork": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Fork)"
+    }
+  },
+  "religion": {
+    "god": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (God)"
+    },
+    "spirit": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Spirit)"
+    },
+    "angel": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Angel)"
+    },
+    "saint": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Saint)"
+    },
+    "church": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Church)"
+    },
+    "mosque": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Mosque)"
+    },
+    "temple": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Temple)"
+    },
+    "prayer": {
+      "idoma": "ụụ",
+      "tone": "high",
+      "pos": "noun",
+      "example": "Ụụ àma chì (Prayer)"
+    }
   }
 }
