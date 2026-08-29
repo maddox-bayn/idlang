@@ -1,60 +1,70 @@
-import { useState, useEffect } from "react";
+import { useEffect } from "react";
+import { useTranslationStore } from "../store/useTranslationStore";
 import AudioRecorder from "./AudioRecorder";
 import AudioPlayer from "./AudioPlayer";
 import { translationClient } from "../api/translationClient";
-import type { TranslateResponse } from "../types";
 
 type TranslationMode = "text" | "speech" | "full";
-type TranslationDirection = "en-to-id" | "id-to-en";
 
 export default function TranslateView() {
-  const [mode, setMode] = useState<TranslationMode>("text");
-  const [direction, setDirection] = useState<TranslationDirection>("en-to-id");
-  const [input, setInput] = useState("");
-  const [result, setResult] = useState<TranslateResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [transcription, setTranscription] = useState("");
+  const {
+    mode,
+    direction,
+    inputText,
+    audioBlob,
+    transcription,
+    translation,
+    synthesizedAudio,
+    error,
+    setIsTranscribing,
+    setIsTranslating,
+    setIsSynthesizing,
+    setError,
+    setAudioBlob,
+    setTranscription,
+    setTranslation,
+    setSynthesizedAudio,
+    addToHistory,
+    clearAudio,
+  } = useTranslationStore();
 
   // Cleanup audio URL on unmount
   useEffect(() => {
     return () => {
-      if (audioUrl) {
-        URL.revokeObjectURL(audioUrl);
+      if (synthesizedAudio) {
+        URL.revokeObjectURL(synthesizedAudio);
       }
     };
-  }, [audioUrl]);
+  }, [synthesizedAudio]);
 
   const sourceLang = direction === "en-to-id" ? "English" : "Idoma";
   const targetLang = direction === "en-to-id" ? "Idoma" : "English";
 
   async function handleTranslate() {
-    const text = input.trim();
+    const text = inputText.trim();
     if (!text) return;
 
-    setLoading(true);
+    setIsTranslating(true);
     setError(null);
-    setResult(null);
+    setTranslation(null);
 
     try {
       const data = await translationClient.translateText(text, sourceLang, targetLang);
-      setResult(data);
-      translationClient.addToHistory(data);
+      setTranslation(data);
+      addToHistory(data, text);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Translation failed");
     } finally {
-      setLoading(false);
+      setIsTranslating(false);
     }
   }
 
   async function handleTranscribeAndTranslate() {
     if (!audioBlob) return;
 
-    setLoading(true);
+    setIsTranscribing(true);
     setError(null);
-    setResult(null);
+    setTranslation(null);
     setTranscription("");
 
     try {
@@ -68,53 +78,45 @@ export default function TranslateView() {
         sourceLang,
         targetLang
       );
-      setResult(translateData);
-      translationClient.addToHistory(translateData);
+      setTranslation(translateData);
+      addToHistory(translateData, transcribeData.transcription);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Translation failed");
     } finally {
-      setLoading(false);
+      setIsTranscribing(false);
     }
   }
 
   async function handleFullPipeline() {
     if (!audioBlob) return;
 
-    setLoading(true);
+    setIsSynthesizing(true);
     setError(null);
-    setResult(null);
+    setTranslation(null);
     setTranscription("");
-    setAudioUrl(null);
+    setSynthesizedAudio(null);
 
     try {
       const data = await translationClient.fullPipeline(audioBlob, sourceLang);
       setTranscription(data.transcription.transcription);
-      setResult(data.translation);
-      setAudioUrl(`data:audio/wav;base64,${data.audio}`);
-      translationClient.addToHistory(data.translation);
+      setTranslation(data.translation);
+      setSynthesizedAudio(data.audio ? `data:audio/wav;base64,${data.audio}` : null);
+      addToHistory(data.translation, data.transcription.transcription);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Translation failed");
     } finally {
-      setLoading(false);
+      setIsSynthesizing(false);
     }
   }
 
   function handleAudioRecorded(blob: Blob) {
     setAudioBlob(blob);
     // Create a temporary URL for immediate playback
-    if (audioUrl) {
-      URL.revokeObjectURL(audioUrl);
+    if (synthesizedAudio) {
+      URL.revokeObjectURL(synthesizedAudio);
     }
     const url = URL.createObjectURL(blob);
-    setAudioUrl(url);
-  }
-
-  function clearAudio() {
-    setAudioBlob(null);
-    if (audioUrl) {
-      URL.revokeObjectURL(audioUrl);
-      setAudioUrl(null);
-    }
+    setSynthesizedAudio(url);
   }
 
   return (
@@ -122,17 +124,15 @@ export default function TranslateView() {
       {/* Mode Selection */}
       <div className="flex gap-2 rounded-lg border border-red-900/30 bg-neutral-950 p-1">
         {[
-          { id: "text", label: "Text" },
-          { id: "speech", label: "Speech" },
-          { id: "full", label: "Full Pipeline" },
+          { id: "text" as TranslationMode, label: "Text" },
+          { id: "speech" as TranslationMode, label: "Speech" },
+          { id: "full" as TranslationMode, label: "Full Pipeline" },
         ].map((m) => (
           <button
             key={m.id}
             onClick={() => {
-              setMode(m.id as TranslationMode);
+              useTranslationStore.getState().setMode(m.id);
               clearAudio();
-              setInput("");
-              setResult(null);
             }}
             className={`flex-1 rounded-md py-2 text-xs font-semibold uppercase tracking-wider transition-all ${
               mode === m.id
@@ -152,10 +152,9 @@ export default function TranslateView() {
         </span>
         <button
           onClick={() => {
-            setDirection(direction === "en-to-id" ? "id-to-en" : "en-to-id");
-            setInput("");
-            setResult(null);
-            clearAudio();
+            useTranslationStore.getState().setDirection(
+              direction === "en-to-id" ? "id-to-en" : "en-to-id"
+            );
           }}
           className="flex items-center gap-2 rounded-lg border border-red-900/30 bg-neutral-950 px-4 py-2 text-xs font-semibold text-red-600 transition-all hover:border-red-600 hover:text-red-400"
         >
@@ -179,8 +178,8 @@ export default function TranslateView() {
 
         {mode === "text" ? (
           <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
+            value={inputText}
+            onChange={(e) => useTranslationStore.getState().setInputText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -227,7 +226,7 @@ export default function TranslateView() {
               Clear
             </button>
           </div>
-          <AudioPlayer audioUrl={audioUrl || ""} className="w-full" />
+          <AudioPlayer audioUrl={synthesizedAudio || ""} className="w-full" />
         </div>
       )}
 
@@ -236,10 +235,18 @@ export default function TranslateView() {
         onClick={
           mode === "text" ? handleTranslate : mode === "speech" ? handleTranscribeAndTranslate : handleFullPipeline
         }
-        disabled={loading || (!input.trim() && mode === "text") || (!audioBlob && mode !== "text")}
+        disabled={
+          (mode === "text" && !inputText.trim()) ||
+          (mode !== "text" && !audioBlob) ||
+          useTranslationStore.getState().isTranslating ||
+          useTranslationStore.getState().isTranscribing ||
+          useTranslationStore.getState().isSynthesizing
+        }
         className="flex items-center justify-center gap-2 rounded-lg bg-red-900 px-6 py-3 text-sm font-semibold text-red-100 transition-all hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        {loading ? (
+        {(mode === "text" && useTranslationStore.getState().isTranslating) ||
+        (mode === "speech" && useTranslationStore.getState().isTranscribing) ||
+        (mode === "full" && useTranslationStore.getState().isSynthesizing) ? (
           <>
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-red-300 border-t-transparent" />
             Processing...
@@ -271,12 +278,12 @@ export default function TranslateView() {
       )}
 
       {/* Result */}
-      {result && (
+      {translation && (
         <div className="rounded-lg border border-red-700/30 bg-neutral-950 p-6">
           <label className="text-xs font-medium uppercase tracking-widest text-red-600">
             Translation
           </label>
-          {result.translation === "Missing from Idlang archives." ? (
+          {translation.translation === "Missing from Idlang archives." ? (
             <div className="mt-2">
               <p className="font-heading text-lg font-bold text-red-400/60">
                 Missing from Idlang archives.
@@ -287,27 +294,27 @@ export default function TranslateView() {
             </div>
           ) : (
             <p className="mt-2 font-heading text-xl font-bold leading-relaxed text-red-100">
-              {result.translation}
+              {translation.translation}
             </p>
           )}
-          {result.explanation && !result.translation.startsWith("Missing") && (
+          {translation.explanation && !translation.translation.startsWith("Missing") && (
             <p className="mt-3 border-t border-red-900/20 pt-3 text-xs italic text-red-400/70">
-              {result.explanation}
+              {translation.explanation}
             </p>
           )}
-          {result.model && (
+          {translation.model && (
             <p className="mt-2 text-xs text-neutral-500">
-              Model: {result.model} {result.confidence && `| Confidence: ${Math.round(result.confidence * 100)}%`}
+              Model: {translation.model} {translation.confidence && `| Confidence: ${Math.round(translation.confidence * 100)}%`}
             </p>
           )}
 
           {/* Synthesized Audio (for full pipeline) */}
-          {audioUrl && mode === "full" && (
+          {synthesizedAudio && mode === "full" && (
             <div className="mt-4 rounded-lg border border-red-900/20 bg-neutral-900 p-4">
               <label className="text-xs font-medium uppercase tracking-widest text-red-600">
                 Synthesized Speech
               </label>
-              <AudioPlayer audioUrl={audioUrl} className="mt-2 w-full" />
+              <AudioPlayer audioUrl={synthesizedAudio} className="mt-2 w-full" />
             </div>
           )}
         </div>
