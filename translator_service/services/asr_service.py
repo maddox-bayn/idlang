@@ -1,3 +1,4 @@
+from typing import Optional
 """ASR (Automatic Speech Recognition) service for speech-to-text translation."""
 
 import datetime

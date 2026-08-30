@@ -7,15 +7,11 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 # Model IDs
 class ModelIDs:
-    # NMT Model - NLLB-200 fine-tuned for Idoma-English
-    NMT = "mrheartng/idu-eng-translator"
-
-    # ASR Models - Speech-to-Text
-    ASR_IDOMA = "mrheartng/wav2vec2-xls-r-1b-finetuned-idoma"
+    # Public Baseline Model Fallbacks
+    NMT = "facebook/nllb-200-distilled-600M"
+    ASR_IDOMA = "facebook/wav2vec2-xls-r-300m"
     ASR_ENGLISH = "openai/whisper-large-v3"
-
-    # TTS Models - Text-to-Speech
-    TTS_IDOMA = "mrheartng/idoma-mms-tts-eng"
+    TTS_IDOMA = "microsoft/speecht5_tts"
     TTS_ENGLISH = "microsoft/speecht5_tts"
 
 # Audio configuration
