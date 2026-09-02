@@ -1,7 +1,13 @@
 # ==========================================
+# Combined image: Vite frontend + FastAPI translator
+# Used for single-container deploys (e.g. Hugging Face Spaces on :7860).
+# Build from the repository root:  docker build -f Dockerfile.frontend -t idlang .
+# ==========================================
+
+# ==========================================
 # STAGE 1: Build the Node frontend assets
 # ==========================================
-FROM node:18-alpine AS frontend-builder
+FROM node:20-alpine AS frontend-builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm ci
@@ -15,29 +21,28 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install system audio dependencies (required by Wav2Vec2/VITS)
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
+    libsndfile1 \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python requirements
-COPY requirements.txt .
+# Requirements live under translator_service/, not the repo root.
+COPY translator_service/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy all python server files
-COPY . .
+# Copy the python server files
+COPY translator_service/ ./
 
-# Copy the compiled production frontend files from Stage 1 
-# (Assuming your npm run build creates a 'dist' or 'build' folder)
+# Copy the compiled production frontend from Stage 1. backup_backend.py mounts
+# ./dist at the root path when the directory is present.
 COPY --from=frontend-builder /app/dist ./dist
 
-# Expose Hugging Face's mandatory port
+# Hugging Face Spaces requires port 7860
 EXPOSE 7860
 
-# Force your app to use port 7860 via environment variable override
-ENV PORT=7860
-ENV HOST=0.0.0.0
+ENV PORT=7860 \
+    HOST=0.0.0.0 \
+    CACHE_DIR=/app/model_cache
 
-# Start your FastAPI backend application
-CMD ["python", "main.py"]
-
+CMD ["uvicorn", "backup_backend:app", "--host", "0.0.0.0", "--port", "7860"]

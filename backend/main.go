@@ -23,10 +23,14 @@ type TranslateRequest struct {
 }
 
 type TranslateResponse struct {
-	Translation string `json:"translation"`
-	Explanation string `json:"explanation,omitempty"`
-	Model       string `json:"model,omitempty"`
+	Translation string  `json:"translation"`
+	Explanation string  `json:"explanation,omitempty"`
+	Model       string  `json:"model,omitempty"`
 	Confidence  float64 `json:"confidence,omitempty"`
+	// Warning is forwarded from the Python service when the loaded checkpoint
+	// cannot genuinely produce Idoma, so the UI can say so instead of
+	// presenting untranslated text as a translation.
+	Warning string `json:"warning,omitempty"`
 }
 
 type Question struct {
@@ -64,10 +68,10 @@ type omniRouteResponse struct {
 type dictionary map[string]map[string]WordEntry
 
 type WordEntry struct {
-	Idoma    string `json:"idoma"`
-	Tone     string `json:"tone,omitempty"`
-	POS      string `json:"pos,omitempty"`
-	Example  string `json:"example,omitempty"`
+	Idoma   string `json:"idoma"`
+	Tone    string `json:"tone,omitempty"`
+	POS     string `json:"pos,omitempty"`
+	Example string `json:"example,omitempty"`
 }
 
 // UnmarshalJSON accepts both dictionary schemas: the v2 object form
@@ -410,6 +414,7 @@ func callPythonNMT(text, sourceLang, targetLang string) (*TranslateResponse, err
 		Translation string  `json:"translation"`
 		Model       string  `json:"model,omitempty"`
 		Confidence  float64 `json:"confidence,omitempty"`
+		Warning     string  `json:"warning,omitempty"`
 	}
 
 	var pr PythonResponse
@@ -421,6 +426,7 @@ func callPythonNMT(text, sourceLang, targetLang string) (*TranslateResponse, err
 		Translation: pr.Translation,
 		Model:       pr.Model,
 		Confidence:  pr.Confidence,
+		Warning:     pr.Warning,
 		Explanation: fmt.Sprintf("Translation via %s (confidence: %.0f%%)", pr.Model, pr.Confidence*100),
 	}, nil
 }

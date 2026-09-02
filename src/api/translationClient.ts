@@ -3,6 +3,21 @@ import type { TranslateResponse, TranscriptionResponse, FullPipelineResponse } f
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 
 /**
+ * Pull a human-readable message off an error response.
+ *
+ * The Go backend replies with `{"error": ...}` but the proxied FastAPI service
+ * replies with `{"detail": ...}`. Reading only `error` swallowed every upstream
+ * message from /api/transcribe and /api/pipeline.
+ */
+async function errorMessage(response: Response, fallback: string): Promise<string> {
+  const data = await response.json().catch(() => ({}) as Record<string, unknown>);
+  const raw = data.error ?? data.detail;
+  if (typeof raw === "string" && raw) return raw;
+  if (raw) return JSON.stringify(raw);
+  return `${fallback} (HTTP ${response.status})`;
+}
+
+/**
  * Translation API client for Idlang
  */
 export class TranslationClient {
@@ -33,8 +48,7 @@ export class TranslationClient {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || "Translation request failed");
+      throw new Error(await errorMessage(response, "Translation request failed"));
     }
 
     const data = await response.json();
@@ -43,6 +57,7 @@ export class TranslationClient {
       explanation: data.explanation,
       model: data.model,
       confidence: data.confidence,
+      warning: data.warning,
     };
   }
 
@@ -63,8 +78,7 @@ export class TranslationClient {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || "Transcription request failed");
+      throw new Error(await errorMessage(response, "Transcription request failed"));
     }
 
     const data = await response.json();
@@ -94,8 +108,7 @@ export class TranslationClient {
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || "Pipeline request failed");
+      throw new Error(await errorMessage(response, "Pipeline request failed"));
     }
 
     const data = await response.json();
@@ -114,6 +127,7 @@ export class TranslationClient {
         source_lang: data.translation?.source_lang || sourceLang,
         target_lang: data.translation?.target_lang,
         timestamp: data.translation?.timestamp,
+        warning: data.translation?.warning,
       },
       audio: data.audio,
       audioFormat: data.audio_format,

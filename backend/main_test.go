@@ -100,7 +100,6 @@ func TestDictionaryLookup(t *testing.T) {
 }
 
 func TestWordEntrySchema(t *testing.T) {
-	// Load test dictionary
 	dict, err := loadDictionary("idoma_dictionary_v2.json")
 	if err != nil {
 		t.Fatalf("Failed to load dictionary: %v", err)
@@ -122,5 +121,19 @@ func TestWordEntrySchema(t *testing.T) {
 
 	if !foundEntry {
 		t.Error("Dictionary should have entries with Idoma field")
+	}
+}
+
+// The v1 fallback dictionary maps words to bare strings rather than objects.
+// Before WordEntry.UnmarshalJSON existed this failed to parse, so the fallback
+// silently produced an empty dictionary.
+func TestV1BareStringDictionaryLoads(t *testing.T) {
+	dict, err := loadDictionary("idoma_dictionary.json")
+	if err != nil {
+		t.Fatalf("v1 dictionary failed to load: %v", err)
+	}
+
+	if got := dict["core_vocabulary"]["father"].Idoma; got != "Adah" {
+		t.Errorf("expected v1 bare-string entry to parse as Adah, got %q", got)
 	}
 }

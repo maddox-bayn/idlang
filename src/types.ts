@@ -20,6 +20,8 @@ export interface TranslateResponse {
   source_lang?: string;
   target_lang?: string;
   timestamp?: string;
+  /** Set when the loaded checkpoint cannot truly emit Idoma. */
+  warning?: string;
 }
 
 export interface TranscriptionResponse {

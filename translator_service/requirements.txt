@@ -1,12 +1,34 @@
+# Idlang Translator Service dependencies.
+#
+# Keep torch unpinned-but-floored: an exact pin (it was torch==2.11.0) forces a
+# ~2GB wheel resolve and breaks whenever the host image ships a different build,
+# which is a common Hugging Face Space / Docker build failure.
+torch>=2.2
+torchaudio>=2.2
+transformers>=4.40
+
+# NLLB and SpeechT5 tokenizers are sentencepiece-backed; protobuf is needed when
+# transformers has to convert a slow tokenizer.
+sentencepiece
+protobuf
+
+# Web layer. python-multipart is REQUIRED by FastAPI for the UploadFile/Form
+# parameters on /transcribe and /pipeline — without it those routes raise at
+# import time.
 fastapi
-uvicorn
-torch==2.11.0
-torchaudio
-transformers
+uvicorn[standard]
+python-multipart
+pydantic
+
+# Gradio entrypoint (app.py) for the Hugging Face Space.
+gradio>=4.44
+
+# Audio I/O used by services/asr_service.py and services/tts_service.py.
 librosa
-scikit-learn
-typer
-rich
+soundfile
+numpy
+
+# Utilities actually imported by the code.
 huggingface_hub
 loguru
 accelerate

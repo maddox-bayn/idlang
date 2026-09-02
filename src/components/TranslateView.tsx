@@ -16,6 +16,14 @@ export default function TranslateView() {
     translation,
     synthesizedAudio,
     error,
+    // Subscribed, not read via getState(): getState() does not register a
+    // dependency, so the button's disabled/spinner state could go stale.
+    isTranscribing,
+    isTranslating,
+    isSynthesizing,
+    setMode,
+    setDirection,
+    setInputText,
     setIsTranscribing,
     setIsTranslating,
     setIsSynthesizing,
@@ -27,6 +35,8 @@ export default function TranslateView() {
     addToHistory,
     clearAudio,
   } = useTranslationStore();
+
+  const isBusy = isTranslating || isTranscribing || isSynthesizing;
 
   // Cleanup audio URL on unmount
   useEffect(() => {
@@ -131,7 +141,7 @@ export default function TranslateView() {
           <button
             key={m.id}
             onClick={() => {
-              useTranslationStore.getState().setMode(m.id);
+              setMode(m.id);
               clearAudio();
             }}
             className={`flex-1 rounded-md py-2 text-xs font-semibold uppercase tracking-wider transition-all ${
@@ -152,9 +162,7 @@ export default function TranslateView() {
         </span>
         <button
           onClick={() => {
-            useTranslationStore.getState().setDirection(
-              direction === "en-to-id" ? "id-to-en" : "en-to-id"
-            );
+            setDirection(direction === "en-to-id" ? "id-to-en" : "en-to-id");
           }}
           className="flex items-center gap-2 rounded-lg border border-red-900/30 bg-neutral-950 px-4 py-2 text-xs font-semibold text-red-600 transition-all hover:border-red-600 hover:text-red-400"
         >
@@ -179,7 +187,7 @@ export default function TranslateView() {
         {mode === "text" ? (
           <textarea
             value={inputText}
-            onChange={(e) => useTranslationStore.getState().setInputText(e.target.value)}
+            onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -238,21 +246,19 @@ export default function TranslateView() {
         disabled={
           (mode === "text" && !inputText.trim()) ||
           (mode !== "text" && !audioBlob) ||
-          useTranslationStore.getState().isTranslating ||
-          useTranslationStore.getState().isTranscribing ||
-          useTranslationStore.getState().isSynthesizing
+          isBusy
         }
         className="flex items-center justify-center gap-2 rounded-lg bg-red-900 px-6 py-3 text-sm font-semibold text-red-100 transition-all hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-40"
       >
-        {(mode === "text" && useTranslationStore.getState().isTranslating) ||
-        (mode === "speech" && useTranslationStore.getState().isTranscribing) ||
-        (mode === "full" && useTranslationStore.getState().isSynthesizing) ? (
+        {(mode === "text" && isTranslating) ||
+        (mode === "speech" && isTranscribing) ||
+        (mode === "full" && isSynthesizing) ? (
           <>
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-red-300 border-t-transparent" />
             Processing...
           </>
         ) : mode === "text" ? (
-          "Translate to Idoma"
+          `Translate to ${targetLang}`
         ) : mode === "speech" ? (
           "Transcribe & Translate"
         ) : (
@@ -302,9 +308,17 @@ export default function TranslateView() {
               {translation.explanation}
             </p>
           )}
+          {translation.warning && (
+            <p className="mt-3 rounded-md border border-amber-700/40 bg-amber-900/20 px-3 py-2 text-xs text-amber-300">
+              {translation.warning}
+            </p>
+          )}
           {translation.model && (
+
             <p className="mt-2 text-xs text-neutral-500">
-              Model: {translation.model} {translation.confidence && `| Confidence: ${Math.round(translation.confidence * 100)}%`}
+              Model: {translation.model}
+              {typeof translation.confidence === "number" &&
+                ` | Confidence: ${Math.round(translation.confidence * 100)}%`}
             </p>
           )}
 

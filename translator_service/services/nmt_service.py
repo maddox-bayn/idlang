@@ -11,7 +11,14 @@ except ImportError as exc:
         "PyTorch and Transformers are required. Install with 'pip install torch transformers'"
     ) from exc
 
-from config import ModelIDs, LANG_CODE_MAP, DEVICE
+from config import (
+    ALLOW_IGBO_FALLBACK,
+    DEVICE,
+    FALLBACK_LANG_CODE,
+    IDOMA_LANG_CODE,
+    LANG_CODE_MAP,
+    ModelIDs,
+)
 from services.model_loader import ModelManager
 
 
@@ -22,6 +29,41 @@ class TranslationService:
         """Initialize the NMT model."""
         self.tokenizer, self.model = ModelManager.load_nmt_models()
         self._load_attempted = True
+        self.lang_codes = dict(LANG_CODE_MAP)
+        self.warning = self._resolve_idoma_code()
+
+    def _resolve_idoma_code(self) -> Optional[str]:
+        """Verify the checkpoint can actually emit Idoma.
+
+        Stock NLLB-200 has no `idu_Latn` token, so convert_tokens_to_ids returns
+        <unk>. Forcing <unk> as the decoder's first token gives no target-language
+        signal and the model simply copies the source — the "English in, English
+        out" bug. Detect that here and return a warning instead of pretending the
+        output is Idoma.
+        """
+        unk = self.tokenizer.unk_token_id
+        if self.tokenizer.convert_tokens_to_ids(IDOMA_LANG_CODE) != unk:
+            return None
+
+        detail = (
+            f"model {ModelIDs.NMT!r} has no {IDOMA_LANG_CODE!r} token and cannot "
+            f"generate Idoma; fine-tune a checkpoint that adds it "
+            f"(training/train_idoma_nllb.ipynb) and set NMT_MODEL_ID"
+        )
+
+        if not ALLOW_IGBO_FALLBACK:
+            self.unsupported = detail
+            return detail
+
+        if self.tokenizer.convert_tokens_to_ids(FALLBACK_LANG_CODE) == unk:
+            self.unsupported = detail
+            return detail
+
+        # Explicit opt-in: emit Igbo (nearest in-vocab relative) and say so.
+        self.lang_codes["Idoma"] = FALLBACK_LANG_CODE
+        return f"Output is {FALLBACK_LANG_CODE} (Igbo), not Idoma: {detail}"
+
+    unsupported: Optional[str] = None
 
     def translate(
         self, text: str, source_lang: str, target_lang: Optional[str] = None
@@ -47,7 +89,7 @@ class TranslationService:
             }
 
         # Set source and target language codes
-        src_code = LANG_CODE_MAP.get(source_lang)
+        src_code = self.lang_codes.get(source_lang)
         if src_code is None:
             return {
                 "translation": "",
@@ -61,7 +103,7 @@ class TranslationService:
         if target_lang is None:
             target_lang = "Idoma" if source_lang == "English" else "English"
 
-        tgt_code = LANG_CODE_MAP.get(target_lang)
+        tgt_code = self.lang_codes.get(target_lang)
         if tgt_code is None:
             return {
                 "translation": "",
@@ -69,6 +111,16 @@ class TranslationService:
                 "confidence": 0.0,
                 "timestamp": datetime.datetime.now().isoformat(),
                 "error": f"Unsupported target language: {target_lang}",
+            }
+
+        # Refuse rather than return the untranslated source sentence.
+        if self.unsupported and "Idoma" in (source_lang, target_lang):
+            return {
+                "translation": "",
+                "model": "NLLB-200",
+                "confidence": 0.0,
+                "timestamp": datetime.datetime.now().isoformat(),
+                "error": f"Idoma is not supported by the loaded model: {self.unsupported}",
             }
 
         try:
@@ -103,6 +155,7 @@ class TranslationService:
                 "source_lang": source_lang,
                 "target_lang": target_lang,
                 "timestamp": datetime.datetime.now().isoformat(),
+                "warning": self.warning,
             }
 
         except Exception as e:

@@ -69,9 +69,7 @@ Idlang is a bidirectional English ↔ Idoma language learning application with s
 # Terminal 1
 cd translator_service
 pip install -r requirements.txt
-python main.py
-# or
-uvicorn main:app --host 0.0.0.0 --port 5005
+uvicorn backup_backend:app --host 0.0.0.0 --port 5005
 ```
 
 The service will be available at `http://localhost:5005`.
@@ -101,7 +99,7 @@ The frontend will be available at `http://localhost:5173`.
 
 ```bash
 # Terminal 1: Python service
-cd translator_service && python main.py
+cd translator_service && uvicorn backup_backend:app --port 5005
 
 # Terminal 2: Go backend
 cd backend && go run main.go
@@ -174,7 +172,8 @@ idlang/
 │   ├── App.tsx                # Main app component
 │   └── main.tsx
 ├── translator_service/
-│   ├── main.py                # FastAPI application
+│   ├── backup_backend.py      # FastAPI application (the REST entrypoint)
+│   ├── app.py                 # Gradio app (Hugging Face Space entrypoint)
 │   ├── config.py              # Model configuration
 │   ├── services/
 │   │   ├── nmt_service.py     # NMT service
@@ -183,6 +182,8 @@ idlang/
 │   │   └── model_loader.py    # Model singleton
 │   ├── requirements.txt       # Python dependencies
 │   └── Dockerfile
+├── data_pipeline/             # Idoma corpus scraper + builder
+├── training/                  # Colab fine-tuning notebook
 └── package.json
 ```
 
@@ -197,6 +198,10 @@ idlang/
 | `VITE_API_URL` | Frontend API URL | `http://localhost:8080` |
 | `CACHE_DIR` | Model cache directory | `./model_cache` |
 | `DEVICE` | Compute device | `cuda` if available |
+| `NMT_MODEL_ID` | Translation checkpoint. **Must contain an `idu_Latn` token** to produce Idoma | `facebook/nllb-200-distilled-600M` |
+| `IDOMA_LANG_CODE` | Idoma target token | `idu_Latn` |
+| `ALLOW_IGBO_FALLBACK` | Accept degraded `ibo_Latn` (Igbo) output when the checkpoint has no Idoma token, instead of erroring | `false` |
+| `HF_TOKEN` | Hugging Face token, only needed for gated/private checkpoints | unset |
 
 ### Model Configuration
 

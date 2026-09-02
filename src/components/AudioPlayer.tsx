@@ -22,21 +22,37 @@ export default function AudioPlayer({
     const audio = audioRef.current;
     if (!audio) return;
 
+    // Each handler must be a stable reference: passing a fresh arrow function to
+    // removeEventListener (as this used to) never detaches anything, so listeners
+    // pile up on every audioUrl change.
     const updateTimes = () => {
       setCurrentTime(audio.currentTime);
       setDuration(audio.duration || 0);
     };
+    const handleEnded = () => setIsPlaying(false);
+    const handleError = () => setError("Audio playback failed");
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+
+    // New source: clear stale error/progress from the previous clip.
+    setError(null);
+    setCurrentTime(0);
+    setDuration(audio.duration || 0);
 
     audio.addEventListener("timeupdate", updateTimes);
     audio.addEventListener("loadedmetadata", updateTimes);
-    audio.addEventListener("ended", () => setIsPlaying(false));
-    audio.addEventListener("error", () => setError("Audio playback failed"));
+    audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("error", handleError);
+    audio.addEventListener("play", handlePlay);
+    audio.addEventListener("pause", handlePause);
 
     return () => {
       audio.removeEventListener("timeupdate", updateTimes);
       audio.removeEventListener("loadedmetadata", updateTimes);
-      audio.removeEventListener("ended", () => setIsPlaying(false));
-      audio.removeEventListener("error", () => setError("Audio playback failed"));
+      audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("error", handleError);
+      audio.removeEventListener("play", handlePlay);
+      audio.removeEventListener("pause", handlePause);
     };
   }, [audioUrl]);
 
@@ -45,11 +61,11 @@ export default function AudioPlayer({
     if (!audio) return;
 
     if (audio.paused) {
+      // The play/pause listeners above own isPlaying, so a rejected play()
+      // no longer leaves the button stuck showing "playing".
       audio.play().catch((err) => setError(err.message));
-      setIsPlaying(true);
     } else {
       audio.pause();
-      setIsPlaying(false);
     }
   };
 

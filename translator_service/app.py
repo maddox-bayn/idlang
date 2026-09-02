@@ -1,7 +1,32 @@
 """
 Idlang Translator - Gradio App with Direct Model Integration
-Simplified for Hugging Face Spaces ZeroGPU
+Runs on Hugging Face Spaces (ZeroGPU or CPU).
+
+-------------------------------------------------------------------------------
+WHY THIS APP USED TO RETURN ENGLISH
+-------------------------------------------------------------------------------
+Stock NLLB-200 covers 202 languages and Idoma is NOT one of them. Verified
+against facebook/nllb-200-distilled-600M's tokenizer:
+
+    eng_Latn -> 256047   valid
+    ibo_Latn -> 256073   valid  (Igbo)
+    idu_Latn -> 3        <unk>  (Idoma -- absent)
+    ig_Latn  -> 3        <unk>  (not a real NLLB code at all)
+
+The previous code did `tgt_lang_code = "idu_Latn" if is_fine_tuned else "ig_Latn"`,
+so BOTH branches resolved to <unk>. Forcing <unk> as forced_bos_token_id gives the
+decoder no target-language signal, so it copies the source sentence -- which is
+exactly the "English in, English out" bug.
+
+THE FIX: use a checkpoint whose tokenizer actually contains an `idu_Latn` token
+(see training/train_idoma_nllb.ipynb, which adds the token, resizes the embedding
+matrix, and initialises the new row from ibo_Latn before fine-tuning). This app now
+validates that token at load time and reports a clear error instead of silently
+emitting untranslated text.
+-------------------------------------------------------------------------------
 """
+
+import os
 
 try:
     import spaces
@@ -9,26 +34,47 @@ try:
     print("✅ ZeroGPU available")
 except ImportError:
     HAS_ZEROGPU = False
-    class spaces:
+
+    class spaces:  # noqa: N801 - drop-in shim so the decorators below still work
         @staticmethod
         def GPU(fn):
             return fn
-    print("⚠️ ZeroGPU mock loaded")
+
+    print("⚠️ ZeroGPU not present — running without the GPU decorator")
 
 import gradio as gr
 import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
 # Disable the broken internal Gradio client schema documentation scanner entirely
-def block_api_schema(*args, **kwargs): return {}
+def block_api_schema(*args, **kwargs):
+    return {}
+
+
 gr.Blocks.get_api_info = block_api_schema
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
+# Point this at your fine-tuned Idoma checkpoint. It must be a public, ungated
+# repo, or the Space needs an HF_TOKEN secret with access.
+MODEL_ID = os.getenv("NMT_MODEL_ID", "facebook/nllb-200-distilled-600M")
+HF_TOKEN = os.getenv("HF_TOKEN") or os.getenv("HUGGING_FACE_HUB_TOKEN")
+
+IDOMA_LANG_CODE = os.getenv("IDOMA_LANG_CODE", "idu_Latn")
+ENGLISH_LANG_CODE = "eng_Latn"
+
+# Igbo is the nearest in-vocabulary Benue-Congo relative. It is NOT Idoma, so it
+# is opt-in only: set ALLOW_IGBO_FALLBACK=true to accept degraded Igbo output
+# from a stock checkpoint rather than an error.
+FALLBACK_LANG_CODE = "ibo_Latn"
+ALLOW_IGBO_FALLBACK = os.getenv("ALLOW_IGBO_FALLBACK", "false").lower() == "true"
+
 print("=" * 60)
 print("🚀 IDLANG TRANSLATOR - STARTUP")
 print("=" * 60)
-print(f"🖥️ Hardware Core Target: {DEVICE}")
+print(f"🖥️  Device: {DEVICE}")
+print(f"📦 Model:  {MODEL_ID}")
+print(f"🏷️  Idoma token: {IDOMA_LANG_CODE}")
 print("=" * 60)
 
 # ==========================================
@@ -36,112 +82,161 @@ print("=" * 60)
 # ==========================================
 nmt_tokenizer = None
 nmt_model = None
+# Resolved once at load time: the language code actually used for Idoma, plus a
+# warning when the checkpoint cannot represent Idoma.
+idoma_code = None
+idoma_warning = None
+
+
+class ModelUnsupportedLanguage(RuntimeError):
+    """The loaded checkpoint has no usable Idoma language token."""
+
+
+def _resolve_idoma_code(tokenizer):
+    """Pick the Idoma target token, or explain why none is usable.
+
+    Returns (code, warning). Raises ModelUnsupportedLanguage when the checkpoint
+    cannot represent Idoma and the Igbo fallback has not been opted into --
+    failing loudly beats returning the input sentence unchanged.
+    """
+    unk = tokenizer.unk_token_id
+    if tokenizer.convert_tokens_to_ids(IDOMA_LANG_CODE) != unk:
+        return IDOMA_LANG_CODE, None
+
+    detail = (
+        f"Checkpoint '{MODEL_ID}' has no '{IDOMA_LANG_CODE}' token, so it cannot "
+        f"generate Idoma. Fine-tune a checkpoint that adds this token "
+        f"(training/train_idoma_nllb.ipynb) and set NMT_MODEL_ID to it."
+    )
+
+    if not ALLOW_IGBO_FALLBACK:
+        raise ModelUnsupportedLanguage(detail)
+
+    if tokenizer.convert_tokens_to_ids(FALLBACK_LANG_CODE) == unk:
+        raise ModelUnsupportedLanguage(
+            detail + f" The '{FALLBACK_LANG_CODE}' fallback is also missing."
+        )
+
+    return FALLBACK_LANG_CODE, (
+        f"⚠️ Output is **{FALLBACK_LANG_CODE} (Igbo)**, not Idoma — "
+        f"ALLOW_IGBO_FALLBACK is enabled and {detail}"
+    )
+
 
 def load_translation_model():
-    """Load translation model securely on current active thread execution stack"""
-    global nmt_tokenizer, nmt_model
+    """Load the tokenizer/model once and validate the Idoma language token."""
+    global nmt_tokenizer, nmt_model, idoma_code, idoma_warning
+
     if nmt_tokenizer is None:
-        print("📦 Downloading model layers from registry repo...")
-        # Fallback tracking safely manages public mirrors if gated permissions aren't verified yet
-        try:
-            nmt_tokenizer = AutoTokenizer.from_pretrained("mrheartng/idu-eng-translator")
-            nmt_model = AutoModelForSeq2SeqLM.from_pretrained("mrheartng/idu-eng-translator")
-        except Exception:
-            nmt_tokenizer = AutoTokenizer.from_pretrained("facebook/nllb-200-distilled-600M")
-            nmt_model = AutoModelForSeq2SeqLM.from_pretrained("facebook/nllb-200-distilled-600M")
-        print("✅ Weights successfully allocated to application registry memory mapping.")
+        print(f"📦 Loading {MODEL_ID} ...")
+        kwargs = {"token": HF_TOKEN} if HF_TOKEN else {}
+        # No silent fallback to a different repo here: substituting a stock NLLB
+        # checkpoint for a gated Idoma one is what produced untranslated output.
+        # Configuration errors must surface, not be papered over.
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, **kwargs)
+        model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_ID, **kwargs)
+        model.eval()
+
+        idoma_code, idoma_warning = _resolve_idoma_code(tokenizer)
+        if idoma_warning:
+            print(idoma_warning)
+        else:
+            print(f"✅ Idoma token '{idoma_code}' present in tokenizer")
+
+        nmt_tokenizer, nmt_model = tokenizer, model
+        print("✅ Model ready")
+
     return nmt_tokenizer, nmt_model
+
+
+def _generate(text, src_code, tgt_code):
+    tokenizer, model = load_translation_model()
+    model = model.to(DEVICE)
+
+    tokenizer.src_lang = src_code
+    inputs = tokenizer(str(text), return_tensors="pt").to(DEVICE)
+
+    tgt_token_id = tokenizer.convert_tokens_to_ids(tgt_code)
+    if tgt_token_id == tokenizer.unk_token_id:
+        raise ModelUnsupportedLanguage(
+            f"Target language token '{tgt_code}' is not in this tokenizer."
+        )
+
+    with torch.no_grad():
+        outputs = model.generate(
+            **inputs,
+            forced_bos_token_id=tgt_token_id,
+            max_length=256,
+            num_beams=4,
+        )
+
+    result = str(tokenizer.decode(outputs[0], skip_special_tokens=True))
+    if idoma_warning:
+        result = f"{result}\n\n{idoma_warning}"
+    return result
+
 
 # ==========================================
 # CORE TRANSLATION FUNCTIONS (ZeroGPU Compliant)
 # ==========================================
 
+
 @spaces.GPU
 def translate_english_to_idoma(text):
     if not text or not str(text).strip():
         return "Error: Input string cannot be empty."
-    
+
     try:
-        print(f"🔄 Processing English ➡️ Idoma translation request...")
-        tokenizer, model = load_translation_model()
-        
-        # Explicitly map target model onto the graphics execution memory block
-        model = model.to(DEVICE)
-        
-        # Determine language target token fallback layout
-        is_fine_tuned = "mrheartng" in str(tokenizer.name_or_path)
-        tgt_lang_code = "idu_Latn" if is_fine_tuned else "ig_Latn"
-        
-        tokenizer.src_lang = "eng_Latn"
-        inputs = tokenizer(str(text), return_tensors="pt").to(DEVICE)
-        tgt_token_id = tokenizer.convert_tokens_to_ids(tgt_lang_code)
-        
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                forced_bos_token_id=tgt_token_id,
-                max_length=256,
-                num_beams=4
-            )
-        
-        return str(tokenizer.decode(outputs[0], skip_special_tokens=True))
+        print("🔄 English ➡️ Idoma")
+        return _generate(text, ENGLISH_LANG_CODE, idoma_code or IDOMA_LANG_CODE)
+    except ModelUnsupportedLanguage as e:
+        return f"❌ Model misconfigured: {e}"
     except Exception as e:
         return f"❌ Translation Error: {e}"
+
 
 @spaces.GPU
 def translate_idoma_to_english(text):
     if not text or not str(text).strip():
         return "Error: Input string cannot be empty."
-    
+
     try:
-        print(f"🔄 Processing Idoma ➡️ English translation request...")
-        tokenizer, model = load_translation_model()
-        
-        # Explicitly map target model onto the graphics execution memory block
-        model = model.to(DEVICE)
-        
-        is_fine_tuned = "mrheartng" in str(tokenizer.name_or_path)
-        src_lang_code = "idu_Latn" if is_fine_tuned else "ig_Latn"
-        
-        tokenizer.src_lang = src_lang_code
-        inputs = tokenizer(str(text), return_tensors="pt").to(DEVICE)
-        tgt_token_id = tokenizer.convert_tokens_to_ids("eng_Latn")
-        
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                forced_bos_token_id=tgt_token_id,
-                max_length=256,
-                num_beams=4
-            )
-        
-        return str(tokenizer.decode(outputs[0], skip_special_tokens=True))
+        print("🔄 Idoma ➡️ English")
+        # Load first so idoma_code is resolved before it is used as the source.
+        load_translation_model()
+        return _generate(text, idoma_code or IDOMA_LANG_CODE, ENGLISH_LANG_CODE)
+    except ModelUnsupportedLanguage as e:
+        return f"❌ Model misconfigured: {e}"
     except Exception as e:
         return f"❌ Translation Error: {e}"
+
 
 # ==========================================
 # PRODUCTION USER INTERFACE DESIGN LAYOUT
 # ==========================================
 with gr.Blocks(title="Idlang Translator", theme=gr.themes.Soft()) as demo:
     gr.Markdown("# 🗣️ Idoma-English Translation Service")
-    gr.HTML("<p style='color: #16A34A; font-weight: bold;'>✅ System Status: ZeroGPU Active Cloud Pipeline Operational</p>")
-    
+    gr.Markdown(
+        f"Model: `{MODEL_ID}` · Device: `{DEVICE}` · "
+        f"{'ZeroGPU' if HAS_ZEROGPU else 'standard hardware'}"
+    )
+
     with gr.Group():
         gr.Markdown("### 📝 English ➡️ Idoma")
         en_input = gr.Textbox(label="English Input Text", placeholder="Type English sentences here...", lines=3)
         en_btn = gr.Button("🚀 Translate to Idoma", variant="primary")
         en_output = gr.Textbox(label="Idoma Translation Result Output", interactive=False, lines=3)
-        
+
         en_btn.click(fn=translate_english_to_idoma, inputs=en_input, outputs=en_output)
-    
+
     gr.Markdown("---")
-    
+
     with gr.Group():
         gr.Markdown("### 📝 Idoma ➡️ English")
         idu_input = gr.Textbox(label="Idoma Input Text", placeholder="Type Idoma sentences here...", lines=3)
         idu_btn = gr.Button("🚀 Translate to English", variant="primary")
         idu_output = gr.Textbox(label="English Translation Result Output", interactive=False, lines=3)
-        
+
         idu_btn.click(fn=translate_idoma_to_english, inputs=idu_input, outputs=idu_output)
 
 if __name__ == "__main__":

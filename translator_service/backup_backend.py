@@ -32,32 +32,40 @@ _translation_service = None
 _asr_service = None
 _tts_service = None
 
+
+def _gpu_wrap(fn):
+    """Wrap a loader in spaces.GPU when running on ZeroGPU, else return it as-is.
+
+    `spaces` only exists on Hugging Face ZeroGPU hardware. Importing it
+    unconditionally crashes every other environment (local, Docker, Vercel-backed
+    hosts), so fall back to calling the function directly.
+    """
+    try:
+        import spaces
+    except ImportError:
+        return fn
+    return spaces.GPU(fn)
+
+
 def get_lazy_translation_service():
     global _translation_service
     if _translation_service is None:
         from services.nmt_service import get_translation_service
-        import spaces
-        # Wrap the function dynamically if running on ZeroGPU
-        get_service_gpu = spaces.GPU(get_translation_service)
-        _translation_service = get_service_gpu()
+        _translation_service = _gpu_wrap(get_translation_service)()
     return _translation_service
 
 def get_lazy_asr_service():
     global _asr_service
     if _asr_service is None:
         from services.asr_service import get_asr_service
-        import spaces
-        get_service_gpu = spaces.GPU(get_asr_service)
-        _asr_service = get_service_gpu()
+        _asr_service = _gpu_wrap(get_asr_service)()
     return _asr_service
 
 def get_lazy_tts_service():
     global _tts_service
     if _tts_service is None:
         from services.tts_service import get_tts_service
-        import spaces
-        get_service_gpu = spaces.GPU(get_tts_service)
-        _tts_service = get_service_gpu()
+        _tts_service = _gpu_wrap(get_tts_service)()
     return _tts_service
 
 class TranslateRequest(BaseModel):
@@ -73,6 +81,8 @@ class TranslateResponse(BaseModel):
     target_lang: str
     timestamp: str
     explanation: Optional[str] = None
+    # Set when the loaded checkpoint cannot truly emit Idoma (see nmt_service).
+    warning: Optional[str] = None
 
 class SynthesizeRequest(BaseModel):
     text: str = Field(..., min_length=1, description="Text to synthesize")
