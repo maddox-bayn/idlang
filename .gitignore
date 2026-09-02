@@ -54,6 +54,12 @@ pip-delete-this-directory.txt
 *.out
 go.work
 idlang-backend
+# `go build ./...` inside backend/ writes a binary named after the module
+# (github.com/adole/idlang), so the artifact is backend/idlang — not
+# `idlang-backend`, which matches nothing. A 7.8 MB unstripped ELF was tracked as
+# a result: every build dirtied the tree, `COPY . .` shipped it into images, and
+# the committed copy went stale against the source beside it.
+backend/idlang
 
 # ML Models Cache
 translator_service/model_cache/

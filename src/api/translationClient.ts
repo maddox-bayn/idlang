@@ -1,6 +1,22 @@
 import type { TranslateResponse, TranscriptionResponse, FullPipelineResponse } from "../types";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080";
+/**
+ * Base URL for the API.
+ *
+ * - `VITE_API_URL` set (e.g. the Vercel deployment pointing at a hosted backend)
+ *   wins, with any trailing slash stripped so `${base}/api/...` cannot become
+ *   `//api/...`.
+ * - Set it to an empty string for same-origin deploys — the single-container
+ *   image serves the built frontend and the API from one host. A plain `||`
+ *   default treats "" as unset and would wrongly send the browser to
+ *   localhost:8080.
+ * - Otherwise: same-origin in a production build, localhost:8080 in `vite dev`
+ *   (where vite.config.ts proxies /api to the Go backend anyway).
+ */
+const configured = import.meta.env.VITE_API_URL;
+const API_BASE_URL = (
+  typeof configured === "string" ? configured : import.meta.env.PROD ? "" : "http://localhost:8080"
+).replace(/\/+$/, "");
 
 /**
  * Pull a human-readable message off an error response.

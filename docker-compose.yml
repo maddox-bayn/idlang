@@ -1,14 +1,32 @@
-version: '3.8'
+# Local three-service stack:
+#
+#   browser -> frontend :7860   (built React assets)
+#           -> backend  :8080   (Go: dictionary-first, then the model)
+#              backend  -> translator :5005 (Python: NMT + ASR + TTS)
+#
+# Notes on two things that used to be wrong here:
+#
+# 1. VITE_API_URL is a BUILD argument, not a runtime variable. Vite inlines
+#    VITE_* into the bundle at build time, so setting it under `environment:`
+#    had no effect at all.
+# 2. Its value must be reachable from the BROWSER, not from inside the Docker
+#    network. `http://backend:8080` only resolves between containers, so the
+#    published host port is used instead.
+#
+# GPU: CPU by default so `docker compose up` works everywhere. To use a GPU, set
+# DEVICE=cuda and uncomment the `deploy:` block under `translator`.
 
 services:
   frontend:
     build:
       context: .
       dockerfile: Dockerfile.frontend
+      args:
+        # Browser-reachable address of the Go backend.
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8080}
     ports:
-      - "3000:3000"
-    environment:
-      - VITE_API_URL=http://backend:8080
+      # The image serves on 7860 (the port Hugging Face Spaces requires).
+      - "7860:7860"
     depends_on:
       - backend
     networks:
@@ -16,8 +34,8 @@ services:
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     ports:
       - "8080:8080"
     environment:
@@ -35,18 +53,36 @@ services:
     ports:
       - "5005:5005"
     environment:
-      - DEVICE=cuda
+      # Point this at the checkpoint from training/train_idoma_nllb.ipynb.
+      # Stock NLLB has no Idoma token, so the service reports a configuration
+      # error for Idoma rather than silently returning English.
+      - NMT_MODEL_ID=${NMT_MODEL_ID:-facebook/nllb-200-distilled-600M}
+      - IDOMA_LANG_CODE=${IDOMA_LANG_CODE:-idu_Latn}
+      - ALLOW_IGBO_FALLBACK=${ALLOW_IGBO_FALLBACK:-false}
+      # Only needed for gated or private Hugging Face repos.
+      - HF_TOKEN=${HF_TOKEN:-}
+      # Empty means autodetect (cuda when available, else cpu).
+      - DEVICE=${DEVICE:-}
       - CACHE_DIR=/app/model_cache
       - PORT=5005
     volumes:
+      # Persist downloaded weights across restarts — the model is ~2.5GB.
       - model_cache:/app/model_cache
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5005/health')\""]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    # GPU: uncomment together with DEVICE=cuda. Requires the NVIDIA container
+    # toolkit; leaving it enabled on a CPU-only host makes `up` fail outright.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
     networks:
       - idlang-network
 

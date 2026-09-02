@@ -4,13 +4,14 @@ import datetime
 import io
 from typing import Dict, Any, Optional
 
+from loguru import logger
+
 try:
     import torch
     import numpy as np
     import torchaudio
     from transformers import (
         AutoTokenizer,
-        
         SpeechT5ForTextToSpeech,
         SpeechT5HifiGan,
         SpeechT5Tokenizer,
@@ -36,11 +37,28 @@ class TTSService:
         self.english_pipeline: Any = None
         self.english_vocoder: Any = None
         self._models_loaded = False
+        # Why Idoma TTS was unavailable, if it was. Surfaced to callers so the UI
+        # can label stand-in audio instead of presenting it as Idoma speech.
+        self.idoma_tts_error: Optional[str] = None
 
     def _load_models(self):
-        """Load TTS models on first use."""
+        """Load TTS models on first use.
+
+        Idoma TTS is optional: there is no public Idoma VITS checkpoint, so the
+        configured model may be absent or the wrong architecture. That must not
+        take English synthesis down with it — the two were previously loaded
+        together, so one bad TTS_IDOMA_MODEL broke every /synthesize call.
+        """
         if not self._models_loaded:
-            self.idoma_tokenizer, self.idoma_model = ModelManager.load_idoma_tts()
+            try:
+                self.idoma_tokenizer, self.idoma_model = ModelManager.load_idoma_tts()
+                self.idoma_tts_error = None
+            except Exception as exc:
+                self.idoma_tokenizer = self.idoma_model = None
+                self.idoma_tts_error = str(exc)
+                logger.warning(
+                    f"Idoma TTS unavailable, falling back to English synthesis: {exc}"
+                )
             self.english_pipeline, self.english_vocoder = (
                 ModelManager.load_english_tts_pipeline()
             )
@@ -64,12 +82,19 @@ class TTSService:
         if not text or not text.strip():
             raise ValueError("Empty input text")
 
+        # The only Idoma VITS checkpoint (mrheartng/idoma-mms-tts-eng) is gated, so
+        # by default this model is absent. Fall back to the English voice rather
+        # than crashing on a None model. voice_warning() reports the substitution
+        # so it is never presented as genuine Idoma speech.
+        if self.idoma_model is None:
+            logger.warning("Idoma TTS unavailable; using the English voice instead")
+            return self.synthesize_english(text, speaker_id=speaker_id)
+
         try:
             # Tokenize input
             inputs = self.idoma_tokenizer(
                 text, return_tensors="pt"
             ).to(DEVICE)
-
             # Generate speech
             with torch.no_grad():
                 outputs = self.idoma_model(**inputs).waveform
@@ -143,6 +168,25 @@ class TTSService:
 
         except Exception as e:
             raise RuntimeError(f"English TTS failed: {e}")
+
+    def voice_warning(self, target_lang: str) -> Optional[str]:
+        """Return a caveat about the voice used, or None when it is genuine.
+
+        Idoma has no public TTS model, so Idoma requests are served by the English
+        voice. Callers surface this so a listener is never told that English
+        phonetics are Idoma speech.
+        """
+        if target_lang != "Idoma":
+            return None
+        if not self._models_loaded:
+            return None
+        if self.idoma_model is not None:
+            return None
+        detail = f" ({self.idoma_tts_error})" if self.idoma_tts_error else ""
+        return (
+            "Audio was synthesized with the English voice: no Idoma TTS model is "
+            f"configured, so the pronunciation is not authentic Idoma{detail}"
+        )
 
     def synthesize(
         self, text: str, target_lang: str

@@ -43,14 +43,47 @@ Idlang is a bidirectional English ↔ Idoma language learning application with s
 ### Backend
 - **Main Server**: Go (net/http)
 - **Translation Service**: Python 3.8+ with FastAPI
-- **Dictionary**: JSON-based with 200+ word pairs
+- **Dictionary**: JSON lookup, served ahead of the model — but see the warning
+  under [Configuration](#environment-variables): the bundled file is not
+  trustworthy
 
 ### ML Models
-- **NMT**: NLLB-200 (mrheartng/idu-eng-translator)
-- **ASR (Idoma)**: Wav2Vec2 XLS-R (mrheartng/wav2vec2-xls-r-1b-finetuned-idoma)
-- **ASR (English)**: Whisper Large v3 (openai/whisper-large-v3)
-- **TTS (Idoma)**: VITS MMS-TTS (mrheartng/idoma-mms-tts-eng)
-- **TTS (English)**: SpeechT5 (microsoft/speecht5_tts)
+
+Every Idoma-specific checkpoint this project was written against is
+**`gated: manual`** on Hugging Face — its page loads, but `resolve/main/*` returns
+401, so an unattended deploy cannot download it. Naming a gated repo as the default
+is what produced the original "English in, English out" bug: the download failed and
+the code fell through to a broken fallback. So the defaults in
+`translator_service/config.py` are all ungated, and each one names what to switch to
+once you have access.
+
+| Role | Default (ungated) | Idoma checkpoint (gated) | Status without access |
+|---|---|---|---|
+| NMT | `facebook/nllb-200-distilled-600M` | `mrheartng/idu-eng-translator` | **Cannot produce Idoma** — stock NLLB has no `idu_Latn` token. Train your own: `training/train_idoma_nllb.ipynb` |
+| ASR (Idoma) | `facebook/wav2vec2-xls-r-300m` | `mrheartng/wav2vec2-xls-r-1b-finetuned-idoma` | Multilingual base, never trained on Idoma — approximate at best |
+| ASR (English) | `openai/whisper-small` | — | Works |
+| TTS (Idoma) | `microsoft/speecht5_tts` | `mrheartng/idoma-mms-tts-eng` (VITS) | English voice, flagged by an `X-Voice-Warning` header |
+| TTS (English) | `microsoft/speecht5_tts` | — | Works |
+
+Override any of them with `NMT_MODEL_ID`, `ASR_IDOMA_MODEL`, `ASR_ENGLISH_MODEL`,
+`TTS_IDOMA_MODEL`, `TTS_ENGLISH_MODEL`, and set `HF_TOKEN` for gated repos.
+
+### Training data
+
+The bundled `backend/idoma_dictionary_v2.json` is fabricated and is not used for
+training. A real corpus is scraped from idomaland.org by `data_pipeline/`:
+
+```
+1,119 dictionary pages crawled -> 1,117 parsed (99.82%) -> 1,251 pairs
+989 train / 125 dev / 137 test    1,117 distinct English, 1,068 distinct Idoma
+0 placeholder rows, 0 rejected, 0 English keys shared across splits
+```
+
+Mostly word-level, so it trains a dictionary-augmented translator rather than a
+fluent sentence translator. **The scraped text stays local** (`data_pipeline/out/`
+and `cache/` are gitignored); only the trained model is published, crediting
+idomaland.org. See [`data_pipeline/README.md`](data_pipeline/README.md) for the
+source survey and the parse rules.
 
 ## Getting Started
 
@@ -132,18 +165,25 @@ Select from pre-built lessons or generate new ones with the `/api/generate-lesso
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/api/translate` | POST | Translate text or process audio |
+| `/health` | GET | Health check |
+| `/api/translate` | POST | Translate text (dictionary first, then the model) |
+| `/api/transcribe` | POST | Proxy multipart audio to the Python service |
+| `/api/pipeline` | POST | Proxy multipart audio through STT → NMT → TTS |
 | `/api/generate-lesson` | POST | Generate quiz questions |
 
 ### Python Service (`http://localhost:5005`)
 
+Every endpoint is registered twice: bare for the Go backend, and under `/api` for
+browsers talking to the service directly (which is what the single-container deploy
+needs, since the frontend always calls `/api/*`).
+
 | Endpoint | Method | Description |
 |----------|--------|-------------|
-| `/health` | GET | Health check |
-| `/translate` | POST | Text translation (NMT) |
-| `/transcribe` | POST | Audio transcription (ASR) |
-| `/synthesize` | POST | Text-to-speech (TTS) |
-| `/pipeline` | POST | Full STT → NMT → TTS flow |
+| `/health`, `/api/health` | GET | Health check |
+| `/translate`, `/api/translate` | POST | Text translation (NMT) |
+| `/transcribe`, `/api/transcribe` | POST | Audio transcription (ASR) |
+| `/synthesize`, `/api/synthesize` | POST | Text-to-speech (TTS) |
+| `/pipeline`, `/api/pipeline` | POST | Full STT → NMT → TTS flow |
 
 See `translator_service/README.md` for detailed API specs.
 
@@ -152,9 +192,11 @@ See `translator_service/README.md` for detailed API specs.
 ```
 idlang/
 ├── backend/
-│   ├── main.go              # Go HTTP server
-│   ├── client.go            # Python service client
-│   ├── idoma_dictionary_v2.json  # 200+ word dictionary
+│   ├── main.go              # Go HTTP server (dictionary-first, then the model)
+│   ├── main_test.go
+│   ├── idoma_dictionary_v2.json  # 218 entries, half of them placeholders — see below
+│   ├── idoma_dictionary.json     # v1 fallback, bare-string schema
+│   ├── Dockerfile           # build with the REPO ROOT as context
 │   └── go.mod
 ├── src/
 │   ├── components/
@@ -181,9 +223,20 @@ idlang/
 │   │   ├── tts_service.py     # TTS service
 │   │   └── model_loader.py    # Model singleton
 │   ├── requirements.txt       # Python dependencies
-│   └── Dockerfile
-├── data_pipeline/             # Idoma corpus scraper + builder
-├── training/                  # Colab fine-tuning notebook
+│   ├── README.md              # Hugging Face Space card (Gradio SDK)
+│   └── Dockerfile             # API-only image
+├── data_pipeline/             # Idoma corpus scraper + builder (see its README)
+│   ├── scrape_idomaland.py
+│   ├── build_corpus.py
+│   ├── test_parser.py         # 50 offline parser tests
+│   ├── test_build_corpus.py   # 24 offline cleaning/splitting tests
+│   └── eval_seed.tsv          # hand-verified held-out pairs
+├── training/
+│   └── train_idoma_nllb.ipynb # Colab notebook: adds the idu_Latn token, fine-tunes
+├── Dockerfile.frontend        # single-container image: React assets + FastAPI
+├── docker-compose.yml         # local three-service stack
+├── vercel.json                # Vercel config (SPA rewrite, asset caching)
+├── .env.example
 └── package.json
 ```
 
@@ -195,25 +248,56 @@ idlang/
 |----------|-------------|---------|
 | `PORT` | Go backend port | `8080` |
 | `TRANSLATOR_URL` | Python service URL | `http://localhost:5005` |
-| `VITE_API_URL` | Frontend API URL | `http://localhost:8080` |
+| `VITE_API_URL` | Frontend API URL. **Build-time** — Vite inlines it, so rebuild after changing it. Empty string means same-origin | same origin in a production build, `http://localhost:8080` in `vite dev` |
 | `CACHE_DIR` | Model cache directory | `./model_cache` |
 | `DEVICE` | Compute device | `cuda` if available |
 | `NMT_MODEL_ID` | Translation checkpoint. **Must contain an `idu_Latn` token** to produce Idoma | `facebook/nllb-200-distilled-600M` |
 | `IDOMA_LANG_CODE` | Idoma target token | `idu_Latn` |
 | `ALLOW_IGBO_FALLBACK` | Accept degraded `ibo_Latn` (Igbo) output when the checkpoint has no Idoma token, instead of erroring | `false` |
 | `HF_TOKEN` | Hugging Face token, only needed for gated/private checkpoints | unset |
+| `CORS_ORIGINS` | Comma-separated browser origins allowed to call the Python service directly. A wildcard disables credentialed requests | `*` |
+| `FRONTEND_DIR` | Built frontend the Python service should serve, when present | `dist/` beside `backup_backend.py` |
+| `DICTIONARY_PATH` | Dictionary file the Go backend loads | `idoma_dictionary_v2.json` |
+| `DICTIONARY_FIRST` | Let exact dictionary hits short-circuit the model. Set `false` to always use the model — see the warning below | `true` |
+
+Copy `.env.example` to `.env` for a documented starting point.
+
+> **The bundled dictionary is not trustworthy.** 109 of the 218 entries in
+> `backend/idoma_dictionary_v2.json` are the placeholder `ụụ` (now skipped, and
+> counted in the startup log), and among the rest `òdò` is given as the
+> translation of *black, day, evening, morning, night* and *red* alike. Because
+> dictionary hits are served ahead of the model, set `DICTIONARY_FIRST=false` or
+> point `DICTIONARY_PATH` at a dictionary you trust once a trained checkpoint is
+> deployed. The evidence is in `data_pipeline/README.md`.
 
 ### Model Configuration
 
-Edit `translator_service/config.py` to customize models:
+Models are read from environment variables in `translator_service/config.py`, so
+you normally do not need to edit code:
 
 ```python
-MODEL_NMT = "mrheartng/idu-eng-translator"
-MODEL_ASR_IDOMA = "mrheartng/wav2vec2-xls-r-1b-finetuned-idoma"
-MODEL_ASR_ENG = "openai/whisper-large-v3"
-MODEL_TTS_IDOMA = "mrheartng/idoma-mms-tts-eng"
-MODEL_TTS_ENG = "microsoft/speecht5_tts"
+class ModelIDs:
+    NMT = NMT_MODEL_ID                                    # $NMT_MODEL_ID
+    ASR_IDOMA = os.getenv("ASR_IDOMA_MODEL", "facebook/wav2vec2-xls-r-300m")
+    ASR_ENGLISH = os.getenv("ASR_ENGLISH_MODEL", "openai/whisper-small")
+    TTS_IDOMA = os.getenv("TTS_IDOMA_MODEL", "microsoft/speecht5_tts")
+    TTS_ENGLISH = os.getenv("TTS_ENGLISH_MODEL", "microsoft/speecht5_tts")
 ```
+
+Two caveats worth knowing:
+
+- `mrheartng/idu-eng-translator`, the checkpoint this project originally pointed
+  at, is **gated** (`gated: manual`): its page loads but `resolve/main/*` returns
+  401, so the weights cannot be downloaded. Train your own with
+  `training/train_idoma_nllb.ipynb` and set `NMT_MODEL_ID` to it.
+- The Idoma ASR and TTS checkpoints are gated the same way, so the defaults above
+  are ungated stand-ins — Idoma transcription runs on a base model that has never
+  seen Idoma, and Idoma synthesis needs a **VITS/MMS-TTS** checkpoint specifically
+  (`synthesize_idoma` reads `.waveform` from the model output, which only VITS
+  provides). SpeechT5 is not VITS, so Idoma audio is synthesized with the
+  **English voice** and the `/synthesize` response carries an `X-Voice-Warning`
+  header saying so. See the table under [ML Models](#ml-models) for what to set
+  each variable to once access is granted.
 
 ## Error Handling
 
@@ -255,34 +339,50 @@ Edit `backend/idoma_dictionary_v2.json`:
 ### Running Tests
 
 ```bash
-# Frontend tests
-npm run test
+# Go backend
+cd backend && go test ./...
+
+# Corpus pipeline (offline, no network needed)
+python3 data_pipeline/test_parser.py
+python3 data_pipeline/test_build_corpus.py
 
 # Python service tests
-cd translator_service
-python -m pytest tests/
+cd translator_service && python -m pytest tests/
+
+# Frontend: there is no test runner configured yet; `npm run lint` and
+# `npm run build` (which type-checks via `tsc -b`) are the current gate.
+npm run lint && npm run build
 ```
 
 ## Deployment
 
-### Docker
+See **[DEPLOYMENT.md](DEPLOYMENT.md)** for the full guide. The short version:
+
+1. **Train a model first.** Run `training/train_idoma_nllb.ipynb` on Colab. Stock
+   NLLB-200 has no `idu_Latn` token and cannot produce Idoma — that was the
+   original "English in, English out" bug.
+2. **Set `NMT_MODEL_ID`** to the resulting checkpoint wherever the Python service
+   runs, and confirm the repo is public and ungated:
+   `curl -sI https://huggingface.co/<user>/<repo>/resolve/main/config.json` → 200.
+3. **Frontend → Vercel.** `vercel --prod`, with `VITE_API_URL` set to the backend
+   URL. It is inlined at build time, so redeploy after changing it.
+4. **Backend → a host with ~2.5GB RAM** (Hugging Face Docker Space, Fly.io, or
+   Render), with `CORS_ORIGINS` set to your Vercel origin.
+
+Or run everything in one container:
 
 ```bash
-# Build Python service
-cd translator_service
-docker build -t idlang-translator .
-
-# Run container
-docker run -p 5005:5005 --gpus all idlang-translator
+docker build -f Dockerfile.frontend -t idlang .
+docker run -p 7860:7860 -e NMT_MODEL_ID=<user>/nllb-eng-idoma idlang
 ```
 
-### Production
+Verify any deployment with the test that actually matters:
 
-1. Build frontend: `npm run build`
-2. Deploy static files to CDN/Vercel
-3. Deploy Go backend to server
-4. Deploy Python service with Docker
-5. Configure environment variables
+```bash
+curl -s <host>/api/translate -H 'Content-Type: application/json' \
+  -d '{"text":"water","source_lang":"English","target_lang":"Idoma"}'
+# expect Ennkpo (central) or Enyi (western) — NOT "water"
+```
 
 ## Resources
 

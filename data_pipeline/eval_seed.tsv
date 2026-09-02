@@ -1,0 +1,51 @@
+# Hand-verified English↔Idoma evaluation seed
+#
+# Format:  english <TAB> idoma <TAB> dialect (optional: central|western|"")
+# Lines starting with '#' are comments. build_corpus.py forces every pair here
+# into the TEST split and removes any matching English key from train/dev, so
+# these are a clean held-out set.
+#
+# ---------------------------------------------------------------------------
+# RULE: only add a pair you have actually verified.
+# ---------------------------------------------------------------------------
+# The reason this file starts nearly empty is deliberate. The project's previous
+# dataset (backend/idoma_dictionary_v2.json) was filled with invented entries and
+# that is what broke it: 109 of 218 rows were the placeholder "ụụ", and among the
+# 107 that survived filtering, "òdò" was given as the translation of black, day,
+# evening, morning, night AND red, and "ófé" as both "Please" and "Thank you".
+# A wrong evaluation set is worse than a small one: it makes a broken model look
+# fine. So this file only contains pairs read off a citable source or confirmed by
+# a speaker.
+#
+# Where to get more:
+#   1. https://www.scribd.com/document/1006452998/English-Idoma-Wordlist
+#      ~74 tone-marked pairs. The page is behind a bot wall, so it cannot be
+#      scraped — open it in a browser and copy the pairs in by hand.
+#   2. https://www.idomaland.org/dictionary
+#      Scraped automatically by scrape_idomaland.py. Do NOT copy rows from the
+#      scrape into this file: the point of this set is to be independent of it.
+#   3. A native speaker reviewing candidate rows.
+#
+# Target: ~60 pairs. Mix single words with short phrases, and note the dialect
+# when the source does, because central and western Idoma differ (water is Ennkpo
+# in central and Enyi in western).
+#
+# ---------------------------------------------------------------------------
+# Smoke-test pairs, NOT independent evaluation (2026-09-02)
+# ---------------------------------------------------------------------------
+# These five were read off live idomaland.org pages by hand, so they share a
+# source with the training corpus and break the independence rule above. They are
+# kept anyway for one narrow purpose: each has two dialect forms or an apostrophe,
+# so they exercise the multi-reference and diacritic paths in the notebook's
+# scoring cell. Do not read a score on these as evidence of generalisation, and
+# do not add more of them — everything below the last divider should come from
+# Scribd or a speaker.
+water	Ennkpo	central
+water	Enyi	western
+eat	Le	central
+eat	Re	western
+I am singing	Nyo gw'ije
+
+# ---------------------------------------------------------------------------
+# Add verified pairs below this line.
+# ---------------------------------------------------------------------------

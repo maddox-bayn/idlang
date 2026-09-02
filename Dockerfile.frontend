@@ -9,6 +9,14 @@
 # ==========================================
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app
+
+# Vite inlines VITE_* variables into the bundle at BUILD time, so this has to be
+# a build argument — passing it as a runtime env var to the final image does
+# nothing. Empty default = same-origin, which is what the single-container deploy
+# below needs, since FastAPI serves both the assets and /api/* here.
+ARG VITE_API_URL=""
+ENV VITE_API_URL=$VITE_API_URL
+
 COPY package*.json ./
 RUN npm ci
 COPY . .

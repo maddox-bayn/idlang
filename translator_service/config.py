@@ -43,8 +43,22 @@ ALLOW_IGBO_FALLBACK = os.getenv("ALLOW_IGBO_FALLBACK", "false").lower() == "true
 # Model IDs
 class ModelIDs:
     NMT = NMT_MODEL_ID
+    # The Idoma-finetuned ASR checkpoint (mrheartng/wav2vec2-xls-r-1b-finetuned-idoma)
+    # is `gated: manual` too, so this default is the ungated multilingual base it was
+    # finetuned from. It has never seen Idoma, so Idoma transcription is approximate
+    # at best; set ASR_IDOMA_MODEL to the finetuned repo once access is granted.
     ASR_IDOMA = os.getenv("ASR_IDOMA_MODEL", "facebook/wav2vec2-xls-r-300m")
     ASR_ENGLISH = os.getenv("ASR_ENGLISH_MODEL", "openai/whisper-small")
+    # Idoma synthesis requires a VITS/MMS-TTS checkpoint: tts_service reads
+    # `.waveform` from the model output, which only VITS returns. One Idoma VITS
+    # checkpoint exists — mrheartng/idoma-mms-tts-eng — but it is `gated: manual`,
+    # so an unattended deploy cannot download it; defaulting to it would reproduce
+    # the original bug, where a gated model silently fell through to a broken
+    # fallback. This default is deliberately not VITS: the service detects that,
+    # uses the English voice, and flags the substitution via an X-Voice-Warning
+    # header instead of passing English phonetics off as Idoma. Once you have been
+    # granted access, set TTS_IDOMA_MODEL=mrheartng/idoma-mms-tts-eng and provide
+    # HF_TOKEN.
     TTS_IDOMA = os.getenv("TTS_IDOMA_MODEL", "microsoft/speecht5_tts")
     TTS_ENGLISH = os.getenv("TTS_ENGLISH_MODEL", "microsoft/speecht5_tts")
 
@@ -59,6 +73,17 @@ CACHE_DIR = os.getenv("CACHE_DIR", "./model_cache")
 # Service configuration
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", 5005))
+
+# Comma-separated list of browser origins allowed to call this service directly,
+# e.g. "https://idlang.vercel.app,http://localhost:5173". Defaults to "*" for
+# local development. Set it explicitly in production: a wildcard origin cannot be
+# combined with credentialed requests, so the app disables credentials whenever
+# this is left as "*".
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", "*").split(",")
+    if origin.strip()
+] or ["*"]
 
 # Translation service URL for Go backend integration
 TRANSLATOR_URL = os.getenv("TRANSLATOR_URL", f"http://{HOST}:{PORT}")

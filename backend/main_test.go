@@ -137,3 +137,50 @@ func TestV1BareStringDictionaryLoads(t *testing.T) {
 		t.Errorf("expected v1 bare-string entry to parse as Adah, got %q", got)
 	}
 }
+
+// Half of idoma_dictionary_v2.json maps to the placeholder "ụụ". The dictionary
+// is consulted before the model, so serving those entries both returns nonsense
+// and hides the model's real output.
+func TestPlaceholderEntriesAreNotServed(t *testing.T) {
+	if usableEntry(WordEntry{Idoma: idomaPlaceholder}) {
+		t.Error("placeholder entry should be treated as absent")
+	}
+	if usableEntry(WordEntry{Idoma: "  "}) {
+		t.Error("blank entry should be treated as absent")
+	}
+	if !usableEntry(WordEntry{Idoma: "Adah"}) {
+		t.Error("real entry should be usable")
+	}
+
+	saved := dict
+	defer func() { dict = saved }()
+	dict = dictionary{"animals": {"bird": {Idoma: idomaPlaceholder}}}
+
+	if resp := lookupDictionary("bird", "English", "Idoma"); resp != nil {
+		t.Errorf("placeholder entry was served as a translation: %q", resp.Translation)
+	}
+}
+
+// The dictionary is keyed by English, so it must only be read in the direction
+// asked for. Previously an Idoma -> English request for "water" matched the
+// English key and answered with the Idoma word.
+func TestDictionaryLookupRespectsDirection(t *testing.T) {
+	saved := dict
+	defer func() { dict = saved }()
+	dict = dictionary{"core_vocabulary": {"water": {Idoma: "Ennkpo"}}}
+
+	resp := lookupDictionary("water", "English", "Idoma")
+	if resp == nil || resp.Translation != "Ennkpo" {
+		t.Fatalf("English -> Idoma should give Ennkpo, got %+v", resp)
+	}
+
+	resp = lookupDictionary("Ennkpo", "Idoma", "English")
+	if resp == nil || resp.Translation != "water" {
+		t.Fatalf("Idoma -> English should give water, got %+v", resp)
+	}
+
+	// The source word must not come back unchanged in the reverse direction.
+	if resp := lookupDictionary("water", "Idoma", "English"); resp != nil {
+		t.Errorf("Idoma -> English matched an English key and returned %q", resp.Translation)
+	}
+}

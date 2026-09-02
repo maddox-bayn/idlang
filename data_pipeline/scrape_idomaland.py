@@ -36,6 +36,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import difflib
 import gzip
 import hashlib
 import html
@@ -341,13 +342,51 @@ def extract_tags(page: str) -> list[str]:
 # "Ennkpo (central Idoma) or Enyi (western Idoma) is Idoma word for water."
 # "Nyo gw'ije is the idoma phrase for \"I am singing\"."
 _FORWARD_RE = re.compile(
-    r"^(?P<forms>.{1,120}?)\s+(?:is|are)\s+(?:the\s+|an?\s+)?"
+    # A closing quote is as good a word boundary as a space: the site sometimes
+    # omits the space entirely — '"Ihotu Kum" or "Odokum"is the Idoma phrase for
+    # "My Heart"'. Requiring \s+ alone throws that page away. The quote lookbehind
+    # is what keeps this safe: without it, allowing an optional space would let
+    # "island" split into "is" + "land".
+    r"^(?P<forms>.{1,120}?)(?:\s+|(?<=[\"'’”])\s*)(?:is|are)\s+(?:the\s+|an?\s+)?"
     r"(?:idoma|igala)?\s*(?:word|phrase|name|term|expression|translation|equivalent)?",
     re.I,
 )
 # "The Idoma word for water is Ennkpo."
+# "The Idoma word for Extinguish or Switch off is, Mi (central Idoma) or Nyi (western Idoma)"
+# "How to pronounce the Idoma word for the number eight (8), which is either Ahata or Alata"
+# The comma after "is" and the "either" are both common on the live site; without
+# them this pattern misses and the page is thrown away.
 _REVERSE_RE = re.compile(
-    r"(?:idoma)\s+(?:word|phrase|name|term|expression)\s+for\s+.{1,80}?\s+(?:is|are)\s+"
+    # The leading tempered dot is load-bearing. Without it, .search() happily
+    # finds the framing in a *forward* sentence and then consumes an "is"/"are"
+    # belonging to the trailing English gloss:
+    #
+    #   'Abo le? is the Idoma phrase for "How are you".'
+    #                                        ^^^ matched as the verb
+    #   -> forms = 'you'      (English, recorded as the Idoma headword)
+    #
+    # 23 rows were corrupted this way. What separates the two shapes is position:
+    # in a real reverse sentence the framing comes first, so no verb precedes it
+    # ("The Idoma word for water is Ennkpo", "How to pronounce the Idoma word for
+    # eight, which is either Ahata or Alata"). In a forward sentence the verb
+    # always does. Refusing to skip over is/are encodes exactly that, and leaves
+    # the forward pattern to handle the rest.
+    r"^(?:(?!\b(?:is|are)\b).)*?"
+    # "word or phrase for" is as common on the site as a bare "word for", and
+    # without the alternation this pattern misses — then _FORWARD_RE matches
+    # instead and records the framing itself ("The Idoma word") as a headword.
+    r"(?:idoma)\s+(?:word|phrase|name|term|expression)"
+    r"(?:\s*(?:or|/)\s*(?:word|phrase|name|term|expression))?\s+for\s+.{1,80}?"
+    r"\s+(?:is|are)(?:\s*,)?\s+(?:either\s+)?"
+    r"(?P<forms>.{1,120}?)\s*[.;]?\s*$",
+    re.I,
+)
+# A third shape puts the English headword first and the language after it:
+# "Chicken Egg in Idoma is either Ahi'ugwu (central Idoma) or Aj'ugwu ...",
+# '"Dig a Hole" in Idoma is B'ogo.' The forms follow "is", so _FORWARD_RE reads
+# it backwards and yields the English side as the Idoma form.
+_IN_IDOMA_RE = re.compile(
+    r"^.{1,80}?\bin\s+idoma\s+(?:is|are)(?:\s*,)?\s+(?:either\s+)?"
     r"(?P<forms>.{1,120}?)\s*[.;]?\s*$",
     re.I,
 )
@@ -355,37 +394,140 @@ _PAREN_RE = re.compile(r"^(?P<form>[^()]+?)\s*\((?P<note>[^)]*)\)\s*$")
 _SPLIT_RE = re.compile(r"\s+or\s+|\s*/\s*|\s*,\s*|\s*;\s*", re.I)
 
 
+def _split_top_level(blob: str) -> list[str]:
+    """Split on separators that sit outside brackets.
+
+    A plain regex split cuts inside the dialect note as well: "Ochanya (Central,
+    Western & Northern Idoma) or Otsanya (Southern Idoma)" splits on the comma
+    *within* the bracket and yields "Ochanya (Central" as an Idoma headword,
+    plus the stray fragment "Western & Northern Idoma)". Tracking depth keeps
+    multi-dialect notes intact.
+    """
+    parts: list[str] = []
+    depth = start = index = 0
+    while index < len(blob):
+        char = blob[index]
+        if char in "([{":
+            depth += 1
+        elif char in ")]}":
+            depth = max(0, depth - 1)
+        elif depth == 0:
+            separator = _SPLIT_RE.match(blob, index)
+            if separator:
+                parts.append(blob[start:index])
+                index = start = separator.end()
+                continue
+        index += 1
+    parts.append(blob[start:])
+    return parts
+
+# Many pages skip the sentence entirely and put the bare form straight in the
+# field: "Onowa", "Kum or Ekum", "Kpemm ( central Idoma ) or Odudu ( western
+# Idoma )". Those are real entries, so they are worth recovering — but only when
+# the text carries no sentence machinery at all, otherwise English prose gets
+# recorded as an Idoma headword.
+_SENTENCE_RE = re.compile(
+    r"\b(?:is|are|was|were|mean|means|meaning|word|phrase|pronounce|pronounced|"
+    r"translate|translates|translation|refer|refers|used|the|which)\b", re.I)
+# Unreviewed pages leave English notes in the field ("Contributions welcome for
+# this entry"). These are function words no short Idoma form contains, so they
+# are a reliable tell that the field is English prose, not a headword.
+_ENGLISH_PROSE_RE = re.compile(
+    r"\b(?:and|for|from|with|this|that|these|those|not|yet|none|please|"
+    r"help|welcome|contribution|contributions|entry|entries|unknown|missing|"
+    r"pending|review|reviewed|todo|tbd|n/a)\b", re.I)
+
+
+def classify_note(note: str) -> str:
+    """Map a parenthetical note to a dialect tag, or "" when it is not one.
+
+    Not every parenthetical is a dialect. The site also uses them for ASCII
+    pronunciation respellings — "Chɛ (che)", "Ɔ́hi (ohi)" — and recording those
+    as dialects pollutes the field with values that are neither dialects nor
+    comparable across rows. Only genuine markers are kept, with tolerance for the
+    site's own typos ("nothern idoma").
+    """
+    note = re.sub(r"\s+", " ", note.strip().lower())
+    if not note:
+        return ""
+    if note in DIALECT_TAGS:
+        return DIALECT_TAGS[note]
+    # A note naming several dialects at once — "Central, Western & Northern
+    # Idoma" — describes all of them, so no single tag is honest. Leave it
+    # unspecified rather than letting the fuzzy match below pick whichever one it
+    # scores highest; that silently narrowed a three-dialect form to "central".
+    if len(re.findall(r"\b(?:central|western|eastern|northern|southern)\b", note)) > 1:
+        return ""
+    # "<compass point> idoma" is a dialect marker; accept near-misses so a
+    # single misspelt page does not invent a new dialect.
+    if note.endswith("idoma"):
+        close = difflib.get_close_matches(note, DIALECT_TAGS.keys(), n=1, cutoff=0.8)
+        if close:
+            return DIALECT_TAGS[close[0]]
+    return ""
+
+
+def _split_forms(blob: str, max_words: int = 8, max_chars: int = 80,
+                 strict: bool = False) -> list[tuple[str, str]]:
+    """Split a blob of Idoma forms into (form, dialect) pairs.
+
+    `strict` is for the bare-field case, where there is no sentence to confirm
+    the text is lexical: one prose-looking chunk discredits the whole field
+    rather than being quietly dropped.
+    """
+    pairs: list[tuple[str, str]] = []
+    for chunk in _split_top_level(blob):
+        chunk = chunk.strip(" .;:\"'")
+        if not chunk:
+            continue
+        dialect = ""
+        paren = _PAREN_RE.match(chunk)
+        if paren:
+            chunk = paren.group("form").strip()
+            dialect = classify_note(paren.group("note"))
+        # A "form" that is really prose is not a lexical entry.
+        if len(chunk.split()) > max_words or len(chunk) > max_chars:
+            if strict:
+                return []
+            continue
+        pairs.append((normalise(chunk), dialect))
+    return pairs
+
+
 def parse_forms(definition: str) -> tuple[list[tuple[str, str]], str]:
     """Split a definition sentence into (idoma_form, dialect) pairs.
 
     Returns (pairs, pattern_name). `pattern_name` is recorded in the output so
     parse-rate regressions are auditable rather than silent.
+
+    Order matters. Both `reverse` and `in-idoma` put the forms *after* "is", so
+    they must be tried before `forward` — otherwise forward matches the English
+    framing and records it as the Idoma headword. All three are anchored at the
+    start of the field, so a match is decided by shape rather than by whichever
+    "is" happens to appear first.
     """
-    for name, regex in (("reverse", _REVERSE_RE), ("forward", _FORWARD_RE)):
-        match = regex.search(definition) if name == "reverse" else regex.match(definition)
+    for name, regex in (("reverse", _REVERSE_RE),
+                        ("in-idoma", _IN_IDOMA_RE),
+                        ("forward", _FORWARD_RE)):
+        match = regex.match(definition)
         if not match:
             continue
         blob = match.group("forms").strip(" .;:\"'")
         if not blob:
             continue
-
-        pairs: list[tuple[str, str]] = []
-        for chunk in _SPLIT_RE.split(blob):
-            chunk = chunk.strip(" .;:\"'")
-            if not chunk:
-                continue
-            dialect = ""
-            paren = _PAREN_RE.match(chunk)
-            if paren:
-                chunk = paren.group("form").strip()
-                note = paren.group("note").strip().lower()
-                dialect = DIALECT_TAGS.get(note, note)
-            # A "form" that is really prose is not a lexical entry.
-            if len(chunk.split()) > 8 or len(chunk) > 80:
-                continue
-            pairs.append((normalise(chunk), dialect))
+        pairs = _split_forms(blob)
         if pairs:
             return pairs, name
+
+    # No sentence matched. If the field holds nothing but a short form (no verb,
+    # no "word for" framing, no English function words), take it as the entry.
+    if (len(definition) <= 120
+            and not _SENTENCE_RE.search(definition)
+            and not _ENGLISH_PROSE_RE.search(definition)):
+        pairs = _split_forms(definition, max_words=4, max_chars=40, strict=True)
+        if pairs:
+            return pairs, "bare"
+
     return [], "none"
 
 
@@ -402,11 +544,20 @@ class Entry:
 
 
 def dialect_from_tags(tags: Iterable[str]) -> str:
-    for tag in tags:
-        mapped = DIALECT_TAGS.get(tag.strip().lower())
-        if mapped:
-            return mapped
-    return ""
+    """The page's dialect, but only when the page names exactly one.
+
+    Pages are tagged with every dialect their entry covers. On /dictionary/queen
+    that is all four — "Central Idoma", "Western Idoma", "Southern Idoma",
+    "Northern Idoma" — and returning the first match labelled the form Ochanya
+    (whose own note reads "Central, Western & Northern Idoma") as plain "central",
+    dropping two thirds of what the page actually said. Several tags carry no
+    information about which form belongs to which dialect, so the honest answer is
+    none: leave the field unspecified and let the note-level tag, when there is
+    one, be the only thing that sets it.
+    """
+    mapped = {classify_note(tag) for tag in tags}
+    mapped.discard("")
+    return mapped.pop() if len(mapped) == 1 else ""
 
 
 def parse_page(url: str, page: str) -> tuple[list[Entry], str]:

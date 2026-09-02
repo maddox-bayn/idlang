@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -96,9 +97,23 @@ func (e *WordEntry) UnmarshalJSON(data []byte) error {
 
 var dict dictionary
 
+// dictionaryFirst controls whether an exact dictionary hit short-circuits the
+// model. It is on by default so verified entries stay exact, but it is a real
+// trade-off: the bundled idoma_dictionary_v2.json is unreliable (half its entries
+// are the "ụụ" placeholder, and among the rest "òdò" is given for black, day,
+// evening, morning, night and red alike). Those hits are served ahead of the
+// model, so once a properly trained checkpoint is deployed, either replace the
+// dictionary file via DICTIONARY_PATH or set DICTIONARY_FIRST=false.
+var dictionaryFirst = true
+
 func main() {
 	var err error
-	dict, err = loadDictionary("idoma_dictionary_v2.json")
+	dictPath := os.Getenv("DICTIONARY_PATH")
+	if dictPath == "" {
+		dictPath = "idoma_dictionary_v2.json"
+	}
+
+	dict, err = loadDictionary(dictPath)
 	if err != nil {
 		log.Printf("Warning: could not load primary dictionary: %v", err)
 		dict, err = loadDictionary("idoma_dictionary.json")
@@ -107,7 +122,21 @@ func main() {
 		log.Printf("Warning: could not load dictionary fallback: %v", err)
 		dict = dictionary{}
 	}
-	log.Printf("Loaded %d categories from dictionary", len(dict))
+
+	if v := os.Getenv("DICTIONARY_FIRST"); v != "" {
+		dictionaryFirst = !strings.EqualFold(v, "false") && v != "0"
+	}
+
+	usable, placeholders := countEntries(dict)
+	log.Printf("Loaded %d categories from dictionary: %d usable entries, %d skipped as placeholders",
+		len(dict), usable, placeholders)
+	if placeholders > 0 {
+		log.Printf("Warning: %d dictionary entries are the %q placeholder and will be ignored; "+
+			"see data_pipeline/README.md", placeholders, idomaPlaceholder)
+	}
+	if !dictionaryFirst {
+		log.Printf("DICTIONARY_FIRST=false: every request goes to the model")
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/translate", handleTranslate)
@@ -188,6 +217,22 @@ func proxyAudioToTranslator(upstreamPath string) http.HandlerFunc {
 			log.Printf("proxy %s copy failed: %v", upstreamPath, err)
 		}
 	}
+}
+
+// countEntries reports how many dictionary entries are usable and how many are
+// the placeholder, so the count is visible in the startup log rather than only
+// discoverable by translating a word and getting nonsense back.
+func countEntries(d dictionary) (usable, placeholders int) {
+	for _, words := range d {
+		for _, entry := range words {
+			if usableEntry(entry) {
+				usable++
+			} else {
+				placeholders++
+			}
+		}
+	}
+	return usable, placeholders
 }
 
 func loadDictionary(path string) (dictionary, error) {
@@ -317,10 +362,12 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 1. First, try case-insensitive dictionary lookup
-	if resp := lookupDictionary(req.Text); resp != nil {
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
-		return
+	if dictionaryFirst {
+		if resp := lookupDictionary(req.Text, req.SourceLang, req.TargetLang); resp != nil {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(resp)
+			return
+		}
 	}
 
 	// 2. Not in dictionary — try Python NMT service
@@ -357,23 +404,59 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 	})()
 }
 
-func lookupDictionary(text string) *TranslateResponse {
-	lower := bytes.ToLower([]byte(text))
+// idomaPlaceholder is the filler that fills half of idoma_dictionary_v2.json:
+// 109 of its 218 entries map to this single string, including bird, monkey,
+// elephant, sleep, work, buy, sell, white, green, blue, yellow and brown.
+// Returning it as a translation is worse than returning nothing, and because the
+// dictionary is consulted before the model it also suppresses the real
+// translation. Entries containing it are treated as absent.
+const idomaPlaceholder = "ụụ"
+
+func usableEntry(entry WordEntry) bool {
+	idoma := strings.TrimSpace(entry.Idoma)
+	return idoma != "" && !strings.Contains(idoma, idomaPlaceholder)
+}
+
+// lookupDictionary resolves an exact match from the bundled dictionary.
+//
+// The dictionary is keyed by English, so direction matters. English -> Idoma
+// matches the keys and returns the Idoma form; Idoma -> English matches the
+// Idoma forms and returns the English key. The previous version ignored
+// direction entirely, so an Idoma -> English request for "water" matched the
+// English key and answered "Ennkpo" — the source language's own word.
+func lookupDictionary(text, sourceLang, targetLang string) *TranslateResponse {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return nil
+	}
+	reverse := sourceLang == "Idoma" || targetLang == "English"
 
 	for category, words := range dict {
 		for english, entry := range words {
-			if bytes.Equal(lower, bytes.ToLower([]byte(english))) {
-				explanation := fmt.Sprintf("Found in dictionary [%s]: '%s' translates to '%s'", category, english, entry.Idoma)
-				if entry.Tone != "" {
-					explanation += fmt.Sprintf(" (tone: %s)", entry.Tone)
-				}
-				if entry.POS != "" {
-					explanation += fmt.Sprintf(" [%s]", entry.POS)
-				}
-				return &TranslateResponse{
-					Translation: entry.Idoma,
-					Explanation: explanation,
-				}
+			if !usableEntry(entry) {
+				continue
+			}
+
+			var from, to string
+			if reverse {
+				from, to = entry.Idoma, english
+			} else {
+				from, to = english, entry.Idoma
+			}
+			if !strings.EqualFold(text, strings.TrimSpace(from)) {
+				continue
+			}
+
+			explanation := fmt.Sprintf("Found in dictionary [%s]: '%s' translates to '%s'", category, from, to)
+			if entry.Tone != "" {
+				explanation += fmt.Sprintf(" (tone: %s)", entry.Tone)
+			}
+			if entry.POS != "" {
+				explanation += fmt.Sprintf(" [%s]", entry.POS)
+			}
+			return &TranslateResponse{
+				Translation: to,
+				Explanation: explanation,
 			}
 		}
 	}

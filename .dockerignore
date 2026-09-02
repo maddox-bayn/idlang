@@ -1,0 +1,54 @@
+# Keep build contexts small and keep unpublishable data out of images.
+
+# Dependencies and build output (rebuilt inside the image)
+node_modules
+dist
+build
+*.tsbuildinfo
+# `go build` in backend/ names its binary after the module, so the artifact is
+# backend/idlang. A host build is glibc-linked against this machine and is useless
+# (or actively wrong) inside an image, which rebuilds it anyway.
+backend/idlang
+
+# Version control and tooling
+.git
+.gitignore
+.github
+.vscode
+.idea
+
+# Scraped source corpus and HTTP cache.
+# This is the licensing boundary: the idomaland.org text stays local and is never
+# baked into a published image. Only the trained model is distributed.
+data_pipeline/out
+data_pipeline/cache
+
+# Model weights — downloaded at runtime into the mounted cache volume
+model_cache
+translator_service/model_cache
+*.safetensors
+*.bin
+*.ckpt
+*.pth
+
+# Secrets and local config
+.env
+.env.*
+!.env.example
+.clauderc
+
+# Python bytecode and test artifacts
+__pycache__
+*.py[cod]
+.pytest_cache
+.coverage
+htmlcov
+
+# Notebooks are for Colab, not for the image
+training
+
+# Docs and logs
+*.log
+DEPLOYMENT.md
+PUSH_GUIDE.md
+AGENTS.md
