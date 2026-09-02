@@ -101,5 +101,12 @@ logs/
 # Environment
 .env.production
 
+# Local agent/tool config (may contain API tokens — never commit)
+.clauderc
+
+# Scraped corpus + HTTP cache (unlicensed source data, keep local)
+data_pipeline/cache/
+data_pipeline/out/
+
 # TypeScript build artifacts
 tsconfig.*.tsbuildinfo

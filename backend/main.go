@@ -70,6 +70,26 @@ type WordEntry struct {
 	Example  string `json:"example,omitempty"`
 }
 
+// UnmarshalJSON accepts both dictionary schemas: the v2 object form
+// {"idoma": "...", "tone": "..."} and the v1 bare-string form "Adah".
+// Without this the v1 fallback file fails to parse and the dictionary
+// silently loads as empty.
+func (e *WordEntry) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		e.Idoma = s
+		return nil
+	}
+
+	type wordEntryAlias WordEntry
+	var alias wordEntryAlias
+	if err := json.Unmarshal(data, &alias); err != nil {
+		return err
+	}
+	*e = WordEntry(alias)
+	return nil
+}
+
 var dict dictionary
 
 func main() {
@@ -88,6 +108,9 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/translate", handleTranslate)
 	mux.HandleFunc("/api/generate-lesson", handleGenerateLesson)
+	mux.HandleFunc("/api/transcribe", proxyAudioToTranslator("/transcribe"))
+	mux.HandleFunc("/api/pipeline", proxyAudioToTranslator("/pipeline"))
+	mux.HandleFunc("/health", handleHealth)
 
 	handler := corsMiddleware(mux)
 
@@ -98,6 +121,69 @@ func main() {
 
 	log.Printf("Idlang backend listening on :%s", port)
 	log.Fatal(http.ListenAndServe(":"+port, handler))
+}
+
+func translatorBaseURL() string {
+	if u := os.Getenv("TRANSLATOR_URL"); u != "" {
+		return u
+	}
+	return "http://localhost:5005"
+}
+
+func handleHealth(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"status":     "healthy",
+		"service":    "idlang-backend",
+		"dictionary": len(dict),
+	})
+}
+
+// proxyAudioToTranslator streams multipart audio uploads through to the Python
+// translator service. The frontend calls /api/transcribe and /api/pipeline, so
+// these must exist on the Go backend or Speech and Full Pipeline modes 404.
+func proxyAudioToTranslator(upstreamPath string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, `{"error":"Method not allowed"}`, http.StatusMethodNotAllowed)
+			return
+		}
+
+		contentType := r.Header.Get("Content-Type")
+		if contentType == "" {
+			http.Error(w, `{"error":"Content-Type is required"}`, http.StatusBadRequest)
+			return
+		}
+
+		// Audio + model inference is slow; allow well beyond the text timeout.
+		client := &http.Client{Timeout: 120 * time.Second}
+		upstream := translatorBaseURL() + upstreamPath
+
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodPost, upstream, r.Body)
+		if err != nil {
+			http.Error(w, `{"error":"Failed to build upstream request"}`, http.StatusInternalServerError)
+			return
+		}
+		req.Header.Set("Content-Type", contentType)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			log.Printf("translator %s unavailable: %v", upstreamPath, err)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "Translator service unavailable. Ensure the Python service is running.",
+			})
+			return
+		}
+		defer resp.Body.Close()
+
+		w.Header().Set("Content-Type", resp.Header.Get("Content-Type"))
+		w.WriteHeader(resp.StatusCode)
+		if _, err := io.Copy(w, resp.Body); err != nil {
+			log.Printf("proxy %s copy failed: %v", upstreamPath, err)
+		}
+	}
 }
 
 func loadDictionary(path string) (dictionary, error) {
@@ -292,10 +378,7 @@ func lookupDictionary(text string) *TranslateResponse {
 }
 
 func callPythonNMT(text, sourceLang, targetLang string) (*TranslateResponse, error) {
-	translatorURL := os.Getenv("TRANSLATOR_URL")
-	if translatorURL == "" {
-		translatorURL = "http://localhost:5005"
-	}
+	translatorURL := translatorBaseURL()
 
 	type PythonRequest struct {
 		Text       string `json:"text"`
