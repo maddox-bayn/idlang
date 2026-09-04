@@ -90,7 +90,35 @@ Spaces requires port 7860, which the image already exposes.
 It needs ~2.5GB of RAM for the 600M model, so free tiers with 512MB will OOM. The
 Hugging Face free CPU tier (16GB) is comfortable; Fly and Render need resizing.
 
-**Hugging Face Docker Space** (recommended):
+**Hugging Face Gradio Space** (free — start here):
+
+Docker Spaces now require billing on the account, so the free SDK is Gradio. That is
+not a limitation: Gradio is a FastAPI app underneath, and `space_app.py` mounts the
+Gradio UI beneath the FastAPI app from `backup_backend.py`, so one free CPU Space
+serves the UI *and* `/api/*`.
+
+1. Create a Space → SDK **Gradio** → hardware **CPU basic** (free). Pick the
+   hardware at creation: a Space on paid hardware cannot be downgraded to
+   `cpu-basic` without PRO, and requesting ZeroGPU on a Docker Space fails outright
+   with `CONFIG_ERROR: ZeroGPU is only available on Gradio SDK`.
+2. Push the *contents of* `translator_service/` to the Space root.
+3. Use `README.space-gradio.md` as the Space's `README.md`. It sets
+   `app_file: space_app.py`, which is what makes Spaces run the composed
+   FastAPI+Gradio entry point instead of the UI alone.
+4. Space **Settings → Variables**:
+
+```
+NMT_MODEL_ID=emoduh/nllb-eng-idoma
+CORS_ORIGINS=https://<your-project>.vercel.app
+```
+
+`PORT` is unnecessary here — Spaces routes to 7860 and `space_app.py` defaults to it.
+
+Route precedence is registration order in Starlette: `backup_backend` registers its
+routers at import, before the mount at `/`, so `/api/*` and the bare paths always
+win and only unmatched paths reach the Gradio UI.
+
+**Hugging Face Docker Space** (needs billing; use if you have it):
 
 1. Create a Space → SDK **Docker** → CPU basic.
 2. Push the *contents of* `translator_service/` to the Space root, so its
