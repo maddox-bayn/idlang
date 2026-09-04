@@ -23,12 +23,14 @@ ignore the `Dockerfile` and try to launch Gradio instead.
 | Name | Value | Why |
 |---|---|---|
 | `NMT_MODEL_ID` | `emoduh/nllb-eng-idoma` | Stock NLLB has no `idu_Latn` and returns English. |
-| `DICTIONARY_FIRST` | `false` | The bundled dictionary is fabricated and would shadow the model. |
 | `PORT` | `7860` | What Spaces routes to. `app_port` above must match. |
 | `CORS_ORIGINS` | `https://<your-project>.vercel.app` | Defaults to `*`, which browsers reject for credentialed requests. |
 
 No secret is needed: the checkpoint is public and ungated. Add `HF_TOKEN` as a
 *Secret* only if you later point at a gated model.
+
+`DICTIONARY_FIRST` is **not** used here — the fabricated `idoma_dictionary_v2.json`
+is read only by the optional Go backend. This service always answers from the model.
 
 ## Cold start
 

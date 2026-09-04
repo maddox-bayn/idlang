@@ -103,13 +103,15 @@ Hugging Face free CPU tier (16GB) is comfortable; Fly and Render need resizing.
 
 ```
 NMT_MODEL_ID=emoduh/nllb-eng-idoma
-DICTIONARY_FIRST=false
 CORS_ORIGINS=https://<your-project>.vercel.app
 PORT=7860
 ```
 
 `CORS_ORIGINS` matters: it defaults to `*`, and a wildcard origin cannot be
 combined with credentialed requests, so name your real origin in production.
+
+`DICTIONARY_FIRST` has no effect here — only the Go backend reads the dictionary.
+This service always answers from the model.
 
 No secret is required — `emoduh/nllb-eng-idoma` is public and ungated. Add `HF_TOKEN`
 as a Secret only for a gated or private checkpoint.
@@ -124,7 +126,7 @@ To check the image locally first:
 ```bash
 docker build -f translator_service/Dockerfile -t idlang-translator translator_service
 docker run -p 7860:7860 -e PORT=7860 \
-  -e NMT_MODEL_ID=emoduh/nllb-eng-idoma -e DICTIONARY_FIRST=false idlang-translator
+  -e NMT_MODEL_ID=emoduh/nllb-eng-idoma idlang-translator
 ```
 
 **Fly.io:**
@@ -133,7 +135,6 @@ docker run -p 7860:7860 -e PORT=7860 \
 fly launch --dockerfile translator_service/Dockerfile --no-deploy
 fly scale memory 4096
 fly secrets set NMT_MODEL_ID=emoduh/nllb-eng-idoma
-fly secrets set DICTIONARY_FIRST=false
 fly secrets set CORS_ORIGINS=https://<your-project>.vercel.app
 fly deploy
 ```
@@ -246,7 +247,6 @@ leaving it enabled on a CPU-only host makes `up` fail outright.
 | Variable | Default | Notes |
 |---|---|---|
 | `NMT_MODEL_ID` | `facebook/nllb-200-distilled-600M` | **Set this** to `emoduh/nllb-eng-idoma`. The stock default cannot produce Idoma. |
-| `DICTIONARY_FIRST` | `true` | **Set `false`.** At `true`, exact hits in the fabricated `idoma_dictionary_v2.json` are served *ahead of* the model, so a working checkpoint still returns wrong Idoma. |
 | `IDOMA_LANG_CODE` | `idu_Latn` | Change only if your checkpoint uses another code. |
 | `ALLOW_IGBO_FALLBACK` | `false` | Emit Igbo with a warning instead of erroring. Igbo is not Idoma. |
 | `HF_TOKEN` | — | Gated/private repos only. Never commit it. |

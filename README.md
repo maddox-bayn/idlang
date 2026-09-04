@@ -258,7 +258,7 @@ idlang/
 | `CORS_ORIGINS` | Comma-separated browser origins allowed to call the Python service directly. A wildcard disables credentialed requests | `*` |
 | `FRONTEND_DIR` | Built frontend the Python service should serve, when present | `dist/` beside `backup_backend.py` |
 | `DICTIONARY_PATH` | Dictionary file the Go backend loads | `idoma_dictionary_v2.json` |
-| `DICTIONARY_FIRST` | Let exact dictionary hits short-circuit the model. Set `false` to always use the model — see the warning below | `true` |
+| `DICTIONARY_FIRST` | Let exact dictionary hits short-circuit the model, in the Go backend only — the Python service has no dictionary path. Set `false` to always use the model — see the warning below | `true` |
 
 Copy `.env.example` to `.env` for a documented starting point.
 
