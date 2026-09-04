@@ -17,8 +17,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
+# Install torch from the CPU wheel index first. A plain `pip install torch` takes the
+# CUDA build from PyPI — ~2.5GB of nvidia-* wheels that are dead weight on CPU
+# hardware (the free Hugging Face tier, Render, a CPU Fly machine) and slow enough to
+# risk a build timeout. requirements.txt's `torch>=2.2` is then already satisfied, so
+# pip does not fetch it again.
+#   GPU host: --build-arg TORCH_INDEX_URL=https://pypi.org/simple
+ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
+
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --index-url ${TORCH_INDEX_URL} torch torchaudio \
+ && pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 

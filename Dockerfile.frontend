@@ -36,8 +36,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Requirements live under translator_service/, not the repo root.
+# CPU torch by default — see translator_service/Dockerfile for why.
+#   GPU host: --build-arg TORCH_INDEX_URL=https://pypi.org/simple
+ARG TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu
 COPY translator_service/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --index-url ${TORCH_INDEX_URL} torch torchaudio \
+ && pip install --no-cache-dir -r requirements.txt
 
 # Copy the python server files
 COPY translator_service/ ./

@@ -18,6 +18,14 @@ this directory is the card for the *Gradio* Space that runs `app.py`; Spaces rea
 `sdk:` from `README.md` alone, so pushing that one to a Docker Space makes Spaces
 ignore the `Dockerfile` and try to launch Gradio instead.
 
+## Required hardware
+
+**CPU basic.** Not ZeroGPU: HF only offers `zero-a10g` on the Gradio SDK, so a
+Docker Space that requests it fails before building with `CONFIG_ERROR: ZeroGPU is
+only available on Gradio SDK`. If this Space was previously a Gradio Space, change
+Settings → Hardware to CPU basic. The 600M model runs on CPU in a few seconds per
+sentence, and the image installs CPU-only torch wheels to match.
+
 ## Required Space variables
 
 | Name | Value | Why |
