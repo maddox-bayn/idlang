@@ -53,4 +53,7 @@ ENV PORT=7860 \
     HOST=0.0.0.0 \
     CACHE_DIR=/app/model_cache
 
-CMD ["uvicorn", "backup_backend:app", "--host", "0.0.0.0", "--port", "7860"]
+# Shell form so $PORT is honoured — a literal `--port 7860` overrides the variable,
+# which breaks any host that assigns the port itself (Render, Fly). 7860 stays the
+# default because that is what Spaces expects.
+CMD ["sh", "-c", "exec uvicorn backup_backend:app --host \"${HOST:-0.0.0.0}\" --port \"${PORT:-7860}\""]

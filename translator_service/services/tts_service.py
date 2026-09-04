@@ -44,9 +44,9 @@ class TTSService:
     def _load_models(self):
         """Load TTS models on first use.
 
-        Idoma TTS is optional: there is no public Idoma VITS checkpoint, so the
-        configured model may be absent or the wrong architecture. That must not
-        take English synthesis down with it — the two were previously loaded
+        Idoma TTS is optional: the one Idoma VITS checkpoint that exists is gated,
+        so the configured model may be absent or the wrong architecture. That must
+        not take English synthesis down with it — the two were previously loaded
         together, so one bad TTS_IDOMA_MODEL broke every /synthesize call.
         """
         if not self._models_loaded:
@@ -172,9 +172,9 @@ class TTSService:
     def voice_warning(self, target_lang: str) -> Optional[str]:
         """Return a caveat about the voice used, or None when it is genuine.
 
-        Idoma has no public TTS model, so Idoma requests are served by the English
-        voice. Callers surface this so a listener is never told that English
-        phonetics are Idoma speech.
+        No Idoma TTS model is configured by default (the only one is gated), so
+        Idoma requests are served by the English voice. Callers surface this so a
+        listener is never told that English phonetics are Idoma speech.
         """
         if target_lang != "Idoma":
             return None

@@ -29,4 +29,9 @@ ENV HOST=0.0.0.0 \
 EXPOSE 5005
 
 # backup_backend.py holds the FastAPI app (there is no main.py in this repo).
-CMD ["uvicorn", "backup_backend:app", "--host", "0.0.0.0", "--port", "5005"]
+#
+# Shell form, and $PORT rather than a literal: a hardcoded `--port 5005` wins over
+# the PORT environment variable, so setting PORT=7860 on a Hugging Face Space (as
+# Spaces requires, and as DEPLOYMENT.md instructs) left the server on 5005 and the
+# health check found nothing. Render and Fly likewise hand the port in through PORT.
+CMD ["sh", "-c", "exec uvicorn backup_backend:app --host \"${HOST:-0.0.0.0}\" --port \"${PORT:-5005}\""]

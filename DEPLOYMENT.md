@@ -87,19 +87,23 @@ Spaces requires port 7860, which the image already exposes.
 
 ### B1. Deploy the Python translator service
 
-It needs ~2.5GB of RAM for the 600M model, so free tiers with 512MB will OOM.
+It needs ~2.5GB of RAM for the 600M model, so free tiers with 512MB will OOM. The
+Hugging Face free CPU tier (16GB) is comfortable; Fly and Render need resizing.
 
-**Hugging Face Docker Space** (free CPU tier is adequate):
+**Hugging Face Docker Space** (recommended):
 
-```bash
-# Uses translator_service/Dockerfile — API only, no frontend
-docker build -f translator_service/Dockerfile -t idlang-translator translator_service
+1. Create a Space → SDK **Docker** → CPU basic.
+2. Push the *contents of* `translator_service/` to the Space root, so its
+   `Dockerfile` lands at the top level where Spaces looks for it.
+3. Use `README.space-docker.md` as the Space's `README.md`. The `README.md` already
+   in that directory declares `sdk: gradio` — Spaces reads `sdk:` from `README.md`
+   alone, so pushing that one makes Spaces ignore the `Dockerfile` and try to launch
+   Gradio. The Docker card also sets `app_port: 7860`.
+4. Space **Settings → Variables**:
+
 ```
-
-Set on the Space:
-
-```
-NMT_MODEL_ID=<user>/nllb-eng-idoma
+NMT_MODEL_ID=emoduh/nllb-eng-idoma
+DICTIONARY_FIRST=false
 CORS_ORIGINS=https://<your-project>.vercel.app
 PORT=7860
 ```
@@ -107,18 +111,36 @@ PORT=7860
 `CORS_ORIGINS` matters: it defaults to `*`, and a wildcard origin cannot be
 combined with credentialed requests, so name your real origin in production.
 
+No secret is required — `emoduh/nllb-eng-idoma` is public and ungated. Add `HF_TOKEN`
+as a Secret only for a gated or private checkpoint.
+
+The model loads lazily, on the first translation rather than at boot, so `/health`
+turns green minutes before `/api/translate` will answer. Without the
+persistent-storage add-on the 2.46GB download repeats after every restart; with it,
+add `CACHE_DIR=/data/model_cache`.
+
+To check the image locally first:
+
+```bash
+docker build -f translator_service/Dockerfile -t idlang-translator translator_service
+docker run -p 7860:7860 -e PORT=7860 \
+  -e NMT_MODEL_ID=emoduh/nllb-eng-idoma -e DICTIONARY_FIRST=false idlang-translator
+```
+
 **Fly.io:**
 
 ```bash
 fly launch --dockerfile translator_service/Dockerfile --no-deploy
 fly scale memory 4096
-fly secrets set NMT_MODEL_ID=<user>/nllb-eng-idoma
+fly secrets set NMT_MODEL_ID=emoduh/nllb-eng-idoma
+fly secrets set DICTIONARY_FIRST=false
 fly secrets set CORS_ORIGINS=https://<your-project>.vercel.app
 fly deploy
 ```
 
 **Render:** New → Web Service → Docker, `translator_service/Dockerfile`, instance
-with ≥2GB RAM, same environment variables.
+with ≥2GB RAM, same environment variables. Render assigns the port through `PORT`,
+which the image now honours.
 
 Verify before moving on:
 
@@ -223,7 +245,8 @@ leaving it enabled on a CPU-only host makes `up` fail outright.
 
 | Variable | Default | Notes |
 |---|---|---|
-| `NMT_MODEL_ID` | `facebook/nllb-200-distilled-600M` | **Set this.** The stock default cannot produce Idoma. |
+| `NMT_MODEL_ID` | `facebook/nllb-200-distilled-600M` | **Set this** to `emoduh/nllb-eng-idoma`. The stock default cannot produce Idoma. |
+| `DICTIONARY_FIRST` | `true` | **Set `false`.** At `true`, exact hits in the fabricated `idoma_dictionary_v2.json` are served *ahead of* the model, so a working checkpoint still returns wrong Idoma. |
 | `IDOMA_LANG_CODE` | `idu_Latn` | Change only if your checkpoint uses another code. |
 | `ALLOW_IGBO_FALLBACK` | `false` | Emit Igbo with a warning instead of erroring. Igbo is not Idoma. |
 | `HF_TOKEN` | — | Gated/private repos only. Never commit it. |
