@@ -16,16 +16,34 @@ frontend consumes: `/health`, `/translate`, `/transcribe`, `/synthesize`,
 `/pipeline`, each also under `/api/*` for browsers.
 
 **Use this file as the `README.md` of a free Gradio Space.** `space_app.py` mounts
-the Gradio UI underneath the FastAPI app from `backup_backend.py`, so one free CPU
-Space serves both. The sibling `README.space-docker.md` is for a Docker Space, which
-now requires billing on the account.
+the Gradio UI underneath the FastAPI app from `backup_backend.py`, so one free Space
+serves both. The sibling `README.space-docker.md` is for a Docker Space, which now
+requires billing on the account.
 
 ## Hardware
 
-**CPU basic** (free, 2 vCPU / 16GB) is enough — the 600M model answers in a few
-seconds per sentence. Do not request ZeroGPU: it is Gradio-only, so it is *offered*
-here, but a Space that requests paid hardware cannot be downgraded to `cpu-basic`
-again without a PRO subscription. Choose CPU basic at creation.
+Pick **ZeroGPU** — on the free tier that is what a Gradio Space is offered, and it is
+genuinely free (a free personal account may host up to 2 ZeroGPU Spaces, provided the
+email is verified and the account is more than 30 days old). `cpu-basic` now wants a
+PRO subscription, and Docker Spaces want billing, so this is the free route.
+
+**This Space then runs its models on the CPU anyway, and that is deliberate.** ZeroGPU
+does not give a Space a GPU it holds; it lends one for the duration of an
+`@spaces.GPU`-decorated call, driven by Gradio's event loop. Two consequences:
+
+- A FastAPI route is not a Gradio event, so `/api/translate` can never hold an
+  allocation. Autodetecting `cuda` there would put the model on a GPU that is not
+  there.
+- A free account gets **5 minutes of GPU time per day** (2 minutes for unauthenticated
+  visitors). A few dozen sentences would exhaust it.
+
+So `space_app.py` sets `DEVICE=cpu` for the whole process before anything reads it. No
+Space variable is needed, no GPU quota is consumed, and both the UI and the API work.
+Expect a few seconds per sentence rather than under one — the 600M model is small
+enough that this is fine.
+
+If you later move this to real GPU hardware, set `DEVICE=cuda` and the `@gpu` decorator
+in `app.py` starts applying `spaces.GPU` to the two translate functions.
 
 ## Space variables
 
@@ -47,8 +65,9 @@ The build installs torch, so expect ~10 minutes the first time. The checkpoint
 long before `/api/translate` does. Without persistent storage that download repeats
 after each restart; with it, set `CACHE_DIR=/data/model_cache`.
 
-Note the Gradio UI and the API load the model independently — roughly 5GB resident
-if both are exercised, which the 16GB tier absorbs comfortably.
+Note the Gradio UI and the API hold independent copies of the model — roughly 5GB
+resident if both are exercised. If the Space restarts under memory pressure, use only
+one of the two interfaces.
 
 ## Verifying
 

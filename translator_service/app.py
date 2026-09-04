@@ -28,19 +28,40 @@ emitting untranslated text.
 
 import os
 
-try:
-    import spaces
-    HAS_ZEROGPU = True
-    print("✅ ZeroGPU available")
-except ImportError:
+# ---------------------------------------------------------------------------
+# Device, resolved before anything else imports torch.
+# ---------------------------------------------------------------------------
+# Same contract as config.py, so the Gradio UI and the FastAPI service agree.
+#
+# On the free Hugging Face tier a Space runs on ZeroGPU, where this matters a lot.
+# ZeroGPU hands out a real GPU only for the duration of an @spaces.GPU call, driven by
+# Gradio's event loop, and a free account gets 5 minutes of GPU time per day. Both
+# facts point the same way for this service:
+#
+#   * the REST API in backup_backend.py is not a Gradio event, so it can never hold an
+#     allocation — autodetecting "cuda" there yields a model on a GPU that isn't there;
+#   * 5 min/day would be spent by a few dozen sentences anyway.
+#
+# So space_app.py sets DEVICE=cpu and the whole process stays on CPU: slower per
+# sentence, but correct, and it consumes no quota at all.
+_DEVICE_ENV = os.getenv("DEVICE")
+
+# `spaces` only exists on ZeroGPU hardware, and it patches torch on import — so import
+# it before torch, and only when a GPU is actually going to be used. On the CPU path it
+# is dead weight whose import can fail for reasons an ImportError guard would not catch
+# (it supports torch 2.8+ only).
+if _DEVICE_ENV == "cuda":
+    try:
+        import spaces
+        HAS_ZEROGPU = True
+        print("✅ ZeroGPU available")
+    except ImportError:
+        spaces = None
+        HAS_ZEROGPU = False
+        print("⚠️ ZeroGPU not present — running without the GPU decorator")
+else:
+    spaces = None
     HAS_ZEROGPU = False
-
-    class spaces:  # noqa: N801 - drop-in shim so the decorators below still work
-        @staticmethod
-        def GPU(fn):
-            return fn
-
-    print("⚠️ ZeroGPU not present — running without the GPU decorator")
 
 import gradio as gr
 import torch
@@ -53,7 +74,19 @@ def block_api_schema(*args, **kwargs):
 
 gr.Blocks.get_api_info = block_api_schema
 
-DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
+DEVICE = _DEVICE_ENV or ("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def gpu(fn):
+    """Claim a ZeroGPU allocation for `fn`, but only when CUDA is actually in use.
+
+    An @spaces.GPU decorator reserves (and consumes daily quota for) a GPU even when
+    the wrapped work runs on CPU, so it is worse than useless once DEVICE is cpu.
+    """
+    if HAS_ZEROGPU and DEVICE == "cuda":
+        return spaces.GPU(fn)
+    return fn
+
 
 # Point this at your fine-tuned Idoma checkpoint. It must be a public, ungated
 # repo, or the Space needs an HF_TOKEN secret with access.
@@ -181,7 +214,7 @@ def _generate(text, src_code, tgt_code):
 # ==========================================
 
 
-@spaces.GPU
+@gpu
 def translate_english_to_idoma(text):
     if not text or not str(text).strip():
         return "Error: Input string cannot be empty."
@@ -195,7 +228,7 @@ def translate_english_to_idoma(text):
         return f"❌ Translation Error: {e}"
 
 
-@spaces.GPU
+@gpu
 def translate_idoma_to_english(text):
     if not text or not str(text).strip():
         return "Error: Input string cannot be empty."

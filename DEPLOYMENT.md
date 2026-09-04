@@ -92,15 +92,15 @@ Hugging Face free CPU tier (16GB) is comfortable; Fly and Render need resizing.
 
 **Hugging Face Gradio Space** (free — start here):
 
-Docker Spaces now require billing on the account, so the free SDK is Gradio. That is
-not a limitation: Gradio is a FastAPI app underneath, and `space_app.py` mounts the
-Gradio UI beneath the FastAPI app from `backup_backend.py`, so one free CPU Space
-serves the UI *and* `/api/*`.
+Docker Spaces now require billing on the account, and `cpu-basic` requires PRO, so the
+free route is a **Gradio Space on ZeroGPU**. That is not a limitation: Gradio is a
+FastAPI app underneath, and `space_app.py` mounts the Gradio UI beneath the FastAPI app
+from `backup_backend.py`, so one free Space serves the UI *and* `/api/*`.
 
-1. Create a Space → SDK **Gradio** → hardware **CPU basic** (free). Pick the
-   hardware at creation: a Space on paid hardware cannot be downgraded to
-   `cpu-basic` without PRO, and requesting ZeroGPU on a Docker Space fails outright
-   with `CONFIG_ERROR: ZeroGPU is only available on Gradio SDK`.
+1. Create a Space → SDK **Gradio** → hardware **ZeroGPU**. It is free for a personal
+   account in good standing (verified email, older than 30 days), up to 2 such Spaces.
+   Requesting ZeroGPU on a *Docker* Space instead fails with
+   `CONFIG_ERROR: ZeroGPU is only available on Gradio SDK`.
 2. Push the *contents of* `translator_service/` to the Space root.
 3. Use `README.space-gradio.md` as the Space's `README.md`. It sets
    `app_file: space_app.py`, which is what makes Spaces run the composed
@@ -112,7 +112,14 @@ NMT_MODEL_ID=emoduh/nllb-eng-idoma
 CORS_ORIGINS=https://<your-project>.vercel.app
 ```
 
-`PORT` is unnecessary here — Spaces routes to 7860 and `space_app.py` defaults to it.
+`PORT` is unnecessary — Spaces routes to 7860 and `space_app.py` defaults to it.
+
+**The models run on CPU on this tier, by design.** ZeroGPU lends a GPU only for the
+duration of an `@spaces.GPU` call, driven by Gradio's event loop — a FastAPI route can
+never hold that allocation — and a free account gets 5 minutes of GPU time per day,
+which a few dozen sentences would spend. So `space_app.py` sets `DEVICE=cpu` for the
+whole process before anything reads it: no variable to set, no quota consumed, both
+interfaces working, a few seconds per sentence.
 
 Route precedence is registration order in Starlette: `backup_backend` registers its
 routers at import, before the mount at `/`, so `/api/*` and the bare paths always
@@ -279,7 +286,7 @@ leaving it enabled on a CPU-only host makes `up` fail outright.
 | `ALLOW_IGBO_FALLBACK` | `false` | Emit Igbo with a warning instead of erroring. Igbo is not Idoma. |
 | `HF_TOKEN` | — | Gated/private repos only. Never commit it. |
 | `CORS_ORIGINS` | `*` | Comma-separated browser origins. Set it in production. |
-| `DEVICE` | autodetect | `cuda` or `cpu`. Do not force `cuda` without a GPU. |
+| `DEVICE` | autodetect (`cpu` under `space_app.py`) | `cuda` or `cpu`. Do not force `cuda` without a GPU — and note ZeroGPU has one only inside a Gradio event, so the Space entry point pins `cpu`. |
 | `CACHE_DIR` | `./model_cache` | Mount a volume here to avoid re-downloading ~2.5GB. |
 | `PORT` | `5005` | Hugging Face Spaces requires `7860`. |
 | `FRONTEND_DIR` | `./dist` beside the module | Static build to serve, if present. |

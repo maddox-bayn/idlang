@@ -26,7 +26,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from config import CORS_ORIGINS, HOST, PORT
+from config import CORS_ORIGINS, DEVICE, HOST, PORT
 
 app = FastAPI(
     title="Idlang Translator Service",
@@ -59,7 +59,16 @@ def _gpu_wrap(fn):
     `spaces` only exists on Hugging Face ZeroGPU hardware. Importing it
     unconditionally crashes every other environment (local, Docker, Vercel-backed
     hosts), so fall back to calling the function directly.
+
+    The DEVICE check is what makes a free ZeroGPU Space usable as a REST backend.
+    ZeroGPU grants a GPU only for the duration of a decorated call, so a model loaded
+    inside one is left pointing at hardware that no longer belongs to this process by
+    the time a later request arrives — and the allocator is built around Gradio's
+    event loop, not arbitrary FastAPI routes. With DEVICE=cpu (which space_app.py
+    defaults to) nothing here should claim a GPU at all.
     """
+    if DEVICE != "cuda":
+        return fn
     try:
         import spaces
     except ImportError:

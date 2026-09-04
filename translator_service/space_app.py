@@ -28,6 +28,18 @@ Nothing here is Space-specific beyond the port default, so it also runs locally:
 
 import os
 
+# CPU unless the host explicitly says otherwise — set before importing anything that
+# reads it, since config.py and app.py both resolve DEVICE at import time.
+#
+# The free Space tier runs on ZeroGPU, which grants a real GPU only inside an
+# @spaces.GPU call and only 5 minutes a day on a free account. A FastAPI route is not a
+# Gradio event and so can never hold that allocation. CPU for the whole process is what
+# serves both interfaces correctly, and it consumes no GPU quota. See app.py for the
+# longer version.
+#
+# setdefault, not assignment: a real GPU host can still pass DEVICE=cuda.
+os.environ.setdefault("DEVICE", "cpu")
+
 import gradio as gr
 import uvicorn
 
