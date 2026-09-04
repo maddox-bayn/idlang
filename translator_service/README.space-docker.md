@@ -20,11 +20,18 @@ ignore the `Dockerfile` and try to launch Gradio instead.
 
 ## Required hardware
 
-**CPU basic.** Not ZeroGPU: HF only offers `zero-a10g` on the Gradio SDK, so a
-Docker Space that requests it fails before building with `CONFIG_ERROR: ZeroGPU is
-only available on Gradio SDK`. If this Space was previously a Gradio Space, change
-Settings → Hardware to CPU basic. The 600M model runs on CPU in a few seconds per
-sentence, and the image installs CPU-only torch wheels to match.
+**CPU basic, chosen when the Space is created.** Not ZeroGPU: HF only offers
+`zero-a10g` on the Gradio SDK, so a Docker Space that requests it fails before
+building with `CONFIG_ERROR: ZeroGPU is only available on Gradio SDK`.
+
+This is worth getting right first time. A Space that was created on ZeroGPU (or any
+paid hardware) **cannot be downgraded to `cpu-basic` without a PRO subscription** —
+the fix is to delete it and create a new Docker Space with CPU basic selected at
+creation, not to change the hardware afterwards. Nothing is lost: this directory is
+the whole Space.
+
+The 600M model runs on CPU in a few seconds per sentence, and the image installs
+CPU-only torch wheels to match.
 
 ## Required Space variables
 
