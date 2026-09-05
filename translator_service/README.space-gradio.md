@@ -47,8 +47,17 @@ in `app.py` starts applying `spaces.GPU` to the two translate functions.
 
 ZeroGPU still requires a `@spaces.GPU` function to *exist* at startup (the runtime
 aborts the Space otherwise), so `space_app.py` defines one that is **never called** —
-`_zerogpu_probe`. Defining it satisfies the startup check while consuming no quota, since
-GPU time is only charged when a wrapped function actually runs.
+`_zerogpu_probe`. Defining it satisfies the detection while consuming no quota, since GPU
+time is only charged when a wrapped function actually runs.
+
+Defining it is necessary but **not sufficient**, which is worth knowing before editing
+this entry point. The `spaces` package reports readiness to the ZeroGPU supervisor from
+inside `gr.Blocks.launch`, which it monkey-patches (`gradio.one_launch(startup)` in
+`spaces/zero/__init__.py`). `space_app.py` never calls `launch()` — it hands the composed
+FastAPI+Gradio app to uvicorn — so that report has to be sent explicitly, which
+`_zerogpu_startup_report()` does just before binding. Without it the Space is killed with
+`No @spaces.GPU function detected during startup` even though the probe is registered
+correctly; the message names the wrong cause.
 
 ## Space variables
 

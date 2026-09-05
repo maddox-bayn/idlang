@@ -67,6 +67,57 @@ if spaces is not None:
         """Never called. Exists only to satisfy ZeroGPU's startup detection."""
         raise RuntimeError("_zerogpu_probe is a never-called startup probe")
 
+
+def _zerogpu_startup_report():
+    """Tell the ZeroGPU supervisor the app has started. Harmless everywhere else.
+
+    Defining the probe above is necessary but not sufficient, and the gap is what kept
+    aborting this Space. From `spaces/zero/__init__.py`:
+
+        def startup():
+            ...
+            if len(decorator.decorated_cache) == 0:
+                return
+            client.startup_report()
+
+        gradio.one_launch(startup)
+
+    `one_launch` monkey-patches `gr.Blocks.launch`, so the report is POSTed by the first
+    `demo.launch()` call — *before* the server binds. This entry point never calls
+    `launch()`; it hands the composed FastAPI+Gradio app straight to uvicorn. So the hook
+    never fired, the supervisor waited for a report that never came, and it killed the
+    Space with "No @spaces.GPU function detected during startup" — a misleading message,
+    since the probe was registered in `decorated_cache` the whole time. Nothing was
+    reporting it.
+
+    Running the task ourselves is honouring that contract rather than working around it:
+    we are launching, just not through `Blocks.launch`. Call this immediately before
+    `uvicorn.run()`, which is where Gradio would have called it.
+
+    Cheap and safe on the CPU path: `torch.pack()` returns 0 without touching the
+    filesystem when no CUDA tensor has ever been allocated, and `spaces.zero.startup`
+    only exists when SPACES_ZERO_GPU is set, so every non-ZeroGPU host takes the
+    ImportError branch and does nothing.
+    """
+    if spaces is None:
+        return
+
+    try:
+        from spaces.zero import startup as zero_startup
+    except ImportError:
+        # `spaces` installed but SPACES_ZERO_GPU unset — nothing expects a report.
+        print("ℹ️ not a ZeroGPU host — no startup report needed")
+        return
+
+    try:
+        zero_startup()
+        print("✅ ZeroGPU startup report sent")
+    except Exception as exc:
+        # Never take the process down over this. Without the report ZeroGPU will stop the
+        # Space anyway, and staying up long enough to log the reason is strictly better
+        # than dying here with a traceback that hides it.
+        print(f"⚠️ ZeroGPU startup report failed: {exc!r}")
+
 # The FastAPI app: /health, /translate, /transcribe, /synthesize, /pipeline, each
 # registered both bare and under /api, with CORSMiddleware already applied from
 # CORS_ORIGINS. Imported first so its routes are matched ahead of the mount.
@@ -138,5 +189,8 @@ if __name__ == "__main__":
     for candidate in (7860, 7861):
         print(f"  port {candidate}: {'IN USE' if _port_in_use(candidate) else 'free'}")
     print(f"  -> serving on {host}:{port}  ({reason})")
+
+    # Before binding, matching where Gradio's patched launch() would have sent it.
+    _zerogpu_startup_report()
 
     uvicorn.run(app, host=host, port=port)

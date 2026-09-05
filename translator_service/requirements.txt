@@ -5,7 +5,15 @@
 # which is a common Hugging Face Space / Docker build failure.
 torch>=2.2
 torchaudio>=2.2
-transformers>=4.40
+
+# Capped below 5 deliberately. The Hugging Face Space image resolved this to
+# transformers 5.16.1, a major release, while the checkpoint was fine-tuned and saved
+# under 4.x — its tokenizer_config.json registers `idu_Latn` through the 4.4x-era
+# `extra_special_tokens` key. NLLB language-token handling is the exact machinery whose
+# failure produced the original English-in/English-out bug, so it is not somewhere to
+# take a free major-version jump. Lift the cap once a v5 load is actually verified
+# against emoduh/nllb-eng-idoma.
+transformers>=4.40,<5
 
 # NLLB and SpeechT5 tokenizers are sentencepiece-backed; protobuf is needed when
 # transformers has to convert a slow tokenizer.

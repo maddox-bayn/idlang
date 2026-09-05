@@ -364,6 +364,17 @@ option that supports the added token.
 translator_service/requirements.txt` — it is listed there; an older image may
 predate it.
 
+**Space dies with "No @spaces.GPU function detected during startup".** The message names
+the wrong cause, and the log looks healthy right up to `Uvicorn running on
+http://0.0.0.0:7860` followed by `Shutting down`. `spaces` POSTs its readiness report from
+inside `gr.Blocks.launch`, which it monkey-patches at import
+(`gradio.one_launch(startup)`). `space_app.py` never calls `launch()` — it serves the
+composed FastAPI+Gradio app with uvicorn — so the report must be sent by hand, which
+`_zerogpu_startup_report()` does immediately before binding. If you replace that entry
+point with something that also bypasses `launch()`, carry that call across. Note the probe
+function alone is not enough: `startup()` early-returns when no `@spaces.GPU` function is
+registered, so you need both the probe *and* the report.
+
 **Idoma audio sounds like English.** It is English. Idoma synthesis requires a
 VITS/MMS-TTS checkpoint (the code reads `.waveform`, which only VITS returns). One
 exists — `mrheartng/idoma-mms-tts-eng` — but it is `gated: manual`, so an
