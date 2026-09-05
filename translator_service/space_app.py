@@ -27,6 +27,7 @@ Nothing here is Space-specific beyond the port default, so it also runs locally:
 """
 
 import os
+import socket
 
 # CPU unless the host explicitly says otherwise — set before importing anything that
 # reads it, since config.py and app.py both resolve DEVICE at import time.
@@ -57,15 +58,55 @@ from app import demo as gradio_ui
 app = gr.mount_gradio_app(api, gradio_ui, path="/")
 
 
+def _port_in_use(port, host="127.0.0.1"):
+    """True if something is already listening on `port`."""
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.settimeout(0.3)
+        return probe.connect_ex((host, port)) == 0
+
+
+def _choose_port():
+    """Pick the port to bind, and say why. Returns (port, reason).
+
+    7860 first: that is the port Spaces forwards external traffic to, whatever the SDK.
+
+    GRADIO_SERVER_PORT is only a *fallback*, never the first choice. On a Gradio Space
+    it is 7861 — not 7860 — and something in the container already holds it, so
+    honouring it first produced `[Errno 98] address already in use` and would have taken
+    the server off the one port Spaces actually routes to.
+
+    An explicit PORT wins outright and is not probed: Render and Fly assign it, and
+    binding anything else there is simply wrong.
+    """
+    explicit = os.getenv("PORT")
+    if explicit:
+        return int(explicit), "PORT is set (host-assigned)"
+
+    candidates = [7860]
+    gradio_port = os.getenv("GRADIO_SERVER_PORT")
+    if gradio_port and gradio_port.isdigit() and int(gradio_port) not in candidates:
+        candidates.append(int(gradio_port))
+
+    for candidate in candidates:
+        if not _port_in_use(candidate):
+            return candidate, "first free candidate"
+
+    # Bind anyway rather than exiting silently — uvicorn's error names the port.
+    return candidates[0], "every candidate busy; binding to surface the error"
+
+
 if __name__ == "__main__":
     # Spaces runs the app_file as a script, so this block is the real entry point on
     # the Space — uvicorn serves the composed app instead of demo.launch().
-    #
-    # Port, in precedence order: GRADIO_SERVER_PORT is what Spaces sets for the Gradio
-    # SDK, PORT is what Render/Fly/a Docker Space set, and 7860 is what Spaces routes
-    # to. GRADIO_SERVER_NAME likewise for the interface.
-    uvicorn.run(
-        app,
-        host=os.getenv("GRADIO_SERVER_NAME") or os.getenv("HOST") or "0.0.0.0",
-        port=int(os.getenv("GRADIO_SERVER_PORT") or os.getenv("PORT") or "7860"),
-    )
+    host = os.getenv("HOST") or "0.0.0.0"
+    port, reason = _choose_port()
+
+    # A port collision is otherwise opaque, and on a Space each guess costs a rebuild.
+    print("--- space_app: binding ---")
+    for name in ("SPACE_ID", "PORT", "GRADIO_SERVER_PORT", "GRADIO_SERVER_NAME"):
+        print(f"  {name}={os.getenv(name)!r}")
+    for candidate in (7860, 7861):
+        print(f"  port {candidate}: {'IN USE' if _port_in_use(candidate) else 'free'}")
+    print(f"  -> serving on {host}:{port}  ({reason})")
+
+    uvicorn.run(app, host=host, port=port)
