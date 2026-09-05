@@ -23,6 +23,13 @@ pydantic
 # Gradio entrypoint (app.py) for the Hugging Face Space.
 gradio>=4.44
 
+# ZeroGPU support. The runtime aborts a ZeroGPU Space with "No @spaces.GPU function
+# detected during startup" unless a decorated function exists, so space_app.py defines
+# a never-called probe — and that needs this package importable. ZeroGPU images may
+# preinstall it, but declaring it removes the doubt; it is a small pure-Python package
+# and is harmless on non-ZeroGPU hosts, where the import is guarded anyway.
+spaces
+
 # Audio I/O used by services/asr_service.py and services/tts_service.py.
 librosa
 soundfile
