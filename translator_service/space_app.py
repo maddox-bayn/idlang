@@ -66,33 +66,40 @@ def _port_in_use(port, host="127.0.0.1"):
 
 
 def _choose_port():
-    """Pick the port to bind, and say why. Returns (port, reason).
+    """Pick the first *free* port from the candidates, and say why. Returns (port, reason).
 
-    7860 first: that is the port Spaces forwards external traffic to, whatever the SDK.
+    Order matters, and so does probing every one of them:
 
-    GRADIO_SERVER_PORT is only a *fallback*, never the first choice. On a Gradio Space
-    it is 7861 — not 7860 — and something in the container already holds it, so
-    honouring it first produced `[Errno 98] address already in use` and would have taken
-    the server off the one port Spaces actually routes to.
+      1. PORT — Render and Fly assign it and route to it, so it must be tried first.
+      2. 7860 — what Spaces forwards external traffic to, whatever the SDK.
+      3. GRADIO_SERVER_PORT — last resort.
 
-    An explicit PORT wins outright and is not probed: Render and Fly assign it, and
-    binding anything else there is simply wrong.
+    Nothing is bound unprobed. A Gradio Space sets `PORT=7861` and something in the
+    container is *already listening* on 7861, so trusting PORT unconditionally gave
+    `[Errno 98] address already in use` on every boot while 7860 sat free. Probing turns
+    that into a fallback instead of a crash, without breaking a host like Render where
+    the assigned PORT is free and is the only correct choice.
     """
-    explicit = os.getenv("PORT")
-    if explicit:
-        return int(explicit), "PORT is set (host-assigned)"
+    candidates = []
 
-    candidates = [7860]
-    gradio_port = os.getenv("GRADIO_SERVER_PORT")
-    if gradio_port and gradio_port.isdigit() and int(gradio_port) not in candidates:
-        candidates.append(int(gradio_port))
+    def add(port):
+        if port is not None and port not in candidates:
+            candidates.append(port)
+
+    def env_port(name):
+        raw = os.getenv(name)
+        return int(raw) if raw and raw.isdigit() else None
+
+    add(env_port("PORT"))
+    add(7860)
+    add(env_port("GRADIO_SERVER_PORT"))
 
     for candidate in candidates:
         if not _port_in_use(candidate):
-            return candidate, "first free candidate"
+            return candidate, f"first free of {candidates}"
 
     # Bind anyway rather than exiting silently — uvicorn's error names the port.
-    return candidates[0], "every candidate busy; binding to surface the error"
+    return candidates[0], f"all of {candidates} busy; binding to surface the error"
 
 
 if __name__ == "__main__":
