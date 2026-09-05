@@ -375,6 +375,24 @@ point with something that also bypasses `launch()`, carry that call across. Note
 function alone is not enough: `startup()` early-returns when no `@spaces.GPU` function is
 registered, so you need both the probe *and* the report.
 
+**UI loads but the translate buttons do nothing; `/_app/immutable/*` all 404.** The
+container log shows `Invalid port: '7861_appimmutableassets0.D0c57pBM.css'` — the request
+path with every slash removed, appended to a port. Hugging Face sets `GRADIO_SSR_MODE=true`
+(Gradio's own default is `False`), which starts a Node SSR server and installs a middleware
+proxying non-internal paths to it. That proxy does
+`full_path.replace(mounted_path, "")`, and with the app mounted at `path="/"` this strips
+*all* slashes, producing `http://0.0.0.0:7861_appimmutable...`. httpx rejects the port and
+the handler's bare `print(e)` swallows the traceback. `space_app.py` therefore passes
+`ssr_mode=False`, which skips that middleware entirely and serves Gradio's client-rendered
+bundle. Keep it off, or mount at a real subpath instead of `/`.
+
+Related: **do not trust `PORT` on a Space.** Gradio's `start_node_server` does
+`env = os.environ; env["PORT"] = str(port)` — an alias, not a copy — so starting the SSR
+Node server rewrites `PORT` to `7861` inside the Python process. Hugging Face routes
+external traffic to 7860 regardless, so `_choose_port()` prefers 7860 whenever `SPACE_ID`
+is set and only falls back to `PORT`. On Render and Fly, where the assigned `PORT` really
+is the routed one, that precedence flips.
+
 **Idoma audio sounds like English.** It is English. Idoma synthesis requires a
 VITS/MMS-TTS checkpoint (the code reads `.waveform`, which only VITS returns). One
 exists — `mrheartng/idoma-mms-tts-eng` — but it is `gated: manual`, so an

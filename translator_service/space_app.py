@@ -129,7 +129,28 @@ from app import demo as gradio_ui
 
 # Mounting at "/" makes the UI the Space's landing page. The API routes above are
 # already registered, so this only catches what they do not.
-app = gr.mount_gradio_app(api, gradio_ui, path="/")
+#
+# ssr_mode=False is a requirement here, not a preference. Hugging Face sets
+# GRADIO_SSR_MODE=true (Gradio's own default is False), which spawns a Node server and
+# registers a middleware that proxies every non-internal path to it. That proxy is broken
+# for an app mounted at "/". From gradio/routes.py:
+#
+#     full_path = request.url.path
+#     if mounted_path:
+#         full_path = full_path.replace(mounted_path, "")   # replaces EVERY slash
+#     url = f"{scheme}://{server_name}:{node_port}{full_path}"
+#
+# With mounted_path == "/", str.replace strips *all* slashes, so
+# /_app/immutable/assets/0.css becomes _appimmutableassets0.css and the URL becomes
+# http://0.0.0.0:7861_appimmutableassets0.css. httpx rejects that port, the handler's bare
+# `print(e)` logs "Invalid port: ..." with no traceback, and every asset 404s — the page
+# renders with no CSS or JS, which is why the translate buttons did nothing.
+#
+# Turning SSR off skips that middleware altogether (it is registered under `if ssr_mode:`)
+# and Gradio serves its client-rendered bundle from Python instead. Nothing of value is
+# lost: SSR buys SEO and first-paint speed, neither of which matters here, and dropping
+# the Node process also releases port 7861 and its memory alongside a 2.46GB model.
+app = gr.mount_gradio_app(api, gradio_ui, path="/", ssr_mode=False)
 
 
 def _port_in_use(port, host="127.0.0.1"):
@@ -142,18 +163,28 @@ def _port_in_use(port, host="127.0.0.1"):
 def _choose_port():
     """Pick the first *free* port from the candidates, and say why. Returns (port, reason).
 
-    Order matters, and so does probing every one of them:
+    Precedence depends on the host, because the two families disagree:
 
-      1. PORT — Render and Fly assign it and route to it, so it must be tried first.
-      2. 7860 — what Spaces forwards external traffic to, whatever the SDK.
-      3. GRADIO_SERVER_PORT — last resort.
+      * On a Space (SPACE_ID set), Hugging Face forwards external traffic to 7860 and
+        nowhere else, so 7860 must win even when PORT says otherwise.
+      * On Render or Fly, PORT is assigned and routed to, so PORT must win there.
 
-    Nothing is bound unprobed. A Gradio Space sets `PORT=7861` and something in the
-    container is *already listening* on 7861, so trusting PORT unconditionally gave
-    `[Errno 98] address already in use` on every boot while 7860 sat free. Probing turns
-    that into a fallback instead of a crash, without breaking a host like Render where
-    the assigned PORT is free and is the only correct choice.
+    PORT is actively untrustworthy on a Space. gradio's start_node_server does:
+
+        env = os.environ          # an alias for the live environment, not a copy
+        env["PORT"] = str(port)
+
+    so spawning the SSR Node server rewrites PORT to *its* port (7861) inside our own
+    process, during mount_gradio_app at import time — before this function ever reads it.
+    That, not Hugging Face, is where the earlier PORT=7861 came from. With ssr_mode=False
+    no Node server starts and no rewrite happens, but ordering on SPACE_ID is what makes
+    this correct either way.
+
+    Every candidate is probed rather than assumed: binding an occupied port produced
+    `[Errno 98] address already in use` on every boot while 7860 sat free.
     """
+    on_space = bool(os.getenv("SPACE_ID"))
+
     candidates = []
 
     def add(port):
@@ -164,16 +195,22 @@ def _choose_port():
         raw = os.getenv(name)
         return int(raw) if raw and raw.isdigit() else None
 
-    add(env_port("PORT"))
-    add(7860)
+    if on_space:
+        add(7860)
+        add(env_port("PORT"))
+    else:
+        add(env_port("PORT"))
+        add(7860)
     add(env_port("GRADIO_SERVER_PORT"))
+
+    where = "Space: 7860 first" if on_space else "host-assigned PORT first"
 
     for candidate in candidates:
         if not _port_in_use(candidate):
-            return candidate, f"first free of {candidates}"
+            return candidate, f"{where}; first free of {candidates}"
 
     # Bind anyway rather than exiting silently — uvicorn's error names the port.
-    return candidates[0], f"all of {candidates} busy; binding to surface the error"
+    return candidates[0], f"{where}; all of {candidates} busy; binding to surface the error"
 
 
 if __name__ == "__main__":

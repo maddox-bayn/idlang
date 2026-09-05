@@ -66,8 +66,20 @@ correctly; the message names the wrong cause.
 | `NMT_MODEL_ID` | `emoduh/nllb-eng-idoma` | Stock NLLB has no `idu_Latn` and returns English. |
 | `CORS_ORIGINS` | `https://<your-project>.vercel.app` | Defaults to `*`, which browsers reject for credentialed requests. |
 
-`PORT` is unnecessary — Spaces routes to 7860 and `space_app.py` defaults to it.
+`PORT` is unnecessary — Spaces routes to 7860 and `space_app.py` prefers it whenever
+`SPACE_ID` is set. Do not set `PORT` to anything else here; it will be ignored on purpose,
+because Gradio's SSR startup used to rewrite `PORT` to `7861` inside the process.
 `DICTIONARY_FIRST` does nothing here: only the Go backend reads the dictionary.
+
+Two Gradio-on-Spaces details this entry point depends on, both load-bearing:
+
+- **`ssr_mode=False`** in the `mount_gradio_app` call. Spaces sets
+  `GRADIO_SSR_MODE=true`, and Gradio's SSR proxy computes its upstream URL with
+  `full_path.replace(mounted_path, "")` — which, for an app mounted at `"/"`, deletes every
+  slash in the path and produces `http://0.0.0.0:7861_appimmutableassets0.css`. Every
+  asset then 404s and the UI renders dead. Client-side rendering costs this Space nothing.
+- **Port choice ignores `PORT` on a Space**, because Gradio's `start_node_server` assigns
+  into `os.environ` directly and used to rewrite it to the Node server's port.
 
 No secret is needed — the checkpoint is public and ungated. Add `HF_TOKEN` as a
 *Secret* only to point at a gated model.
