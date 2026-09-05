@@ -58,10 +58,14 @@ app = gr.mount_gradio_app(api, gradio_ui, path="/")
 
 
 if __name__ == "__main__":
-    # Spaces routes to 7860 whatever the SDK. HOST/PORT stay overridable so this
-    # file is not a Spaces-only entry point.
+    # Spaces runs the app_file as a script, so this block is the real entry point on
+    # the Space — uvicorn serves the composed app instead of demo.launch().
+    #
+    # Port, in precedence order: GRADIO_SERVER_PORT is what Spaces sets for the Gradio
+    # SDK, PORT is what Render/Fly/a Docker Space set, and 7860 is what Spaces routes
+    # to. GRADIO_SERVER_NAME likewise for the interface.
     uvicorn.run(
         app,
-        host=os.getenv("HOST", "0.0.0.0"),
-        port=int(os.getenv("PORT", "7860")),
+        host=os.getenv("GRADIO_SERVER_NAME") or os.getenv("HOST") or "0.0.0.0",
+        port=int(os.getenv("GRADIO_SERVER_PORT") or os.getenv("PORT") or "7860"),
     )
