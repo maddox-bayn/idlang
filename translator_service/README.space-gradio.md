@@ -45,6 +45,11 @@ enough that this is fine.
 If you later move this to real GPU hardware, set `DEVICE=cuda` and the `@gpu` decorator
 in `app.py` starts applying `spaces.GPU` to the two translate functions.
 
+ZeroGPU still requires a `@spaces.GPU` function to *exist* at startup (the runtime
+aborts the Space otherwise), so `space_app.py` defines one that is **never called** —
+`_zerogpu_probe`. Defining it satisfies the startup check while consuming no quota, since
+GPU time is only charged when a wrapped function actually runs.
+
 ## Space variables
 
 | Name | Value | Why |

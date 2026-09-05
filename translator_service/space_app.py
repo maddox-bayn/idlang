@@ -44,6 +44,29 @@ os.environ.setdefault("DEVICE", "cpu")
 import gradio as gr
 import uvicorn
 
+# ZeroGPU requires at least one @spaces.GPU function to exist at startup — the runtime
+# aborts the Space otherwise, even when the app never intends to use the GPU. This
+# service runs on CPU by design, and ZeroGPU claims a GPU (and consumes quota) only when
+# a wrapped function is actually called, so the probe below is never invoked and costs
+# nothing. It exists purely to satisfy the startup check.
+#
+# `spaces` is only installed on ZeroGPU hosts; the guard keeps every other environment
+# (local, Docker, Vercel-backed hosts) working. Where it is present it must be imported
+# before torch, since it patches torch on import — backup_backend and app (below) are
+# what first import torch.
+try:
+    import spaces
+except ImportError:
+    spaces = None
+    print("⚠️ spaces not installed — not a ZeroGPU host")
+
+if spaces is not None:
+
+    @spaces.GPU
+    def _zerogpu_probe(*args, **kwargs):
+        """Never called. Exists only to satisfy ZeroGPU's startup detection."""
+        raise RuntimeError("_zerogpu_probe is a never-called startup probe")
+
 # The FastAPI app: /health, /translate, /transcribe, /synthesize, /pipeline, each
 # registered both bare and under /api, with CORSMiddleware already applied from
 # CORS_ORIGINS. Imported first so its routes are matched ahead of the mount.
