@@ -136,6 +136,8 @@ first label token: ['idu_Latn']
 **This is the cell that failed last time.** ~20–30 minutes for 12 epochs on a T4.
 
 ```
+patched: model.prepare_decoder_input_ids_from_labels (M2M100 lacks it)
+collator ok: decoder_input_ids start with 2 (decoder_start_token_id), no -100 present
 starting from scratch
 {'loss': 6.2431, 'learning_rate': ..., 'epoch': 0.2}
 {'loss': 3.8817, ...}
@@ -145,6 +147,25 @@ loss 6.2431 -> 0.9412 over 148 logged steps
 
 **Keep the browser tab open and visible.** Colab disconnects idle sessions, and a disconnect
 here is the most likely reason the first upload was untrained weights. Don't close the laptop.
+
+The two lines before `starting from scratch` are a fix, not a warning. NLLB is an M2M100
+model, and M2M100 is one of the few seq2seq architectures that does not define
+`prepare_decoder_input_ids_from_labels` — the method `DataCollatorForSeq2Seq` looks for when
+deciding whether to pre-shift labels into `decoder_input_ids`. That is normally harmless,
+because the model builds them itself from `labels`. But `label_smoothing_factor` makes the
+Trainer *remove* `labels` before calling the model, so nothing builds them and the decoder
+gets no input at all. The cell supplies the missing method so the collator pre-shifts, then
+asserts the batch really contains `decoder_input_ids`. Without it the cell dies on step 1
+with a message that names the opposite problem:
+
+```
+ValueError: You cannot specify both decoder_input_ids and decoder_inputs_embeds
+            at the same time
+```
+
+Nothing was specified twice — both were absent. The check that raises is
+`if (input_ids is None) ^ (inputs_embeds is not None)`, which is also true when both are
+missing, but the message only describes the collision case.
 
 Two protections are now in place:
 
@@ -254,6 +275,7 @@ That second line is the load-time version of GUARD 3. If instead you see
 | `transformers 5.x.x will save a checkpoint...` | pip resolved v5 | Runtime ▸ Restart session, re-run cell 2 |
 | `AssertionError: Enable the GPU` | no accelerator | Runtime ▸ Change runtime type ▸ T4 GPU |
 | `idu_Latn already exists` (cell 12) | not starting from stock NLLB | check `BASE_MODEL` in cell 4 |
+| `cannot specify both decoder_input_ids and decoder_inputs_embeds` | M2M100 lacks `prepare_decoder_input_ids_from_labels`, so label smoothing left the decoder with no input | already fixed in cell 19; if you see it, you are on an older copy of the notebook |
 | disconnected during cell 19 | Colab idle timeout | reconnect, re-run cell 19 — it resumes from the last epoch |
 | `loss did not decrease` | run did not learn | restart runtime, run from cell 2 |
 | GUARD 3 fails | training didn't run | re-run cell 19; do not upload |
