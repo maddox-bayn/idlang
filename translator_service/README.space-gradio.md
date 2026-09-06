@@ -80,6 +80,17 @@ Two Gradio-on-Spaces details this entry point depends on, both load-bearing:
   asset then 404s and the UI renders dead. Client-side rendering costs this Space nothing.
 - **Port choice ignores `PORT` on a Space**, because Gradio's `start_node_server` assigns
   into `os.environ` directly and used to rewrite it to the Node server's port.
+- **`get_api_info` is wrapped, never replaced with `{}`.** `GET /` inlines the schema into
+  the page as `window.gradio_api_info`, and Gradio's browser client reads
+  `api_info.named_endpoints["/predict"]` without guarding. A bare `{}` makes that throw
+  `TypeError`, a `catch` block in `view_api` discards the error, and every button then fails
+  with `Error: No API found` on a page that otherwise looks perfect. The shim in `app.py`
+  calls the real scanner and falls back to `{"named_endpoints": {}, "unnamed_endpoints": {}}`
+  — the shape Gradio itself starts from.
+
+Two 404s in the log are expected and harmless: `/manifest.json` (only served when `pwa` is
+set) and `/static/fonts/{ui-sans-serif,system-ui}/*.woff2` (CSS generic families in the Soft
+theme's font stack, requested as if they were files).
 
 No secret is needed — the checkpoint is public and ungated. Add `HF_TOKEN` as a
 *Secret* only to point at a gated model.

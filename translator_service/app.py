@@ -67,11 +67,60 @@ import gradio as gr
 import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
-# Disable the broken internal Gradio client schema documentation scanner entirely
-def block_api_schema(*args, **kwargs):
-    return {}
+# The API-schema scanner is wrapped, not replaced.
+#
+# This used to be `return {}` — a hard override of gr.Blocks.get_api_info, guarding
+# against the schema scanner raising on some component's JSON schema. That guard broke
+# the UI, and did it silently, which is worth recording because the symptom pointed
+# nowhere near the cause: the buttons did nothing and the console said
+# `Submit function encountered an error: Error: No API found`.
+#
+# The empty dict is the whole problem. Gradio's browser client does, in view_api:
+#
+#     api_info = await response.json()          # our {}
+#     if (api_info.named_endpoints["/predict"]  // TypeError: undefined["/predict"]
+#         && !api_info.unnamed_endpoints["0"])
+#     ...
+#     } catch (e) {
+#         "Could not get API info. " + e.message;   // an expression statement.
+#     }                                            // Not logged. Not rethrown.
+#
+# So the client crashes on the missing key, the catch block computes a string and throws
+# it away, view_api returns undefined, and submit() hits `if (!api_info) throw new
+# Error("No API found")`. One absent key, two swallowed errors, and a dead UI.
+#
+# `{"named_endpoints": {}, "unnamed_endpoints": {}}` — the shape gradio's own
+# get_api_info starts from — costs nothing and keeps the client on its normal path. The
+# UI submits by fn_index, and every consumer of a missing endpoint_info already handles
+# it (`endpoint_info?.parameters[index]?.component` in walk_and_store_blobs, and an
+# explicit undefined branch in map_data_to_params), so an empty-but-shaped result serves
+# the UI correctly; only the API-docs panel goes quiet.
+#
+# Preferring the real scanner is the other half. Returning empty unconditionally throws
+# away working schema information on the assumption it will fail. Two Textboxes in and
+# two out is the simplest case gradio has, so it is expected to succeed here; the
+# fallback only pays out if it genuinely raises.
+_real_get_api_info = getattr(
+    gr.Blocks.get_api_info, "__wrapped_by_idlang__", None
+) or gr.Blocks.get_api_info
 
 
+def block_api_schema(self, *args, **kwargs):
+    try:
+        info = _real_get_api_info(self, *args, **kwargs)
+    except Exception as exc:  # the scanner this shim originally existed to contain
+        print(f"⚠️ API schema scan failed ({exc!r}) — serving empty schema")
+        info = None
+
+    if not isinstance(info, dict) or "named_endpoints" not in info:
+        return {"named_endpoints": {}, "unnamed_endpoints": {}}
+    return info
+
+
+# Remember the original on the shim, so re-importing this module (a reload, or a second
+# entry point importing it) rebinds to gradio's implementation rather than to the
+# previous shim — which would capture itself and recurse until the stack blew.
+block_api_schema.__wrapped_by_idlang__ = _real_get_api_info
 gr.Blocks.get_api_info = block_api_schema
 
 DEVICE = _DEVICE_ENV or ("cuda" if torch.cuda.is_available() else "cpu")

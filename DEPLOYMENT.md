@@ -393,6 +393,43 @@ external traffic to 7860 regardless, so `_choose_port()` prefers 7860 whenever `
 is set and only falls back to `PORT`. On Render and Fly, where the assigned `PORT` really
 is the routed one, that precedence flips.
 
+**The Gradio UI renders perfectly but every button fails with `Error: No API found`.**
+Assets are all 200, the page looks right, and the only console error is that one line. It
+comes from `submit.ts` (`if (!api_info) throw new Error("No API found")`), and the real
+fault is upstream in the *shape* of what `get_api_info` returns.
+
+`GET /` inlines the schema into the page — `window.gradio_api_info = {{ gradio_api_info }}`
+in `templates/frontend/index.html`, filled by `routes.py:584` — so the client never fetches
+`/gradio_api/info` and there is nothing in the container log to see. It then does:
+
+```js
+if (api_info.named_endpoints["/predict"] && !api_info.unnamed_endpoints["0"])
+...
+} catch (e) {
+    "Could not get API info. " + e.message;   // an expression statement — discarded
+}
+```
+
+`app.py` used to override `gr.Blocks.get_api_info` to return `{}` outright, to sidestep the
+schema scanner. With no `named_endpoints` key, `undefined["/predict"]` throws `TypeError`,
+the catch block builds a string and drops it on the floor, `view_api` returns `undefined`,
+and `submit` reports `No API found`. One missing key, two silently swallowed errors.
+
+The override now calls the real scanner and only falls back on failure — and the fallback is
+`{"named_endpoints": {}, "unnamed_endpoints": {}}`, the shape Gradio's own implementation
+starts from. An empty-but-shaped schema is safe for the UI: it submits by `fn_index`, and
+both consumers of a missing `endpoint_info` already guard for it
+(`endpoint_info?.parameters[index]?.component` in `walk_and_store_blobs`, and an explicit
+undefined branch in `map_data_to_params`). Only the API-docs panel goes quiet.
+
+**If you ever stub a Gradio internal, return its real shape, not `{}`.**
+
+**Harmless 404s in the Space log.** Two show up on every boot and neither is a fault:
+`/manifest.json` (served only when `blocks.pwa` is set — `routes.py:1498`) and
+`/static/fonts/{ui-sans-serif,system-ui}/*.woff2`. Those two are CSS *generic families*
+listed in the Soft theme's font stack (`themes/soft.py:21-22`) that Gradio requests as if
+they were font files; the browser falls back to the real system font. Ignore both.
+
 **Idoma audio sounds like English.** It is English. Idoma synthesis requires a
 VITS/MMS-TTS checkpoint (the code reads `.waveform`, which only VITS returns). One
 exists — `mrheartng/idoma-mms-tts-eng` — but it is `gated: manual`, so an
