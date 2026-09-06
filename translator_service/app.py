@@ -210,6 +210,52 @@ def _resolve_idoma_code(tokenizer):
     )
 
 
+def _check_idoma_row_trained(tokenizer, model):
+    """Warn when the Idoma embedding is still a verbatim copy of its Igbo seed.
+
+    A checkpoint can pass every token-level check and still emit Igbo. The training
+    notebook creates `idu_Latn` by *copying* the `ibo_Latn` embedding row, so an
+    untrained checkpoint has a real `idu_Latn` id, resolves it happily, generates
+    fluent text -- and generates Igbo, because the row it points at *is* Igbo's row.
+
+    This was not hypothetical. The first published `emoduh/nllb-eng-idoma` was
+    bit-identical to `facebook/nllb-200-distilled-600M` on every tensor sampled, with
+    `idu_Latn` at cosine 1.00000000 to `ibo_Latn`. It returned 'mmiri' for water
+    (Igbo), 'friend' for Enyi, and 'cockroach' for Ennkpo. Nothing upstream of the
+    weights could detect that, so the check belongs here.
+
+    Returns a warning string, or None when the row has diverged.
+    """
+    try:
+        idu_id = tokenizer.convert_tokens_to_ids(IDOMA_LANG_CODE)
+        ibo_id = tokenizer.convert_tokens_to_ids(FALLBACK_LANG_CODE)
+        unk = tokenizer.unk_token_id
+        if unk in (idu_id, ibo_id):
+            return None  # nothing to compare; _resolve_idoma_code owns that case
+
+        embeddings = model.get_input_embeddings().weight
+        drift = float((embeddings[idu_id] - embeddings[ibo_id]).abs().max())
+    except Exception as exc:
+        # A diagnostic must never be the reason translation fails.
+        print(f"⚠️ could not compare the {IDOMA_LANG_CODE} embedding row: {exc!r}")
+        return None
+
+    if drift > 0:
+        print(
+            f"✅ '{IDOMA_LANG_CODE}' embedding has diverged from its "
+            f"'{FALLBACK_LANG_CODE}' seed (max|delta|={drift:.3e})"
+        )
+        return None
+
+    return (
+        f"⚠️ Output will be **Igbo, not Idoma**. In '{MODEL_ID}' the "
+        f"'{IDOMA_LANG_CODE}' embedding is byte-identical to its "
+        f"'{FALLBACK_LANG_CODE}' (Igbo) seed, which means the fine-tune never ran — "
+        f"the notebook seeds that row from Igbo and training is what moves it. "
+        f"Re-run training/train_idoma_nllb.ipynb through GUARD 3 and re-upload."
+    )
+
+
 def load_translation_model():
     """Load the tokenizer/model once and validate the Idoma language token."""
     global nmt_tokenizer, nmt_model, idoma_code, idoma_warning
@@ -229,6 +275,15 @@ def load_translation_model():
             print(idoma_warning)
         else:
             print(f"✅ Idoma token '{idoma_code}' present in tokenizer")
+
+        # The token can be present and the weights still untrained. Warn rather than
+        # raise: degraded output the user is told about beats a dead service, and this
+        # is reported in the UI on every translation.
+        if idoma_code == IDOMA_LANG_CODE:
+            untrained = _check_idoma_row_trained(tokenizer, model)
+            if untrained:
+                print(untrained)
+                idoma_warning = untrained
 
         nmt_tokenizer, nmt_model = tokenizer, model
         print("✅ Model ready")

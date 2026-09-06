@@ -464,6 +464,50 @@ The checkpoint itself is still worth fixing for anyone doing a plain
 `AutoTokenizer.from_pretrained("emoduh/nllb-eng-idoma")` — a corrected file and upload
 instructions are in `training/checkpoint_fix/`.
 
+**Translation returns fluent text, but it is Igbo, not Idoma.** Symptoms: `water` →
+`mmiri`, `Enyi` → `friend`, `Ennkpo` → `cockroach`. All three are Igbo. This means the
+checkpoint was **never fine-tuned** — and it is the hardest failure in this project to spot,
+because every other check passes.
+
+The training notebook creates `idu_Latn` by *copying* the `ibo_Latn` embedding row (cell 15),
+so that training has a usable prior instead of a random vector. Training is what then moves
+that row apart. If training never runs, you get a checkpoint that loads cleanly, resolves
+`idu_Latn` to a real id, is not `<unk>`, does not echo its input, and generates fluent
+sentences — in Igbo, because the row `forced_bos_token_id` points at *is* Igbo's row.
+
+Confirmed on the first published `emoduh/nllb-eng-idoma` by range-requesting individual
+tensors out of both safetensors files (no full download needed):
+
+```
+row                      base L2      ft L2           cos      max|d|
+ibo_Latn                8.103491   8.103491    1.00000000   0.000e+00
+eng_Latn                5.297757   5.297757    1.00000000   0.000e+00
+idu(ft) vs ibo(base)    8.103491   8.103491    1.00000000   0.000e+00
+
+model.encoder.layers.0.self_attn.q_proj.weight   max|delta|=0.000e+00  IDENTICAL
+model.decoder.layers.11.fc2.weight               max|delta|=0.000e+00  IDENTICAL
+```
+
+Every sampled tensor was bit-identical to `facebook/nllb-200-distilled-600M`. What had been
+uploaded was stock NLLB with one structural edit: the embedding matrix resized and
+`idu_Latn` seeded from Igbo. `trainer.train()` never reached the upload — most likely a
+Colab session that dropped during the 12-epoch run while the upload cell ran later against
+the pre-training `OUTPUT_DIR`.
+
+Two guards were added so this cannot ship again:
+
+- **Notebook GUARD 3** (before save/upload) reloads the base model, asserts that most
+  tensors differ from it, and asserts `idu_Latn` is no longer byte-identical to its
+  `ibo_Latn` seed. Note that the pre-existing GUARD 2 — the echo check — *passes* an
+  untrained checkpoint, since `water` → `mmiri` is not an echo. Only a base-weight
+  comparison catches it.
+- **`app.py:_check_idoma_row_trained`** repeats the embedding-row half at load time and
+  surfaces a warning on every translation. It warns rather than raises: degraded output the
+  user is told about beats a dead service. A trained checkpoint prints
+  `✅ 'idu_Latn' embedding has diverged from its 'ibo_Latn' seed` at startup instead.
+
+If you see this, re-run the notebook and let it finish; nothing in the service can fix it.
+
 **Idoma audio sounds like English.** It is English. Idoma synthesis requires a
 VITS/MMS-TTS checkpoint (the code reads `.waveform`, which only VITS returns). One
 exists — `mrheartng/idoma-mms-tts-eng` — but it is `gated: manual`, so an
