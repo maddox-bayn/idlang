@@ -67,6 +67,11 @@ import gradio as gr
 import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
+# The checkpoint's tokenizer_config.json declares extra_special_tokens as a JSON array,
+# which transformers rejects with "'list' object has no attribute 'keys'". See
+# tokenizer_compat.py — a well-formed checkpoint goes straight through untouched.
+from tokenizer_compat import load_tokenizer
+
 # The API-schema scanner is wrapped, not replaced.
 #
 # This used to be `return {}` — a hard override of gr.Blocks.get_api_info, guarding
@@ -215,7 +220,7 @@ def load_translation_model():
         # No silent fallback to a different repo here: substituting a stock NLLB
         # checkpoint for a gated Idoma one is what produced untranslated output.
         # Configuration errors must surface, not be papered over.
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_ID, **kwargs)
+        tokenizer = load_tokenizer(AutoTokenizer, MODEL_ID, **kwargs)
         model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_ID, **kwargs)
         model.eval()
 

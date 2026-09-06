@@ -27,6 +27,11 @@ except ImportError as exc:
 
 from config import ModelIDs, DEVICE, CACHE_DIR
 
+# Repairs a list-shaped `extra_special_tokens` in a checkpoint's tokenizer_config.json,
+# which transformers rejects with "'list' object has no attribute 'keys'". A well-formed
+# checkpoint takes the library's own path untouched. See tokenizer_compat.py.
+from tokenizer_compat import load_tokenizer
+
 # Global model cache
 _model_cache: Dict[str, Any] = {}
 _cache_lock = threading.Lock()
@@ -51,7 +56,8 @@ class ModelManager:
                 return _model_cache[cache_key]
 
             logger.info(f"Loading NMT model: {ModelIDs.NMT} on {DEVICE}")
-            tokenizer = AutoTokenizer.from_pretrained(
+            tokenizer = load_tokenizer(
+                AutoTokenizer,
                 ModelIDs.NMT,
                 cache_dir=get_cache_dir(),
                 local_files_only=False,

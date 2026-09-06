@@ -430,6 +430,40 @@ undefined branch in `map_data_to_params`). Only the API-docs panel goes quiet.
 listed in the Soft theme's font stack (`themes/soft.py:21-22`) that Gradio requests as if
 they were font files; the browser falls back to the real system font. Ignore both.
 
+**`❌ Translation Error: 'list' object has no attribute 'keys'`.** The UI works, the model
+downloads, and the failure only appears when you press Translate — because the checkpoint is
+fetched on the first translation, not at boot. The fault is in the *published checkpoint*,
+not in this repo: `emoduh/nllb-eng-idoma`'s `tokenizer_config.json` declares
+
+```json
+"extra_special_tokens": ["idu_Latn"]
+```
+
+a JSON array, where transformers 4.x requires an object. `_set_model_specific_special_tokens`
+is annotated `list[str]` but its body calls `.keys()`; the body wins.
+
+It is a **transformers 4/5 disagreement about one key**. v5 renames the training code's
+`additional_special_tokens` to `extra_special_tokens`, keeps it as a list, and
+`save_pretrained` writes that list out; v4 reads the same key name as a mapping. Training ran
+on v5 (the notebook's `>=4.40` was unpinned), the service pins `<5`, so the checkpoint could
+not load. Confirmed against the live `tokenizer.json` on both majors:
+
+| config value | transformers 4.57.6 | transformers 5.16.1 |
+|---|---|---|
+| `["idu_Latn"]` | ❌ `'list' object has no attribute 'keys'` | ✅ loads |
+| `{"idu_Latn": "idu_Latn"}` | ✅ loads | ✅ loads |
+
+Two things were changed. `translator_service/tokenizer_compat.py` repairs the value at load
+time, so **the deployment needs nothing from the Hub to work** — it retries only after this
+exact `AttributeError`, so a correct checkpoint takes the library's normal path untouched and
+any other error (a gated 401, a missing repo) still fails loudly. And the notebook now
+installs `"transformers>=4.40,<5"` and asserts the major, so the next training run cannot
+reproduce it.
+
+The checkpoint itself is still worth fixing for anyone doing a plain
+`AutoTokenizer.from_pretrained("emoduh/nllb-eng-idoma")` — a corrected file and upload
+instructions are in `training/checkpoint_fix/`.
+
 **Idoma audio sounds like English.** It is English. Idoma synthesis requires a
 VITS/MMS-TTS checkpoint (the code reads `.waveform`, which only VITS returns). One
 exists — `mrheartng/idoma-mms-tts-eng` — but it is `gated: manual`, so an
