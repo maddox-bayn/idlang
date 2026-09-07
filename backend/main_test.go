@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -183,4 +184,70 @@ func TestDictionaryLookupRespectsDirection(t *testing.T) {
 	if resp := lookupDictionary("water", "Idoma", "English"); resp != nil {
 		t.Errorf("Idoma -> English matched an English key and returned %q", resp.Translation)
 	}
+}
+
+// The v3 dictionary is the corpus scraped from idomaland.org, and it is the default
+// DICTIONARY_PATH. This is a regression test on the words the fine-tuned model gets
+// wrong: with dictionary-first routing they must be answered exactly, because a
+// lookup cannot approximate ("Nmachi" for the reference "Nmaochi") or guess
+// ("onyilo", meaning *man*, for water) the way a 989-pair fine-tune does.
+func TestV3DictionaryAnswersWhatTheModelMisses(t *testing.T) {
+	loaded, err := loadDictionary("idoma_dictionary_v3.json")
+	if err != nil {
+		// v3 is generated, not committed: it is scraped idomaland.org content and the
+		// GitHub repo is public. Regenerate with:
+		//     python data_pipeline/build_dictionary.py
+		t.Skipf("idoma_dictionary_v3.json not present (%v); "+
+			"run: python data_pipeline/build_dictionary.py", err)
+	}
+
+	saved := dict
+	defer func() { dict = saved }()
+	dict = loaded
+
+	usable, placeholders := countEntries(dict)
+	if placeholders != 0 {
+		t.Errorf("v3 must contain no %q placeholders, found %d", idomaPlaceholder, placeholders)
+	}
+	if usable < 1000 {
+		t.Errorf("expected >1000 usable entries, got %d", usable)
+	}
+
+	// english -> the forms idomaland.org gives; any one of them is correct, since
+	// central and western Idoma differ and neither is more authoritative.
+	cases := map[string][]string{
+		"water":        {"Ennkpo", "Enyi"},
+		"good morning": {"Nmaochi"},
+		"my father":    {"Adam"},
+		"house":        {"Ole"},
+		"man":          {"Onyilo", "Onyiro"},
+		"eat":          {"Le", "Re"},
+	}
+
+	for english, want := range cases {
+		resp := lookupDictionary(english, "English", "Idoma")
+		if resp == nil {
+			t.Errorf("%q: no dictionary hit; the model would have to guess", english)
+			continue
+		}
+		if !containsFold(want, resp.Translation) {
+			t.Errorf("%q: got %q, want one of %v", english, resp.Translation, want)
+		}
+	}
+
+	// Reverse direction, which the model also gets wrong ("Ennkpo" -> "Neck").
+	if resp := lookupDictionary("Ennkpo", "Idoma", "English"); resp == nil {
+		t.Error("Ennkpo: no reverse hit")
+	} else if !strings.EqualFold(resp.Translation, "water") {
+		t.Errorf("Ennkpo -> %q, want water", resp.Translation)
+	}
+}
+
+func containsFold(haystack []string, needle string) bool {
+	for _, candidate := range haystack {
+		if strings.EqualFold(strings.TrimSpace(candidate), strings.TrimSpace(needle)) {
+			return true
+		}
+	}
+	return false
 }

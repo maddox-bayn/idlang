@@ -98,24 +98,35 @@ func (e *WordEntry) UnmarshalJSON(data []byte) error {
 var dict dictionary
 
 // dictionaryFirst controls whether an exact dictionary hit short-circuits the
-// model. It is on by default so verified entries stay exact, but it is a real
-// trade-off: the bundled idoma_dictionary_v2.json is unreliable (half its entries
-// are the "ụụ" placeholder, and among the rest "òdò" is given for black, day,
-// evening, morning, night and red alike). Those hits are served ahead of the
-// model, so once a properly trained checkpoint is deployed, either replace the
-// dictionary file via DICTIONARY_PATH or set DICTIONARY_FIRST=false.
+// model. It is on by default, and with idoma_dictionary_v3.json that is the right
+// default rather than a trade-off: every entry is a real pair scraped from
+// idomaland.org, so a hit is correct by construction.
+//
+// It earns its place because the fine-tuned checkpoint is dictionary-level. Trained
+// on 989 pairs, it approximates words it has seen ("Nmachi" for the reference
+// "Nmaochi") and guesses at words it has not -- it answers "onyilo", which means
+// *man*, for water. A lookup for a covered word cannot make either mistake, so the
+// model is best used for what the dictionary misses.
+//
+// The superseded idoma_dictionary_v2.json is fabricated: 109 of 218 entries are the
+// "ụụ" placeholder, and among the rest "òdò" is given for black, day, evening,
+// morning, night and red alike. Do not point DICTIONARY_PATH back at it.
 var dictionaryFirst = true
 
 func main() {
 	var err error
 	dictPath := os.Getenv("DICTIONARY_PATH")
 	if dictPath == "" {
-		dictPath = "idoma_dictionary_v2.json"
+		dictPath = "idoma_dictionary_v3.json"
 	}
 
 	dict, err = loadDictionary(dictPath)
 	if err != nil {
 		log.Printf("Warning: could not load primary dictionary: %v", err)
+		dict, err = loadDictionary("idoma_dictionary_v2.json")
+	}
+	if err != nil {
+		log.Printf("Warning: could not load dictionary fallback: %v", err)
 		dict, err = loadDictionary("idoma_dictionary.json")
 	}
 	if err != nil {

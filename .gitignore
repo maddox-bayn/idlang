@@ -114,5 +114,14 @@ logs/
 data_pipeline/cache/
 data_pipeline/out/
 
+# Generated from the scraped corpus by data_pipeline/build_dictionary.py. Committing
+# it would redistribute 1,117 idomaland.org pairs as a bulk downloadable file from a
+# public repo, which is the thing we agreed not to do. Serving the lookups through
+# the app (with attribution) is the intended use; shipping the file is not.
+#
+# Consequence: a build from git has no v3 and falls back to v2. Regenerate before
+# deploying, or deploy from local disk. See DEPLOYMENT.md.
+backend/idoma_dictionary_v3.json
+
 # TypeScript build artifacts
 tsconfig.*.tsbuildinfo
