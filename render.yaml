@@ -1,0 +1,53 @@
+# Render blueprint for the Go backend -- the tier that routes dictionary-first and
+# only falls through to the model for what the dictionary misses. Free plan.
+#
+# Deploy: Render dashboard -> New -> Blueprint -> point at this repo.
+#
+# ONE MANUAL STEP, and the deploy is wrong without it.
+# ---------------------------------------------------------------------------
+# backend/idoma_dictionary_v3.json is deliberately NOT in git: it is 1,117 pairs
+# scraped from idomaland.org and this repo is public, so committing it would
+# redistribute their dictionary as a bulk download. Render builds from git, so the
+# file has to arrive out of band:
+#
+#   1. python data_pipeline/build_dictionary.py     # regenerate locally
+#   2. Render service -> Environment -> Secret Files -> Add
+#        filename: idoma_dictionary_v3.json
+#        contents: paste the generated file
+#
+# Secret files mount at /etc/secrets/, which is what DICTIONARY_PATH points at
+# below. Skip this and the backend falls back to idoma_dictionary_v2.json, half of
+# which is the "ụụ" placeholder -- it will start and serve, just badly.
+#
+# /health reports a category count, but v3's 26 against v2's 22 is too close to
+# rely on. Probe a word the model gets wrong instead:
+#
+#   curl -s $URL/api/translate -H 'Content-Type: application/json' \
+#     -d '{"text":"house","source_lang":"English","target_lang":"Idoma"}'
+#
+# v3 loaded gives "Ole". The model alone gives "ulo", which is Igbo.
+#
+# If secret files turn out not to mount for Docker services on the free plan, the
+# fallback is to make the GitHub repo private and drop the gitignore entry, which
+# keeps the file unpublished for the same reason.
+
+services:
+  - type: web
+    name: idlang-backend
+    runtime: docker
+    # The Dockerfile does `COPY backend/go.* ./`, so the build context is the repo
+    # root, not backend/.
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      # The Space serves both /translate and /api/translate, and callPythonNMT
+      # appends /translate -- so no /api suffix here.
+      - key: TRANSLATOR_URL
+        value: https://emoduh-idoma-translator.hf.space
+      - key: DICTIONARY_PATH
+        value: /etc/secrets/idoma_dictionary_v3.json
+      - key: DICTIONARY_FIRST
+        value: "true"
+    # PORT is injected by Render; main.go reads it and defaults to 8080 locally.

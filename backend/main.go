@@ -491,7 +491,12 @@ func callPythonNMT(text, sourceLang, targetLang string) (*TranslateResponse, err
 	}
 	b, _ := json.Marshal(&reqBody)
 
-	client := &http.Client{Timeout: 15 * time.Second}
+	// A warm ZeroGPU Space answers in ~1.5s, but it sleeps when idle and the next
+	// request pays for the container start plus a GPU allocation -- far longer than
+	// 15s. That timeout turned every first-request-after-idle into
+	// "translator service unavailable", which reads as an outage rather than a
+	// cold start.
+	client := &http.Client{Timeout: 90 * time.Second}
 	resp, err := client.Post(fmt.Sprintf("%s/translate", translatorURL), "application/json", bytes.NewBuffer(b))
 	if err != nil {
 		return nil, fmt.Errorf("translator service unavailable: %w", err)
