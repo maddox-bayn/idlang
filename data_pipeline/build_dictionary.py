@@ -41,6 +41,20 @@ Provenance stays local
 This writes only English/Idoma/dialect. The `url` and `definition` fields of the scrape
 stay in data_pipeline/out/, which is gitignored -- the corpus is not published, only
 the lookups the app needs, with attribution to idomaland.org in the app and model card.
+
+This is step 1 of 2
+-------------------
+The output is a *staging* file, not the dictionary the backend serves. It writes to
+data_pipeline/out/corpus_dictionary.json and the served file is built from it by:
+
+    python data_pipeline/build_dictionary.py
+    python data_pipeline/merge_dictionary.py \
+        --source data_pipeline/out/corpus_dictionary.json --tie target
+
+The merge step exists because the corpus is almost entirely untoned ("Ole") while the
+226 curated entries are marked ("Olé"), and tone is meaning-bearing. Writing straight
+to backend/idoma_dictionary_v3.json -- which this script used to default to -- would
+silently replace every marked form with a bare one.
 """
 
 import argparse
@@ -53,7 +67,10 @@ from collections import OrderedDict, defaultdict
 
 PLACEHOLDER = "ụụ"  # must match idomaPlaceholder in backend/main.go
 DEFAULT_IN = pathlib.Path("data_pipeline/out/idomaland_raw.jsonl")
-DEFAULT_OUT = pathlib.Path("backend/idoma_dictionary_v3.json")
+# A staging path, deliberately NOT backend/idoma_dictionary_v3.json. See "This is
+# step 1 of 2" above: the served file is the merge of this output with the curated
+# tone-marked entries, so writing here directly would discard the tone marks.
+DEFAULT_OUT = pathlib.Path("data_pipeline/out/corpus_dictionary.json")
 UNTAGGED = "General"
 
 

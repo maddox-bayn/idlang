@@ -80,10 +80,19 @@ training. A real corpus is scraped from idomaland.org by `data_pipeline/`:
 ```
 
 Mostly word-level, so it trains a dictionary-augmented translator rather than a
-fluent sentence translator. **The scraped text stays local** (`data_pipeline/out/`
-and `cache/` are gitignored); only the trained model is published, crediting
-idomaland.org. See [`data_pipeline/README.md`](data_pipeline/README.md) for the
-source survey and the parse rules.
+fluent sentence translator. The same scrape is also the bulk of the served
+dictionary: `data_pipeline/build_dictionary.py` shapes it into 1,117 lookups and
+`merge_dictionary.py` unions those with the 226 hand-curated tone-marked entries,
+giving the committed `backend/idoma_dictionary_v3.json`.
+
+**Attribution.** The dictionary redistributes ~1,000 English/Idoma pairs derived from
+[idomaland.org](https://idomaland.org/dictionary), with thanks — it is the reason the
+app can answer *school*, *hospital* or *leopard* at all. Only the
+English/Idoma/dialect triples the lookup needs are published; the scrape's `url` and
+`definition` fields, and the raw corpus, stay local in the gitignored
+`data_pipeline/out/` and `cache/`. See
+[`data_pipeline/README.md`](data_pipeline/README.md) for the source survey and the
+parse rules.
 
 ## Getting Started
 
@@ -194,7 +203,7 @@ idlang/
 ├── backend/
 │   ├── main.go              # Go HTTP server (dictionary-first, then the model)
 │   ├── main_test.go
-│   ├── idoma_dictionary_v3.json  # 226 curated tone-marked entries — the one served
+│   ├── idoma_dictionary_v3.json  # 1,225 entries (curated ∪ corpus) — the one served
 │   ├── idoma_dictionary.json     # v1 fallback, bare-string schema (subset of v3)
 │   ├── Dockerfile           # build with the REPO ROOT as context
 │   └── go.mod
@@ -228,6 +237,8 @@ idlang/
 ├── data_pipeline/             # Idoma corpus scraper + builder (see its README)
 │   ├── scrape_idomaland.py
 │   ├── build_corpus.py
+│   ├── build_dictionary.py    # corpus -> out/corpus_dictionary.json (staging)
+│   ├── merge_dictionary.py    # staging ∪ curated -> backend/idoma_dictionary_v3.json
 │   ├── test_parser.py         # 50 offline parser tests
 │   ├── test_build_corpus.py   # 24 offline cleaning/splitting tests
 │   └── eval_seed.tsv          # hand-verified held-out pairs
@@ -262,12 +273,11 @@ idlang/
 
 Copy `.env.example` to `.env` for a documented starting point.
 
-> **Leave `DICTIONARY_FIRST=true`.** `backend/idoma_dictionary_v3.json` holds 226
-> curated, tone-marked entries with no placeholders, so a hit is correct by
-> construction — and the fine-tune is dictionary-level, approximating words it has
-> seen ("Nmachi" for the reference "Nmaochi") and guessing at words it has not (it
-> answers "onyilo", meaning *man*, for water). The dictionary is best at exactly
-> what the model is worst at.
+> **Leave `DICTIONARY_FIRST=true`.** `backend/idoma_dictionary_v3.json` holds 1,225
+> real entries with no placeholders, so a hit is correct by construction — and the
+> fine-tune is dictionary-level, approximating words it has seen ("Nmachi" for the
+> reference "Nmaochi") and guessing at words it has not (it answers "onyilo", meaning
+> *man*, for water). The dictionary is best at exactly what the model is worst at.
 >
 > This warning used to say the opposite, because the file then bundled was
 > `idoma_dictionary_v2.json`: 109 of its 218 entries were the placeholder `ụụ` and
@@ -349,8 +359,31 @@ use `ụụ` as a stand-in for a word you do not know: `usableEntry` in `main.go
 any entry containing it as absent, precisely so a placeholder cannot be served as a
 translation.
 
+Put the word in one category only. An English key in two categories makes the answer
+depend on Go's randomised map order, so it can change between restarts —
+`TestNoEnglishKeyAppearsInTwoCategories` fails if one slips in.
+
 Run `go test ./...` in `backend/` afterwards — the dictionary tests assert the entry
 count and that no placeholders crept back in.
+
+### Rebuilding the dictionary from the corpus
+
+The served file is a merge product, so regenerate it rather than replacing it:
+
+```bash
+python3 data_pipeline/build_dictionary.py        # -> data_pipeline/out/corpus_dictionary.json
+python3 data_pipeline/merge_dictionary.py \
+    --source data_pipeline/out/corpus_dictionary.json --tie target
+```
+
+The merge is in-place and idempotent, so hand-added entries survive a rebuild. The
+tone rule decides conflicts — the form with the higher fraction of tone-marked letters
+wins and the loser is kept as `also: X` in `example` — so a hand-edited value can be
+displaced if the corpus form is more marked. Add `--dry-run` to see what would change
+before writing. `--tie target` is what makes the file on disk outrank the corpus when
+neither form is marked; the default `--tie source` is for merging
+`backend/idoma_dictionary.json`, whose 26 entries are the most consistently marked of
+any source.
 
 ### Running Tests
 

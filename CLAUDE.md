@@ -30,7 +30,7 @@ idlang/
 │   │   ├── /api/transcribe      Proxy audio to Python ASR
 │   │   ├── /api/pipeline        Proxy audio through STT→NMT→TTS
 │   │   └── /api/generate-lesson Mock lesson generator
-│   ├── idoma_dictionary_v3.json Primary dictionary (226 curated tone-marked entries, committed)
+│   ├── idoma_dictionary_v3.json Primary dictionary (1,225 entries: curated ∪ corpus, committed)
 │   ├── idoma_dictionary.json    v1 fallback, bare-string schema (now a subset of v3)
 │   ├── Dockerfile               Multi-stage build
 │   └── go.mod                   Module definition
@@ -55,6 +55,8 @@ idlang/
 ├── data_pipeline/               Corpus scraper + builder (Python)
 │   ├── scrape_idomaland.py      Crawls idomaland.org/dictionary
 │   ├── build_corpus.py          Cleans + dedupes + splits train/dev/test
+│   ├── build_dictionary.py      Corpus → out/corpus_dictionary.json (staging)
+│   ├── merge_dictionary.py      Staging ∪ curated → backend/idoma_dictionary_v3.json
 │   ├── test_parser.py           50 parser tests (offline)
 │   ├── test_build_corpus.py     24 cleaning/split tests (offline)
 │   └── eval_seed.tsv            Hand-verified pairs for holdout testing
@@ -71,7 +73,7 @@ How it fits together:
 
 Frontend (React on :5173 locally, or built assets on :7860): User types or records audio, calls Go backend at /api/*.
 Go Backend (net/http on :8080):
-Loads dictionary (v3 → v2 fallback) at startup
+Loads dictionary (v3 → the small v1 idoma_dictionary.json as the only fallback; v2 is deleted) at startup
 Text translation: tries dict lookup first (if DICTIONARY_FIRST=true), then calls Python /translate, then falls back to OmniRoute LLM
 Audio: proxies /transcribe and /pipeline requests to Python service (multipart streaming)
 Python Service (FastAPI on :5005):
@@ -118,8 +120,8 @@ npm run build  # outputs dist/
 docker build -f Dockerfile.frontend -t idlang .
 docker run -p 7860:7860 -e NMT_MODEL_ID=your/checkpoint idlang
 Try asking
-"Where does the corpus come from and why was the old v2 dictionary unreliable?" — The deleted v2 dictionary was 50% placeholders (ụụ); the served `idoma_dictionary_v3.json` is 226 curated tone-marked entries (the earlier curated set merged with `idoma_dictionary.json` by `data_pipeline/merge_dictionary.py`). Separately, `data_pipeline/` scrapes 1,251 pairs from idomaland.org into `data_pipeline/out/` (gitignored); `build_dictionary.py` can shape those into a 1,117-entry dictionary, which is **not** currently what ships.
+"Where does the corpus come from and why was the old v2 dictionary unreliable?" — The deleted v2 dictionary was 50% placeholders (ụụ); the served `idoma_dictionary_v3.json` is 1,225 entries built by `data_pipeline/merge_dictionary.py` as a union of 226 hand-curated tone-marked entries and 1,117 scraped from idomaland.org (1,251 pairs, shaped by `build_dictionary.py`). Conflicts go to whichever form carries more tone marks, since tone is meaning-bearing; the loser is kept as `also: X` in `example`. The raw scrape stays gitignored in `data_pipeline/out/`.
 "Why does Idoma transcription/synthesis not work with stock models?" — The gated mrheartng checkpoints are inaccessible; ungated fallbacks (Wav2Vec2-base, SpeechT5) were never trained on Idoma, so output is degraded.
 "What happens when the Python service is down or the NMT model fails?" — Go backend falls back to OmniRoute (an LLM gateway), then returns "Missing from Idlang archives." if all fail.
 Single-paragraph project summary for new sessions:
-Idlang is a Vite + React SPA with a Go backend and Python FastAPI microservice for bidirectional English↔Idoma translation with speech-to-text and text-to-speech. The frontend runs on :5173 (dev) or serves built assets; the Go backend (:8080) uses dictionary-first lookup followed by neural translation via NLLB-200, with a three-fallback chain (dictionary → Python NMT → OmniRoute LLM). The Python service (:5005) loads ML models lazily (Whisper + Wav2Vec2 ASR, SpeechT5 TTS, transformers NMT) and is CUDA-aware for Hugging Face Spaces. The served dictionary is `backend/idoma_dictionary_v3.json` — 226 curated tone-marked entries, committed so Render builds get it; a scraped 1,251-pair corpus sits gitignored in `data_pipeline/out/` and could be shaped into a ~1,117-entry dictionary by `build_dictionary.py` for roughly 5x the lookup coverage. A fine-tuned NLLB checkpoint with an added idu_Latn token is required for authentic Idoma output—the defaults are ungated but degrade to English. Deployed as: frontend on Vercel (must set `VITE_API_URL` to the Render backend, not the HF Space, or dictionary-first routing is bypassed), Go backend on Render, model on a Hugging Face Space. Red/black aesthetic, Tailwind CSS v4, Docker Compose local stack.
+Idlang is a Vite + React SPA with a Go backend and Python FastAPI microservice for bidirectional English↔Idoma translation with speech-to-text and text-to-speech. The frontend runs on :5173 (dev) or serves built assets; the Go backend (:8080) uses dictionary-first lookup followed by neural translation via NLLB-200, with a three-fallback chain (dictionary → Python NMT → OmniRoute LLM). The Python service (:5005) loads ML models lazily (Whisper + Wav2Vec2 ASR, SpeechT5 TTS, transformers NMT) and is CUDA-aware for Hugging Face Spaces. The served dictionary is `backend/idoma_dictionary_v3.json` — 1,225 entries, committed so Render builds get it, built by `data_pipeline/merge_dictionary.py` as a union of 226 hand-curated tone-marked entries and the 1,117-entry idomaland.org corpus, with tone-marked forms winning conflicts. A fine-tuned NLLB checkpoint with an added idu_Latn token is required for authentic Idoma output—the defaults are ungated but degrade to English. Deployed as: frontend on Vercel (must set `VITE_API_URL` to the Render backend, not the HF Space, or dictionary-first routing is bypassed), Go backend on Render, model on a Hugging Face Space. Red/black aesthetic, Tailwind CSS v4, Docker Compose local stack.

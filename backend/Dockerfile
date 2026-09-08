@@ -29,13 +29,10 @@ COPY --from=builder /app/idlang-backend .
 # the final image too -- copying only the binary left the backend logging all three
 # "could not load dictionary" warnings and serving an empty dictionary.
 #
-# The glob matches both committed dictionaries: idoma_dictionary_v3.json (226 curated
+# The glob matches both committed dictionaries: idoma_dictionary_v3.json (1,225
 # entries, the one DICTIONARY_PATH points at) and the small idoma_dictionary.json
 # fallback. v3 is committed now, so a plain git-based build gets a working
 # dictionary-first deploy with no regeneration step.
-#
-# It also still picks up a locally regenerated 1,117-entry v3 from
-# data_pipeline/build_dictionary.py if you build from a working tree that has one.
 COPY --from=builder /app/idoma_dictionary*.json ./
 
 EXPOSE 8080

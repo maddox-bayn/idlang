@@ -208,7 +208,7 @@ dictionary-first routing with no extra step. Confirm it after deploying:
 ```bash
 curl -s $URL/health
 # {"status":"healthy","dictionary_source":"idoma_dictionary_v3.json",
-#  "dictionary_entries":226,"dictionary_skipped":0,...}
+#  "dictionary_entries":1225,"dictionary_skipped":0,...}
 ```
 
 `"status":"degraded"` means the primary dictionary did not load and lookups are
@@ -328,7 +328,7 @@ leaving it enabled on a CPU-only host makes `up` fail outright.
 |---|---|---|
 | `TRANSLATOR_URL` | `http://localhost:5005` | Where the Python service lives. |
 | `PORT` | `8080` | |
-| `DICTIONARY_PATH` | `idoma_dictionary_v3.json` | 226 curated tone-marked entries, committed. |
+| `DICTIONARY_PATH` | `idoma_dictionary_v3.json` | 1,225 entries, committed. |
 | `DICTIONARY_FIRST` | `true` | `false` sends every request to the model. |
 
 ### Frontend (build time)
@@ -554,10 +554,17 @@ independently, so a bad `TTS_IDOMA_MODEL` no longer takes all synthesis down.
 
 ## What not to publish
 
-The scraped corpus in `data_pipeline/out/` stays local. It is derived from
-idomaland.org and is not ours to redistribute; `.gitignore` and `.dockerignore`
-both exclude it. Only the trained model ships, crediting idomaland.org in its
-model card.
+The scraped corpus in `data_pipeline/out/` stays local — the raw JSONL with each
+page's `url` and `definition`, and the train/dev/test splits. `.gitignore` and
+`.dockerignore` both exclude it.
+
+What *does* ship is `backend/idoma_dictionary_v3.json`, and since the corpus was
+merged into it that includes ~1,000 English/Idoma pairs derived from idomaland.org —
+the English/Idoma/dialect triples the lookup needs, and nothing else from the source
+pages. That is a deliberate call: keeping the dictionary out of git is what caused
+Render to serve the fabricated v2 for the whole of the first deploy. Credit
+idomaland.org in the README and on the model card. `.gitignore` carries the full
+reasoning and the Secret File alternative if you would rather not redistribute it.
 
 Also: `.clauderc` contains a bearer token. It is gitignored, but it has existed on
 disk in plaintext — rotate it.

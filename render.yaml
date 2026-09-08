@@ -14,15 +14,16 @@
 # v3 both had 22 of them. The deploy served "òhụ" for house and sent bird, sleep,
 # work, buy and sell to the model, since those were "ụụ" placeholders in v2.
 #
-# The dictionary is committed now (226 curated tone-marked entries, not the scraped
-# corpus -- see .gitignore), the Dockerfile's `COPY idoma_dictionary*.json` picks it
-# up, and v2 has been deleted so there is nothing wrong left to fall back to.
+# The dictionary is committed now (1,225 entries -- 226 hand-curated tone-marked ones
+# unioned with the idomaland.org corpus, see .gitignore), the Dockerfile's
+# `COPY idoma_dictionary*.json` picks it up, and v2 has been deleted so there is
+# nothing wrong left to fall back to.
 #
 # VERIFY AFTER DEPLOY. /health now reports which file loaded and how many entries:
 #
 #   curl -s $URL/health
 #   # {"status":"healthy","dictionary_source":"idoma_dictionary_v3.json",
-#   #  "dictionary_entries":226,"dictionary_skipped":0,...}
+#   #  "dictionary_entries":1225,"dictionary_skipped":0,...}
 #
 # "status":"degraded" means the primary dictionary did not load and lookups are
 # falling through to the model. Then probe a word the model gets wrong:
@@ -31,7 +32,8 @@
 #     -d '{"text":"house","source_lang":"English","target_lang":"Idoma"}'
 #
 # Correct deploy: "Olé". The old v2 fallback gave "òhụ". The model alone gives
-# "ulo", which is Igbo.
+# "ulo", which is Igbo. For a word only the corpus merge covers, try "hospital"
+# ("In'echi") -- a 226-entry deploy sends that one to the model.
 #
 # NOTE ON THE FRONTEND. The Vercel frontend must point VITE_API_URL at this
 # service's URL. Pointing it at the Hugging Face Space works but bypasses this

@@ -4,7 +4,7 @@
       "idoma": "ikpéyí",
       "tone": "high-low",
       "pos": "noun",
-      "example": "Ikpéyí àma chí (The head is important)"
+      "example": "Ikpéyí àma chí (The head is important); also: Ikpeyi"
     },
     "face": {
       "idoma": "éyì",
@@ -16,7 +16,7 @@
       "idoma": "omù",
       "tone": "high",
       "pos": "noun",
-      "example": "Omù àma dó (Wipe the forehead)"
+      "example": "Omù àma dó (Wipe the forehead); also: Udumu"
     },
     "eyelid": {
       "idoma": "okpuęyí",
@@ -28,25 +28,25 @@
       "idoma": "onwueyí",
       "tone": "high-low",
       "pos": "noun",
-      "example": "Onwueyí àma wá (Raise the eyebrow)"
+      "example": "Onwueyí àma wá (Raise the eyebrow); also: Onwu Eyi"
     },
     "nose": {
       "idoma": "éhun",
       "tone": "high",
       "pos": "noun",
-      "example": "Éhun àma chì (Sniff with the nose)"
+      "example": "Éhun àma chì (Sniff with the nose); also: Enwu"
     },
     "mouth": {
       "idoma": "òkónu",
       "tone": "low-high",
       "pos": "noun",
-      "example": "Òkónu àma bá (Open the mouth)"
+      "example": "Òkónu àma bá (Open the mouth); also: Okonu"
     },
     "tongue": {
       "idoma": "ìgbènyì",
       "tone": "low-high",
       "pos": "noun",
-      "example": "Ìgbènyì àma chì (Stick out the tongue)"
+      "example": "Ìgbènyì àma chì (Stick out the tongue); also: Igblenyi"
     },
     "tooth": {
       "idoma": "àhúnù",
@@ -58,25 +58,25 @@
       "idoma": "òkò",
       "tone": "low",
       "pos": "noun",
-      "example": "Òkò àma gó (Turn the neck)"
+      "example": "Òkò àma gó (Turn the neck); also: Oko"
     },
     "beard": {
       "idoma": "ònwuàgbà",
       "tone": "low-high",
       "pos": "noun",
-      "example": "Ònwuàgbà àma wá (Comb the beard)"
+      "example": "Ònwuàgbà àma wá (Comb the beard); also: Onwu Agba"
     },
     "ear": {
       "idoma": "òkụ",
       "tone": "low",
       "pos": "noun",
-      "example": "Òkụ àma chì (Clean the ear)"
+      "example": "Òkụ àma chì (Clean the ear); also: Aho"
     },
     "hair": {
       "idoma": "ụì",
       "tone": "high",
       "pos": "noun",
-      "example": "Ụì àma dó (Braid the hair)"
+      "example": "Ụì àma dó (Braid the hair); also: Onwu"
     },
     "chin": {
       "idoma": "òchò",
@@ -96,7 +96,7 @@
       "idoma": "abó",
       "tone": "high",
       "pos": "noun",
-      "example": "Abó àma chì (Wash the hand)"
+      "example": "Abó àma chì (Wash the hand); also: Abo"
     },
     "thumb": {
       "idoma": "abódoléè",
@@ -114,25 +114,25 @@
       "idoma": "àìígàbò",
       "tone": "low-high",
       "pos": "noun",
-      "example": "Àìígàbò àma chì (Point with the finger)"
+      "example": "Àìígàbò àma chì (Point with the finger); also: Aiga"
     },
     "foot": {
       "idoma": "ikpo",
       "tone": "high-low",
       "pos": "noun",
-      "example": "Ikpo àma bá (Wash the foot)"
+      "example": "Ikpo àma bá (Wash the foot); also: Ikpo O'daje"
     },
     "leg": {
       "idoma": "ìkpó",
       "tone": "low",
       "pos": "noun",
-      "example": "Ìkpó àma gó (Straighten the leg)"
+      "example": "Ìkpó àma gó (Straighten the leg); also: Ikpo"
     },
     "knee": {
       "idoma": "òkwúkwù",
       "tone": "low",
       "pos": "noun",
-      "example": "Òkwúkwù àma chì (Bend the knee)"
+      "example": "Òkwúkwù àma chì (Bend the knee); also: Okwukwu"
     },
     "toe": {
       "idoma": "òchúgbodúpó",
@@ -144,19 +144,19 @@
       "idoma": "òkpíye",
       "tone": "low",
       "pos": "noun",
-      "example": "Òkpíye àma wá (Scratch the skin)"
+      "example": "Òkpíye àma wá (Scratch the skin); also: Okpa'iye"
     },
     "bone": {
       "idoma": "ùkpòkpú",
       "tone": "low",
       "pos": "noun",
-      "example": "Ùkpòkpú àma chì (Break the bone)"
+      "example": "Ùkpòkpú àma chì (Break the bone); also: Ikpokwu"
     },
     "stomach": {
       "idoma": "ìpún",
       "tone": "low",
       "pos": "noun",
-      "example": "Ìpún àma bá (Rub the stomach)"
+      "example": "Ìpún àma bá (Rub the stomach); also: Ipu"
     },
     "back": {
       "idoma": "ìgbíhì",
@@ -174,13 +174,13 @@
       "idoma": "òdò",
       "tone": "low",
       "pos": "noun",
-      "example": "Òdò àma wá (Tie the waist)"
+      "example": "Òdò àma wá (Tie the waist); also: Ohí"
     },
     "chest": {
       "idoma": "òhù",
       "tone": "low",
       "pos": "noun",
-      "example": "Òhù àma chì (Pat the chest)"
+      "example": "Òhù àma chì (Pat the chest); also: Otu"
     }
   },
   "fauna_elements": {
@@ -188,31 +188,31 @@
       "idoma": "èwo",
       "tone": "high",
       "pos": "noun",
-      "example": "Èwo àma chì (Call the dog)"
+      "example": "Èwo àma chì (Call the dog); also: Ewo"
     },
     "fish": {
       "idoma": "Èbínyi",
       "tone": "high-low",
       "pos": "noun",
-      "example": "Èbínyi àma bá (Cook the fish)"
+      "example": "Èbínyi àma bá (Cook the fish); also: Eb'enyi"
     },
     "snake": {
       "idoma": "Égwā",
       "tone": "high-low",
       "pos": "noun",
-      "example": "Égwā àma dó (Kill the snake)"
+      "example": "Égwā àma dó (Kill the snake); also: Egwa"
     },
     "goat": {
       "idoma": "Èwü",
       "tone": "high",
       "pos": "noun",
-      "example": "Èwü àma chì (Slaughter the goat)"
+      "example": "Èwü àma chì (Slaughter the goat); also: Ewu"
     },
     "horse": {
       "idoma": "Ònyà",
       "tone": "high",
       "pos": "noun",
-      "example": "Ònyà àma wá (Ride the horse)"
+      "example": "Ònyà àma wá (Ride the horse); also: Onya"
     },
     "fowl": {
       "idoma": "Ügū",
@@ -224,19 +224,19 @@
       "idoma": "ōchi",
       "tone": "high",
       "pos": "noun",
-      "example": "Ōchi àma dó (Climb the tree)"
+      "example": "Ōchi àma dó (Climb the tree); also: Ochi"
     },
     "stone": {
       "idoma": "Èchó",
       "tone": "high",
       "pos": "noun",
-      "example": "Ēchō àma chì (Throw the stone); also: ēchō"
+      "example": "Ēchō àma chì (Throw the stone); also: ēchō; also: Echo"
     },
     "water": {
       "idoma": "ēnyi",
       "tone": "high",
       "pos": "noun",
-      "example": "Ēnyi àma bá (Drink the water)"
+      "example": "Ēnyi àma bá (Drink the water); also: Ennkpo"
     },
     "fire": {
       "idoma": "Olà",
@@ -248,13 +248,13 @@
       "idoma": "enu",
       "tone": "high",
       "pos": "noun",
-      "example": "Enu àma chì (Catch the bird)"
+      "example": "Enu àma chì (Catch the bird); also: Igbaano"
     },
     "monkey": {
       "idoma": "ɛ̀nyà̀",
       "tone": "low",
       "pos": "noun",
-      "example": "Ɛ̀nyà̀ àma wá (Climb like the monkey)"
+      "example": "Ɛ̀nyà̀ àma wá (Climb like the monkey); also: Eka"
     },
     "rabbit": {
       "idoma": "ofú",
@@ -280,25 +280,25 @@
       "idoma": "Lé",
       "tone": "high",
       "pos": "verb",
-      "example": "Mé lé (I eat)"
+      "example": "Mé lé (I eat); also: Le"
     },
     "drink": {
       "idoma": "Gwá",
       "tone": "high",
       "pos": "verb",
-      "example": "Mé gwá (I drink)"
+      "example": "Mé gwá (I drink); also: Gwa"
     },
     "hear": {
       "idoma": "apo",
       "tone": "low",
       "pos": "verb",
-      "example": "Mé apo (I hear)"
+      "example": "Mé apo (I hear); also: Po"
     },
     "listen": {
       "idoma": "jáhó",
       "tone": "high-low",
       "pos": "verb",
-      "example": "Mé jáhó (I listen)"
+      "example": "Mé jáhó (I listen); also: Lahoje"
     },
     "touch": {
       "idoma": "kwó",
@@ -316,31 +316,31 @@
       "idoma": "lipó",
       "tone": "low-high",
       "pos": "verb",
-      "example": "Mé lipó (I steal)"
+      "example": "Mé lipó (I steal); also: Wuwi"
     },
     "sit": {
       "idoma": "chíchę",
       "tone": "low-high",
       "pos": "verb",
-      "example": "Mé chíchę (I sit)"
+      "example": "Mé chíchę (I sit); also: Y'aje"
     },
     "walk": {
       "idoma": "yàhù",
       "tone": "high-low",
       "pos": "verb",
-      "example": "Mé yàhù (I walk)"
+      "example": "Mé yàhù (I walk); also: Yawoo"
     },
     "run": {
       "idoma": "chebū",
       "tone": "high",
       "pos": "verb",
-      "example": "Mé chebū (I run)"
+      "example": "Mé chebū (I run); also: Kwu"
     },
     "sleep": {
       "idoma": "ny'ogwū",
       "tone": "high",
       "pos": "verb",
-      "example": "Mé ny'ogwū (I sleep)"
+      "example": "Mé ny'ogwū (I sleep); also: Iyola"
     },
     "wake": {
       "idoma": "hié",
@@ -358,7 +358,7 @@
       "idoma": "jē",
       "tone": "high",
       "pos": "verb",
-      "example": "Mé jē (I buy)"
+      "example": "Mé jē (I buy); also: La"
     },
     "sell": {
       "idoma": "hɔ́",
@@ -378,7 +378,7 @@
       "idoma": "aho",
       "tone": "high",
       "pos": "pronoun",
-      "example": "Aho àma chì (You are here)"
+      "example": "Aho àma chì (You are here); also: Awo"
     },
     "we": {
       "idoma": "àlò",
@@ -408,7 +408,7 @@
       "idoma": "mè",
       "tone": "low",
       "pos": "pronoun",
-      "example": "Bà mè (Call me)"
+      "example": "Bà mè (Call me); also: Ami"
     },
     "him": {
       "idoma": "anú",
@@ -434,7 +434,7 @@
       "idoma": "Mè gà",
       "tone": "high-high",
       "pos": "phrase",
-      "example": "Mè gà ē (I have come)"
+      "example": "Mè gà ē (I have come); also: m ga ee"
     },
     "You have come": {
       "idoma": "Á gà ē",
@@ -482,7 +482,7 @@
       "idoma": "Wā dã m",
       "tone": "high-low",
       "pos": "phrase",
-      "example": "Wā dã m (Come here)"
+      "example": "Wā dã m (Come here); also: Waa"
     },
     "Sit down": {
       "idoma": "Chíchẽ àjè",
@@ -512,13 +512,13 @@
       "idoma": "Éhò",
       "tone": "high",
       "pos": "phrase",
-      "example": "Éhò (Yes)"
+      "example": "Éhò (Yes); also: Eee"
     },
     "No": {
       "idoma": "Kú",
       "tone": "high",
       "pos": "phrase",
-      "example": "Kú (No)"
+      "example": "Kú (No); also: Ehee"
     },
     "Hello": {
       "idoma": "Ówúrú",
@@ -578,6 +578,12 @@
       "tone": "high",
       "pos": "noun",
       "example": "Onob'ēchō àma chì (Gray color)"
+    },
+    "Orange (Colour)": {
+      "idoma": "Ewo"
+    },
+    "Purple": {
+      "idoma": "Eny'opa"
     }
   },
   "numbers": {
@@ -640,14 +646,323 @@
       "tone": "low",
       "pos": "noun",
       "example": "Ìglí (Ten)"
+    },
+    "Both": {
+      "idoma": "Epl'epa"
+    },
+    "Eight (8)": {
+      "idoma": "Ahata",
+      "example": "central Idoma: Ahata; western Idoma: Alata"
+    },
+    "Eighteen (18)": {
+      "idoma": "Igw'ahata"
+    },
+    "Eighty (80)": {
+      "idoma": "Ofu eene"
+    },
+    "Eighty-eight (88)": {
+      "idoma": "Ofu eene ch'ahata"
+    },
+    "Eighty-five (85)": {
+      "idoma": "Ofu eene ch'eho"
+    },
+    "Eighty-four (84)": {
+      "idoma": "Ofu eene ch'eene"
+    },
+    "Eighty-nine (89)": {
+      "idoma": "Ofu eene ch'ahane"
+    },
+    "Eighty-one (81)": {
+      "idoma": "Ofu eene ch'ee"
+    },
+    "Eighty-seven (87)": {
+      "idoma": "Ofu eene ch'ahapa"
+    },
+    "Eighty-six (86)": {
+      "idoma": "Ofu eene ch'ehili"
+    },
+    "Eighty-three (83)": {
+      "idoma": "Ofu eene ch'eta"
+    },
+    "Eighty-two (82)": {
+      "idoma": "Ofu eene ch'epa"
+    },
+    "Eleven (11)": {
+      "idoma": "Igw'olee"
+    },
+    "Fifteen (15)": {
+      "idoma": "Igw'eho"
+    },
+    "Fifty (50)": {
+      "idoma": "Ofu epa ch'igwo"
+    },
+    "Fifty-eight (58)": {
+      "idoma": "Ofu epa ch'igwahata"
+    },
+    "Fifty-five (55)": {
+      "idoma": "Ofu epa ch'igweho"
+    },
+    "Fifty-four (54)": {
+      "idoma": "Ofu epa ch'igweene"
+    },
+    "Fifty-nine (59)": {
+      "idoma": "Ofu epa ch'igwahane"
+    },
+    "Fifty-one (51)": {
+      "idoma": "Ofu epa ch'igwolee"
+    },
+    "Fifty-seven (57)": {
+      "idoma": "Ofu epa ch'igwahapa"
+    },
+    "Fifty-six (56)": {
+      "idoma": "Ofu epa ch'igwehili"
+    },
+    "Fifty-three (53)": {
+      "idoma": "Ofu epa ch'igweta"
+    },
+    "Fifty-two (52)": {
+      "idoma": "Ofu epa ch'igwepa"
+    },
+    "Five (5)": {
+      "idoma": "Eho",
+      "example": "also: Elo"
+    },
+    "Forty (40)": {
+      "idoma": "Ofu Epa"
+    },
+    "Forty-eight (48)": {
+      "idoma": "Ofu epa ch'ahata"
+    },
+    "Forty-five (45)": {
+      "idoma": "Ofu epa ch'eho"
+    },
+    "Forty-four (44)": {
+      "idoma": "Ofu epa ch'eene"
+    },
+    "Forty-nine (49)": {
+      "idoma": "Ofu epa ch'ahane"
+    },
+    "Forty-One (41)": {
+      "idoma": "Ofu epa ch'ee"
+    },
+    "Forty-seven (47)": {
+      "idoma": "Ofu epa ch'ahapa"
+    },
+    "Forty-six (46)": {
+      "idoma": "Ofu epa ch'ehili"
+    },
+    "Forty-three (43)": {
+      "idoma": "Ofu epa ch'eta"
+    },
+    "Forty-two (42)": {
+      "idoma": "Ofu epa ch'epa"
+    },
+    "Four (4)": {
+      "idoma": "Eene"
+    },
+    "Fourteen (14)": {
+      "idoma": "Igw'eene"
+    },
+    "Nine (9)": {
+      "idoma": "Ahane",
+      "example": "also: Alane"
+    },
+    "Nineteen (19)": {
+      "idoma": "Igwahane"
+    },
+    "Ninety (90)": {
+      "idoma": "Ofu eene ch'igwo"
+    },
+    "Ninety-eight (98)": {
+      "idoma": "Ofu eene ch'igwahata"
+    },
+    "Ninety-five (95)": {
+      "idoma": "Ofu eene ch'igweho"
+    },
+    "Ninety-four (94)": {
+      "idoma": "Ofu eene ch'igweene"
+    },
+    "Ninety-nine (99)": {
+      "idoma": "Ofu eene ch'igwahane"
+    },
+    "Ninety-one (91)": {
+      "idoma": "Ofu eene ch'igwolee"
+    },
+    "Ninety-seven (97)": {
+      "idoma": "Ofu eene ch'igwahapa"
+    },
+    "Ninety-six (96)": {
+      "idoma": "Ofu eene ch'igwehili"
+    },
+    "Ninety-three (93)": {
+      "idoma": "Ofu eene ch'igweta"
+    },
+    "Ninety-two (92)": {
+      "idoma": "Ofu eene ch'igwepa"
+    },
+    "One (1)": {
+      "idoma": "éé",
+      "example": "also: éye"
+    },
+    "One Hundred (100)": {
+      "idoma": "Ofu eho"
+    },
+    "Seven (7)": {
+      "idoma": "Ahapa",
+      "example": "also: Alaapa"
+    },
+    "Seventeen (17)": {
+      "idoma": "Igwahapa"
+    },
+    "Seventy (70)": {
+      "idoma": "Ofu eta ch'igwo"
+    },
+    "Seventy-eight (78)": {
+      "idoma": "Ofu eta ch'igwahata"
+    },
+    "Seventy-five (75)": {
+      "idoma": "Ofu eta ch'igweho"
+    },
+    "Seventy-four (74)": {
+      "idoma": "Ofu eta ch'igweene"
+    },
+    "Seventy-nine (79)": {
+      "idoma": "Ofu eta ch'igwahane"
+    },
+    "Seventy-one (71)": {
+      "idoma": "Ofu eta ch'igwolee"
+    },
+    "Seventy-seven (77)": {
+      "idoma": "Ofu eta ch'igwahapa"
+    },
+    "Seventy-six (76)": {
+      "idoma": "Ofu eta ch'igwehili"
+    },
+    "Seventy-three (73)": {
+      "idoma": "Ofu eta ch'igweta"
+    },
+    "Seventy-two (72)": {
+      "idoma": "Ofu eta ch'igwepa"
+    },
+    "Six (6)": {
+      "idoma": "Ehili",
+      "example": "also: Eri"
+    },
+    "Sixteen (16)": {
+      "idoma": "Igwehili"
+    },
+    "Sixty (60)": {
+      "idoma": "Ofu eta"
+    },
+    "Sixty-eight (68)": {
+      "idoma": "Ofu eta ch'ahata"
+    },
+    "Sixty-five (65)": {
+      "idoma": "Ofu eta ch'eho"
+    },
+    "Sixty-four (64)": {
+      "idoma": "Ofu eta ch'eene"
+    },
+    "Sixty-nine (69)": {
+      "idoma": "Ofu eta ch'ahane"
+    },
+    "Sixty-one (61)": {
+      "idoma": "Ofu eta ch'ee"
+    },
+    "Sixty-seven (67)": {
+      "idoma": "Ofu eta ch'ahapa"
+    },
+    "Sixty-six (66)": {
+      "idoma": "Ofu eta ch'ehili"
+    },
+    "Sixty-three (63)": {
+      "idoma": "Ofu eta ch'eta"
+    },
+    "Sixty-two (62)": {
+      "idoma": "Ofu eta ch'epa"
+    },
+    "Ten (10)": {
+      "idoma": "Igwo"
+    },
+    "Thirteen (13)": {
+      "idoma": "Igweta"
+    },
+    "Thirty (30)": {
+      "idoma": "Ofu Ch'igwo"
+    },
+    "Thirty-eight (38)": {
+      "idoma": "Ofu Ch'igwahata"
+    },
+    "Thirty-five (35)": {
+      "idoma": "Ofu Ch'igweho"
+    },
+    "Thirty-four (34)": {
+      "idoma": "Ofu Ch'igweene"
+    },
+    "Thirty-nine (39)": {
+      "idoma": "Ofu Chi'igwahane"
+    },
+    "Thirty-one (31)": {
+      "idoma": "Ofu Ch'igwolee"
+    },
+    "Thirty-seven (37)": {
+      "idoma": "Ofu Ch'igwahapa"
+    },
+    "Thirty-six (36)": {
+      "idoma": "Ofu Ch'igwehili"
+    },
+    "Thirty-three (33)": {
+      "idoma": "Ofu Ch'igweta"
+    },
+    "Thirty-two (32)": {
+      "idoma": "Ofu Ch'igwepa"
+    },
+    "Three (3)": {
+      "idoma": "Eta"
+    },
+    "Twelve (12)": {
+      "idoma": "Igwepa"
+    },
+    "Twenty (20)": {
+      "idoma": "Ofu"
+    },
+    "Twenty-eight (28)": {
+      "idoma": "Ofu Ch'ahata"
+    },
+    "Twenty-five (25)": {
+      "idoma": "Ofu Ch'eho"
+    },
+    "Twenty-four (24)": {
+      "idoma": "Ofu Ch'eene"
+    },
+    "Twenty-nine (29)": {
+      "idoma": "Ofu Ch'ahane"
+    },
+    "Twenty-one (21)": {
+      "idoma": "Ofu Ch'ee"
+    },
+    "Twenty-seven (27)": {
+      "idoma": "Ofu Ch'ahapa"
+    },
+    "Twenty-six (26)": {
+      "idoma": "Ofu Ch'ehili"
+    },
+    "Twenty-three (23)": {
+      "idoma": "Ofu Ch'eta"
+    },
+    "Twenty-two (22)": {
+      "idoma": "Ofu Ch'epa"
+    },
+    "Two (2)": {
+      "idoma": "Epa"
     }
   },
   "family": {
     "father": {
-      "idoma": "adah",
+      "idoma": "ádah",
       "tone": "high",
       "pos": "noun",
-      "example": "Adah àma chì (Father)"
+      "example": "Adah àma chì (Father); also: adah"
     },
     "mother": {
       "idoma": "ēnē",
@@ -677,7 +992,7 @@
       "idoma": "Oyí",
       "tone": "high",
       "pos": "noun",
-      "example": "Ɔwɔnyí àma chì (Child); also: ɔwɔnyí"
+      "example": "Ɔwɔnyí àma chì (Child); also: ɔwɔnyí; also: Oyi"
     },
     "brother": {
       "idoma": "ɔónɛ́",
@@ -702,6 +1017,78 @@
       "tone": "low",
       "pos": "noun",
       "example": "Am'ene àma chì (Aunt)"
+    },
+    "Bride's Dad or Father": {
+      "idoma": "Ad'onya"
+    },
+    "Bride's Mum or Mother": {
+      "idoma": "En'onya"
+    },
+    "Brother or Sister or Sibling": {
+      "idoma": "Oine"
+    },
+    "Children": {
+      "idoma": "Ayi"
+    },
+    "Elder": {
+      "idoma": "Onyakwuoche"
+    },
+    "Family Home": {
+      "idoma": "Ole"
+    },
+    "First Daughter": {
+      "idoma": "Ada"
+    },
+    "Give Birth to a Child": {
+      "idoma": "M'oyi"
+    },
+    "Groom's Dad or Father": {
+      "idoma": "Ad'oba"
+    },
+    "Groom's Mum or Mother": {
+      "idoma": "En'oba"
+    },
+    "His or Her Mother": {
+      "idoma": "Enenu"
+    },
+    "His/her brother or sister or sibling": {
+      "idoma": "Oinenu"
+    },
+    "My Father": {
+      "idoma": "Adam"
+    },
+    "My husband's dad or father": {
+      "idoma": "Ad'obum"
+    },
+    "My husband's mum or mother": {
+      "idoma": "En'obum"
+    },
+    "My In-law": {
+      "idoma": "Ohilim"
+    },
+    "My Mother": {
+      "idoma": "Enem"
+    },
+    "My Siblings": {
+      "idoma": "Ainem"
+    },
+    "My wife's dad or father": {
+      "idoma": "Ad'onyam"
+    },
+    "My wife's mum or mother": {
+      "idoma": "En'onyam"
+    },
+    "Patrilineage": {
+      "idoma": "Ipoopu"
+    },
+    "Pregnancy": {
+      "idoma": "Ipu"
+    },
+    "Pregnant": {
+      "idoma": "Y'ipu"
+    },
+    "Sublineage": {
+      "idoma": "Ipooma"
     }
   },
   "time": {
@@ -715,25 +1102,25 @@
       "idoma": "ōtū",
       "tone": "high",
       "pos": "noun",
-      "example": "Ōtū àma chì (Night)"
+      "example": "Ōtū àma chì (Night); also: Otu"
     },
     "morning": {
-      "idoma": "inyáã",
+      "idoma": "óóchí",
       "tone": "high-low",
       "pos": "noun",
-      "example": "Inyáã àma chì (Morning)"
+      "example": "Inyáã àma chì (Morning); also: inyáã"
     },
     "afternoon": {
       "idoma": "ɛnɔclō",
       "tone": "high",
       "pos": "noun",
-      "example": "Ɛnɔclō àma chì (Afternoon)"
+      "example": "Ɛnɔclō àma chì (Afternoon); also: Ol'eno"
     },
     "evening": {
       "idoma": "ōclū",
       "tone": "high",
       "pos": "noun",
-      "example": "Ōclū àma chì (Evening)"
+      "example": "Ōclū àma chì (Evening); also: Onone"
     },
     "week": {
       "idoma": "ɛ̅ci-ìglí",
@@ -751,7 +1138,172 @@
       "idoma": "ɛ̄wɔ̄",
       "tone": "high",
       "pos": "noun",
-      "example": "Ɛ̄wɔ̄ àma chì (Year)"
+      "example": "Ɛ̄wɔ̄ àma chì (Year); also: Ihayi"
+    },
+    "1 am": {
+      "idoma": "Oj'ee k'ahap'otu"
+    },
+    "1 o'clock": {
+      "idoma": "Oj'ee"
+    },
+    "1 pm": {
+      "idoma": "Oj'ee k'ol'eno"
+    },
+    "10 am": {
+      "idoma": "Oj'igwo k'ochi"
+    },
+    "10 o'clock": {
+      "idoma": "Oj'igwo"
+    },
+    "10 pm": {
+      "idoma": "Oj'igwo k'otu"
+    },
+    "11 am": {
+      "idoma": "Oj'igwolee k'ochi"
+    },
+    "11 o'clock": {
+      "idoma": "Oj'igwolee"
+    },
+    "11 pm": {
+      "idoma": "Oj'igwolee k'otu"
+    },
+    "12 midnight": {
+      "idoma": "Oj'igwepa k'ahap'otu"
+    },
+    "12 noon": {
+      "idoma": "Oj'igwepa k'ol'eno"
+    },
+    "12 o'clock": {
+      "idoma": "Oj'igwepa"
+    },
+    "2 am": {
+      "idoma": "Oj'epa k'ahap'otu"
+    },
+    "2 o'clock": {
+      "idoma": "Oj'epa"
+    },
+    "2 pm": {
+      "idoma": "Oj'epa k'ol'eno"
+    },
+    "3 am": {
+      "idoma": "Oj'eta k'ahap'otu"
+    },
+    "3 o'clock": {
+      "idoma": "Oj'eta"
+    },
+    "3 pm": {
+      "idoma": "Oj'eta k'ol'eno"
+    },
+    "4 am": {
+      "idoma": "Oj'eene k'oflu ochi"
+    },
+    "4 o'clock": {
+      "idoma": "Oj'eene"
+    },
+    "4 pm": {
+      "idoma": "Oj'eene k'ol'eno"
+    },
+    "5 am": {
+      "idoma": "Oj'eho k'oflu ochi"
+    },
+    "5 o'clock": {
+      "idoma": "Oj'eho"
+    },
+    "5 pm": {
+      "idoma": "Oj'eho k'onone"
+    },
+    "6 am": {
+      "idoma": "Oj'ehili k'oflu ochi"
+    },
+    "6 o'clock": {
+      "idoma": "Oj'ehili"
+    },
+    "6 pm": {
+      "idoma": "Oj'ehili k'onone"
+    },
+    "7 am": {
+      "idoma": "Oj'ahapa k'ochi"
+    },
+    "7 o'clock": {
+      "idoma": "Oj'ahapa"
+    },
+    "7 pm": {
+      "idoma": "Oj'ahapa k'otu"
+    },
+    "8 am": {
+      "idoma": "Oj'ahata k'ochi"
+    },
+    "8 o'clock": {
+      "idoma": "Oj'ahata"
+    },
+    "8 pm": {
+      "idoma": "Oj'ahata k'otu"
+    },
+    "9 am": {
+      "idoma": "Oj'ahane k'ochi"
+    },
+    "9 o'clock": {
+      "idoma": "Oj'ahane"
+    },
+    "9 pm": {
+      "idoma": "Oj'ahane k'otu"
+    },
+    "At about or around 1 pm": {
+      "idoma": "Epplo Oj'ee k'ol'eno"
+    },
+    "At about or around 5 o'clock": {
+      "idoma": "Epplo Oj'eho"
+    },
+    "At about or around 6 pm": {
+      "idoma": "Epplo Oj'ehil k'onone"
+    },
+    "At about or around 9 pm": {
+      "idoma": "Epplo Oj'ahane k'otu"
+    },
+    "Clock": {
+      "idoma": "Oje"
+    },
+    "Early Morning": {
+      "idoma": "Oflu ochi"
+    },
+    "I came home at 5 pm": {
+      "idoma": "Mm w'ole oj'eho k'onone"
+    },
+    "It's 10 o'clock": {
+      "idoma": "Oj'igwo le ya eh"
+    },
+    "It's past 4": {
+      "idoma": "Oj'eene le gla eh"
+    },
+    "It's to 9": {
+      "idoma": "oj'ahane ga ya aa"
+    },
+    "Late Night": {
+      "idoma": "Ahap'otu"
+    },
+    "Sunrise": {
+      "idoma": "Enochi"
+    },
+    "Sunset": {
+      "idoma": "Enone"
+    },
+    "Time": {
+      "idoma": "Eko"
+    },
+    "What time is it": {
+      "idoma": "Oje emla yo ya aa"
+    },
+    "When are you leaving home": {
+      "idoma": "Iko yan na ga nm'ole aa"
+    },
+    "When did you come home": {
+      "idoma": "Iko yan na w'ole aa"
+    },
+    "When do you want to leave here": {
+      "idoma": "Iko yan na doko nma ama aa"
+    },
+    "Wristwatch": {
+      "idoma": "Oje Ot'abo"
     }
   },
   "places": {
@@ -777,7 +1329,7 @@
       "idoma": "ipóle-óclō",
       "tone": "low-high",
       "pos": "noun",
-      "example": "Ipóle-óclō àma chì (Town)"
+      "example": "Ipóle-óclō àma chì (Town); also: Igeli"
     },
     "city": {
       "idoma": "ole-epúpu",
@@ -789,7 +1341,7 @@
       "idoma": "ɔwɛ",
       "tone": "high",
       "pos": "noun",
-      "example": "Ɔwɛ àma chì (Road)"
+      "example": "Ɔwɛ àma chì (Road); also: Owe"
     },
     "path": {
       "idoma": "ɔwɛ-oklíki",
@@ -802,6 +1354,9 @@
       "tone": "low-high",
       "pos": "noun",
       "example": "Olihi àma chì (Market); also: olihi"
+    },
+    "Here": {
+      "idoma": "Ama"
     }
   },
   "objects": {
@@ -809,7 +1364,7 @@
       "idoma": "ukpá",
       "tone": "high",
       "pos": "noun",
-      "example": "Ukpá àma chì (Book)"
+      "example": "Ukpá àma chì (Book); also: Okpa"
     },
     "pen": {
       "idoma": "ukpá-b'abó",
@@ -827,13 +1382,13 @@
       "idoma": "ɛpɛ̀pà̀",
       "tone": "low",
       "pos": "noun",
-      "example": "Ɛpɛ̀pà̀ àma chì (Paper)"
+      "example": "Ɛpɛ̀pà̀ àma chì (Paper); also: Okpa"
     },
     "table": {
       "idoma": "itēbu",
       "tone": "high",
       "pos": "noun",
-      "example": "Itēbu àma chì (Table)"
+      "example": "Itēbu àma chì (Table); also: Iteblu"
     },
     "chair": {
       "idoma": "ichíchę",
@@ -845,13 +1400,54 @@
       "idoma": "ɔwɛ-ole",
       "tone": "high-low",
       "pos": "noun",
-      "example": "Ɔwɛ-ole àma chì (Door)"
+      "example": "Ɔwɛ-ole àma chì (Door); also: Owe"
     },
     "window": {
       "idoma": "ùlè",
       "tone": "low",
       "pos": "noun",
       "example": "Ùlè àma chì (Window)"
+    },
+    "Bag": {
+      "idoma": "Ekpa"
+    },
+    "Bell": {
+      "idoma": "ágogo",
+      "example": "also: áma"
+    },
+    "Cutlass": {
+      "idoma": "Okpakwu",
+      "example": "central Idoma: Okpakwu; western Idoma: Igbandra"
+    },
+    "Gun": {
+      "idoma": "Egbe"
+    },
+    "Iron": {
+      "idoma": "Oje"
+    },
+    "Metal": {
+      "idoma": "Oje"
+    },
+    "Mirror": {
+      "idoma": "Ogigo'mebe"
+    },
+    "Moon": {
+      "idoma": "oyá"
+    },
+    "Only": {
+      "idoma": "Foofunu"
+    },
+    "Pavilion": {
+      "idoma": "Itakpa"
+    },
+    "Rubber": {
+      "idoma": "Itu"
+    },
+    "Umbrella": {
+      "idoma": "Okeno"
+    },
+    "Wheel": {
+      "idoma": "àka"
     }
   },
   "food": {
@@ -859,31 +1455,31 @@
       "idoma": "omɛ̄hɛ̄",
       "tone": "high",
       "pos": "noun",
-      "example": "Omɛ̄hɛ̄ àma chì (Rice)"
+      "example": "Omɛ̄hɛ̄ àma chì (Rice); also: Ochikapa"
     },
     "beans": {
       "idoma": "egwū",
       "tone": "high",
       "pos": "noun",
-      "example": "Egwū àma chì (Beans)"
+      "example": "Egwū àma chì (Beans); also: Eje"
     },
     "maize": {
       "idoma": "ikpápa",
       "tone": "high",
       "pos": "noun",
-      "example": "Ikpápa àma chì (Maize)"
+      "example": "Ikpápa àma chì (Maize); also: Igbamkpa"
     },
     "yam": {
       "idoma": "iyē",
       "tone": "high",
       "pos": "noun",
-      "example": "Iyē àma chì (Yam)"
+      "example": "Iyē àma chì (Yam); also: Ihi"
     },
     "potato": {
       "idoma": "iyē-enwíní",
       "tone": "high",
       "pos": "noun",
-      "example": "Yam-enwíní àma chì (Potato)"
+      "example": "Yam-enwíní àma chì (Potato); also: Ogege"
     },
     "vegetable": {
       "idoma": "uichí",
@@ -895,13 +1491,164 @@
       "idoma": "enà",
       "tone": "high",
       "pos": "noun",
-      "example": "Enà àma chì (Meat)"
+      "example": "Enà àma chì (Meat); also: Ebe"
     },
     "egg": {
       "idoma": "ɛ̄bū",
       "tone": "high",
       "pos": "noun",
-      "example": "Ɛ̄bū àma chì (Egg)"
+      "example": "Ɛ̄bū àma chì (Egg); also: Ahi"
+    },
+    "Alcohol or wine": {
+      "idoma": "Eje"
+    },
+    "Banana": {
+      "idoma": "Ogede"
+    },
+    "Bitter": {
+      "idoma": "H'ono"
+    },
+    "Breakfast": {
+      "idoma": "Odle ochi"
+    },
+    "Cassava": {
+      "idoma": "Ohila",
+      "example": "central Idoma: Ohila; western Idoma: Oyira"
+    },
+    "Coconut": {
+      "idoma": "Akumba",
+      "example": "central Idoma: Akumba; western Idoma: Akoba"
+    },
+    "Cocoyam": {
+      "idoma": "àɡbáhá"
+    },
+    "Cook": {
+      "idoma": "Ya"
+    },
+    "Cooking Pot": {
+      "idoma": "Ehi",
+      "example": "central Idoma: Ehi; western Idoma: Eshi"
+    },
+    "Corn Flour": {
+      "idoma": "Umu k'igbamkpa",
+      "example": "also: umu k'akamkpa"
+    },
+    "Dinner": {
+      "idoma": "Odle one"
+    },
+    "Dried Okra": {
+      "idoma": "Ijangada"
+    },
+    "Drink Alcohol": {
+      "idoma": "Gw'eje"
+    },
+    "Flour": {
+      "idoma": "Umu"
+    },
+    "Food": {
+      "idoma": "Odre",
+      "example": "western Idoma: Odre; central Idoma: Odle"
+    },
+    "Fresh Okra": {
+      "idoma": "Igbidu",
+      "example": "western Idoma: Igbidu; central Idoma: Ikpoho"
+    },
+    "Fry": {
+      "idoma": "Nm'ola"
+    },
+    "Fufu": {
+      "idoma": "Ona"
+    },
+    "Groundnut": {
+      "idoma": "Obonu"
+    },
+    "Groundnut or vegetable oil": {
+      "idoma": "Ano obonu"
+    },
+    "Guinea corn": {
+      "idoma": "Igwu"
+    },
+    "Honey": {
+      "idoma": "Enwu"
+    },
+    "Hunger": {
+      "idoma": "Emie"
+    },
+    "It is Bitter": {
+      "idoma": "O h'ono"
+    },
+    "Locust Beans": {
+      "idoma": "Okpehe"
+    },
+    "Lunch": {
+      "idoma": "Odle ol'eno"
+    },
+    "Melon Seed": {
+      "idoma": "Abafu"
+    },
+    "Melon Seed Soup (Egusi)": {
+      "idoma": "Oho Obobo",
+      "example": "also: Olo Obobo"
+    },
+    "Millet": {
+      "idoma": "Eye"
+    },
+    "Oil": {
+      "idoma": "Ano"
+    },
+    "Orange": {
+      "idoma": "Alemu",
+      "example": "central Idoma: Alemu; western Idoma: Aremu"
+    },
+    "Palm Oil": {
+      "idoma": "Ano ole"
+    },
+    "Palm Wine": {
+      "idoma": "Eje Ali",
+      "example": "central Idoma: Eje Ali; western Idoma: Eje Ari"
+    },
+    "Papaya (Pawpaw)": {
+      "idoma": "Ape"
+    },
+    "Pepper": {
+      "idoma": "Akorkor"
+    },
+    "Plantain": {
+      "idoma": "Agbor"
+    },
+    "Pounded Yam": {
+      "idoma": "On'ihi",
+      "example": "also: On'ishi"
+    },
+    "Put on Stove or Cooker": {
+      "idoma": "Chola"
+    },
+    "Roast": {
+      "idoma": "Nwu"
+    },
+    "Salt": {
+      "idoma": "Oma"
+    },
+    "Soup": {
+      "idoma": "Ohor",
+      "example": "central Idoma: Ohor; western Idoma: Olor"
+    },
+    "Swallow": {
+      "idoma": "Mle",
+      "example": "central Idoma: Mle; western Idoma: Mre"
+    },
+    "Sweet": {
+      "idoma": "Onye",
+      "example": "also: lonye"
+    },
+    "Sweets": {
+      "idoma": "Odo l'onye"
+    },
+    "Tomato": {
+      "idoma": "Utumato"
+    },
+    "Yam Flour": {
+      "idoma": "Umu k'ihi"
     }
   },
   "body_parts": {
@@ -909,7 +1656,7 @@
       "idoma": "ùkpòkpú-abó",
       "tone": "low-high",
       "pos": "noun",
-      "example": "Ùkpòkpú-abó àma chì (Elbow)"
+      "example": "Ùkpòkpú-abó àma chì (Elbow); also: Okeke"
     },
     "shoulder": {
       "idoma": "ipūmū",
@@ -921,13 +1668,13 @@
       "idoma": "ìkpó-abó",
       "tone": "low-high",
       "pos": "noun",
-      "example": "Ìkpó-abó àma chì (Arm)"
+      "example": "Ìkpó-abó àma chì (Arm); also: Achabo"
     },
     "wrist": {
       "idoma": "òkò-abó",
       "tone": "low-high",
       "pos": "noun",
-      "example": "Òkò-abó àma chì (Wrist)"
+      "example": "Òkò-abó àma chì (Wrist); also: Ek'abo"
     },
     "ankle": {
       "idoma": "òkò-ikpo",
@@ -939,7 +1686,7 @@
       "idoma": "ìgbíhì-ikpo",
       "tone": "low-high",
       "pos": "noun",
-      "example": "Ìgbíhì-ikpo àma chì (Heel)"
+      "example": "Ìgbíhì-ikpo àma chì (Heel); also: Am'ikpo"
     },
     "throat": {
       "idoma": "onókò",
@@ -951,7 +1698,24 @@
       "idoma": "àhúnù-ńnyìjɛ̀",
       "tone": "low-high",
       "pos": "noun",
-      "example": "Àhúnù-ńnyìjɛ̀ àma chì (Teeth)"
+      "example": "Àhúnù-ńnyìjɛ̀ àma chì (Teeth); also: Ainu"
+    },
+    "Brain": {
+      "idoma": "Okoto"
+    },
+    "Lungs": {
+      "idoma": "Ufo"
+    },
+    "Nasal Cavity": {
+      "idoma": "Ogoenwu"
+    },
+    "Oesophagus": {
+      "idoma": "Ubo",
+      "example": "also: Ogubo"
+    },
+    "Soft Palate": {
+      "idoma": "Ofloflo",
+      "example": "also: Ofloflo Oko"
     }
   },
   "emotions": {
@@ -959,7 +1723,7 @@
       "idoma": "iyíhɔ́tū",
       "tone": "high",
       "pos": "adjective",
-      "example": "Iyíhɔ́tū àma chì (Happy)"
+      "example": "Iyíhɔ́tū àma chì (Happy); also: Gweye"
     },
     "sad": {
       "idoma": "obobótū",
@@ -971,13 +1735,13 @@
       "idoma": "obēyì",
       "tone": "high",
       "pos": "adjective",
-      "example": "Obēyì àma chì (Angry)"
+      "example": "Obēyì àma chì (Angry); also: Ch'oonu"
     },
     "love": {
       "idoma": "Ihōtū",
       "tone": "high",
       "pos": "noun",
-      "example": "Alihótū àma chì (Love); also: alihótū"
+      "example": "Alihótū àma chì (Love); also: alihótū; also: Ihotu"
     },
     "hate": {
       "idoma": "unyumá",
@@ -989,13 +1753,13 @@
       "idoma": "óló",
       "tone": "high",
       "pos": "noun",
-      "example": "Óló àma chì (Fear)"
+      "example": "Óló àma chì (Fear); also: Ufie"
     },
     "anger": {
       "idoma": "iyēyì",
       "tone": "high",
       "pos": "noun",
-      "example": "Iyēyì àma chì (Anger)"
+      "example": "Iyēyì àma chì (Anger); also: Oonu"
     },
     "joy": {
       "idoma": "ihɔ́tū",
@@ -1009,25 +1773,25 @@
       "idoma": "olepúpu",
       "tone": "high",
       "pos": "adjective",
-      "example": "Olepúpu àma chì (Big)"
+      "example": "Olepúpu àma chì (Big); also: Enehi"
     },
     "small": {
       "idoma": "onywíni",
       "tone": "high",
       "pos": "adjective",
-      "example": "Onywíni àma chì (Small)"
+      "example": "Onywíni àma chì (Small); also: Enenche"
     },
     "good": {
       "idoma": "olōnyhi",
       "tone": "high",
       "pos": "adjective",
-      "example": "Olōnyhi àma chì (Good)"
+      "example": "Olōnyhi àma chì (Good); also: Lohi"
     },
     "bad": {
       "idoma": "obóbɔ̄",
       "tone": "high",
       "pos": "adjective",
-      "example": "Obóbɔ̄ àma chì (Bad)"
+      "example": "Obóbɔ̄ àma chì (Bad); also: Bobi"
     },
     "beautiful": {
       "idoma": "olōnyhi-éyì",
@@ -1039,7 +1803,7 @@
       "idoma": "obóbɔ̄-éyì",
       "tone": "high",
       "pos": "adjective",
-      "example": "Obóbɔ̄-éyì àma chì (Ugly)"
+      "example": "Obóbɔ̄-éyì àma chì (Ugly); also: b'ɔ́bi"
     },
     "strong": {
       "idoma": "ôwclō",
@@ -1055,12 +1819,6 @@
     }
   },
   "animals": {
-    "goat": {
-      "idoma": "èwü",
-      "tone": "high",
-      "pos": "noun",
-      "example": "Èwü àma chì (Goat)"
-    },
     "sheep": {
       "idoma": "am'ala",
       "tone": "high",
@@ -1071,25 +1829,25 @@
       "idoma": "ɛ̄nā-ole",
       "tone": "high",
       "pos": "noun",
-      "example": "Ɛ̄nā-ole àma chì (Cow)"
+      "example": "Ɛ̄nā-ole àma chì (Cow); also: Ena"
     },
     "pig": {
       "idoma": "éhi",
       "tone": "high",
       "pos": "noun",
-      "example": "Éhi àma chì (Pig)"
+      "example": "Éhi àma chì (Pig); also: Okome"
     },
     "chicken": {
       "idoma": "ūgū",
       "tone": "high",
       "pos": "noun",
-      "example": "Ūgū àma chì (Chicken)"
+      "example": "Ūgū àma chì (Chicken); also: Ugwu"
     },
     "duck": {
       "idoma": "ūdūgū",
       "tone": "high",
       "pos": "noun",
-      "example": "Ūdūgū àma chì (Duck)"
+      "example": "Ūdūgū àma chì (Duck); also: Idangbolo"
     },
     "goose": {
       "idoma": "olepúpu-ūdūgū",
@@ -1102,6 +1860,194 @@
       "tone": "high",
       "pos": "noun",
       "example": "Jáki àma chì (Donkey)"
+    },
+    "Agama (Lizard)": {
+      "idoma": "Obolokpo"
+    },
+    "Animal": {
+      "idoma": "Ebe"
+    },
+    "Animal Horn": {
+      "idoma": "Aji"
+    },
+    "Animal Stomach": {
+      "idoma": "Ubu"
+    },
+    "Ant": {
+      "idoma": "Ilu",
+      "example": "western Idoma: Ilu; central Idoma: Ifu"
+    },
+    "Antelope": {
+      "idoma": "Owa"
+    },
+    "Army Ant": {
+      "idoma": "Egayinu"
+    },
+    "Baboon": {
+      "idoma": "Obagwu"
+    },
+    "Bat": {
+      "idoma": "Udo"
+    },
+    "Bee": {
+      "idoma": "Enwu"
+    },
+    "Beetle": {
+      "idoma": "Ogoli",
+      "example": "also: Ogoliomiemi"
+    },
+    "Boa Constrictor": {
+      "idoma": "Idu"
+    },
+    "Cat": {
+      "idoma": "Obla",
+      "example": "central Idoma: Obla; western Idoma: Obisi"
+    },
+    "Cat fish": {
+      "idoma": "Edu"
+    },
+    "Chameleon": {
+      "idoma": "Anyinya"
+    },
+    "Chicks": {
+      "idoma": "Ai-Ugwu"
+    },
+    "Chimpanzee": {
+      "idoma": "Aflo"
+    },
+    "Cobra": {
+      "idoma": "Owa"
+    },
+    "Cockroach": {
+      "idoma": "Akpanga"
+    },
+    "Crab": {
+      "idoma": "Okplika"
+    },
+    "Cricket": {
+      "idoma": "áta"
+    },
+    "Crocodile": {
+      "idoma": "Ikwu"
+    },
+    "Eagle": {
+      "idoma": "Okpe"
+    },
+    "Electric Fish": {
+      "idoma": "Oriri",
+      "example": "also: Olili"
+    },
+    "Feather": {
+      "idoma": "Efu"
+    },
+    "Ferret": {
+      "idoma": "Otekneje"
+    },
+    "Finch": {
+      "idoma": "Aylo"
+    },
+    "Fly (Insect)": {
+      "idoma": "Iju"
+    },
+    "Giraffe": {
+      "idoma": "Ebiti"
+    },
+    "Grasshopper": {
+      "idoma": "Ikpanga"
+    },
+    "Greater Cane Rat (Grasscutter)": {
+      "idoma": "Obije"
+    },
+    "Guineafowl": {
+      "idoma": "Ije"
+    },
+    "Hawk": {
+      "idoma": "Uche"
+    },
+    "He-Goat or Male Goat": {
+      "idoma": "Opi"
+    },
+    "Hedgehog": {
+      "idoma": "Egbe"
+    },
+    "Hyena": {
+      "idoma": "Odumu"
+    },
+    "Kite": {
+      "idoma": "Omaga"
+    },
+    "Leopard": {
+      "idoma": "Eje"
+    },
+    "Lizard": {
+      "idoma": "àpà"
+    },
+    "Mamba": {
+      "idoma": "Aka"
+    },
+    "Mole Snake": {
+      "idoma": "Ekwu"
+    },
+    "Mosquito": {
+      "idoma": "Imu"
+    },
+    "Owl": {
+      "idoma": "Ogwugwu"
+    },
+    "Parrot": {
+      "idoma": "Oko"
+    },
+    "Partridge": {
+      "idoma": "Ewa"
+    },
+    "Penguin": {
+      "idoma": "Igwe"
+    },
+    "Pigeon": {
+      "idoma": "Okantebe"
+    },
+    "Porcupine": {
+      "idoma": "Itodo"
+    },
+    "Praying Mantis": {
+      "idoma": "Ogongo"
+    },
+    "Python": {
+      "idoma": "Idili"
+    },
+    "Sparrow": {
+      "idoma": "Egwe"
+    },
+    "Squirrel": {
+      "idoma": "Okwleje"
+    },
+    "Swift (Bird)": {
+      "idoma": "Akpandede"
+    },
+    "Tiger": {
+      "idoma": "Eje"
+    },
+    "Tilapia": {
+      "idoma": "Apatampa"
+    },
+    "Toad": {
+      "idoma": "Aklle"
+    },
+    "Vulture": {
+      "idoma": "Epu"
+    },
+    "Wasp": {
+      "idoma": "Amlukpa"
+    },
+    "Wing": {
+      "idoma": "achá"
+    },
+    "Woodpecker": {
+      "idoma": "Otachikpokpo"
+    },
+    "Zebra": {
+      "idoma": "Otina",
+      "example": "also: Adina"
     }
   },
   "nature": {
@@ -1109,7 +2055,7 @@
       "idoma": "ɛwù-olepúpu",
       "tone": "high",
       "pos": "noun",
-      "example": "Ɛwù-olepúpu àma chì (Mountain)"
+      "example": "Ɛwù-olepúpu àma chì (Mountain); also: Efu"
     },
     "hill": {
       "idoma": "ɛwù",
@@ -1127,7 +2073,7 @@
       "idoma": "ɔgɔkpá",
       "tone": "high",
       "pos": "noun",
-      "example": "Ɔgɔkpá àma chì (River)"
+      "example": "Ɔgɔkpá àma chì (River); also: Okpa"
     },
     "lake": {
       "idoma": "áílɔkpá",
@@ -1151,7 +2097,7 @@
       "idoma": "ɛmū",
       "tone": "high",
       "pos": "noun",
-      "example": "Ɛmū àma chì (Rain)"
+      "example": "Ɛmū àma chì (Rain); also: Owo"
     }
   },
   "clothing": {
@@ -1183,7 +2129,7 @@
       "idoma": "àbákpá",
       "tone": "high",
       "pos": "noun",
-      "example": "Àbákpá àma chì (Shoes)"
+      "example": "Àbákpá àma chì (Shoes); also: Ablakpa"
     },
     "socks": {
       "idoma": "àbákpá-ìkpó",
@@ -1209,7 +2155,7 @@
       "idoma": "ɛkà",
       "tone": "high",
       "pos": "noun",
-      "example": "Ɛkà àma chì (Car)"
+      "example": "Ɛkà àma chì (Car); also: Omoto"
     },
     "bus": {
       "idoma": "obus",
@@ -1233,7 +2179,7 @@
       "idoma": "ɛglɛ",
       "tone": "high",
       "pos": "noun",
-      "example": "Ɛglɛ àma chì (Bicycle)"
+      "example": "Ɛglɛ àma chì (Bicycle); also: Egle"
     },
     "train": {
       "idoma": "ugbo",
@@ -1252,6 +2198,45 @@
       "tone": "high",
       "pos": "noun",
       "example": "Oko àma chì (Boat)"
+    },
+    "Arrive": {
+      "idoma": "G'aje"
+    },
+    "Canoe or Boat": {
+      "idoma": "Oko"
+    },
+    "Far": {
+      "idoma": "Ligbo"
+    },
+    "Horn (Vehicle)": {
+      "idoma": "Opo"
+    },
+    "In a hurry": {
+      "idoma": "Nmleyikwu"
+    },
+    "It is Far": {
+      "idoma": "O'ligbo"
+    },
+    "Journey": {
+      "idoma": "I'yawoo"
+    },
+    "Ride": {
+      "idoma": "Che"
+    },
+    "Ride a bike": {
+      "idoma": "Ch'egle"
+    },
+    "Safely": {
+      "idoma": "Ebo"
+    },
+    "Ship": {
+      "idoma": "Ugb'enyi"
+    },
+    "Stream": {
+      "idoma": "Okpa"
+    },
+    "To drive or to pilot": {
+      "idoma": "Pe"
     }
   },
   "tools": {
@@ -1265,7 +2250,7 @@
       "idoma": "ógbé",
       "tone": "high",
       "pos": "noun",
-      "example": "Ógbé àma chì (Knife)"
+      "example": "Ógbé àma chì (Knife); also: Ewa"
     },
     "sword": {
       "idoma": "apeh",
@@ -1274,16 +2259,16 @@
       "example": "Apeh àma chì (Sword)"
     },
     "axe": {
-      "idoma": "anyā",
+      "idoma": "àɡa",
       "tone": "high",
       "pos": "noun",
-      "example": "Anyā àma chì (Axe)"
+      "example": "Anyā àma chì (Axe); also: anyā"
     },
     "hoe": {
       "idoma": "ɛgū",
       "tone": "high",
       "pos": "noun",
-      "example": "Ɛgū àma chì (Hoe)"
+      "example": "Ɛgū àma chì (Hoe); also: Enu"
     },
     "sickle": {
       "idoma": "ɛgū-oklíki",
@@ -1333,7 +2318,7 @@
       "idoma": "ole-Owoicho",
       "tone": "low-high",
       "pos": "noun",
-      "example": "Ole-Owoicho àma chì (Church)"
+      "example": "Ole-Owoicho àma chì (Church); also: Uka"
     },
     "mosque": {
       "idoma": "ole-ímámu",
@@ -1351,7 +2336,45 @@
       "idoma": "Ókògbá",
       "tone": "low-high",
       "pos": "noun",
-      "example": "G'owoicho àma chì (Prayer); also: g'owoicho"
+      "example": "G'owoicho àma chì (Prayer); also: g'owoicho; also: Oko Ogba"
+    },
+    "Bible": {
+      "idoma": "Okpa Ko K'ela Iho"
+    },
+    "God Forbid": {
+      "idoma": "Owoicho K'ota"
+    },
+    "He has done it": {
+      "idoma": "Ole ya"
+    },
+    "Heaven": {
+      "idoma": "Aje'oche",
+      "example": "also: Ajoche"
+    },
+    "Lord": {
+      "idoma": "Ondu"
+    },
+    "My God": {
+      "idoma": "Owoicho Kum",
+      "example": "also: Ocho Kum"
+    },
+    "My Lord": {
+      "idoma": "Ondum"
+    },
+    "Praise": {
+      "idoma": "Owo Ofu"
+    },
+    "Praise be to God": {
+      "idoma": "Owo ofu ko yo l'Owoicho"
+    },
+    "Pray": {
+      "idoma": "Gb'oko"
+    },
+    "Sacred": {
+      "idoma": "Iho"
+    },
+    "Secret Societies": {
+      "idoma": "Ai-Ekwu"
     }
   },
   "core_vocabulary": {
@@ -1365,16 +2388,2126 @@
       "idoma": "Òyá"
     },
     "king": {
-      "idoma": "Óché"
+      "idoma": "Óché",
+      "example": "also: Oche"
     },
     "queen": {
-      "idoma": "Óchànyá"
+      "idoma": "Óchànyá",
+      "example": "also: Ochanya"
     },
     "death": {
-      "idoma": "ikwū"
+      "idoma": "ikwū",
+      "example": "also: Ikwu"
     },
     "word": {
-      "idoma": "Élà"
+      "idoma": "Élà",
+      "example": "also: Ela"
+    }
+  },
+  "general": {
+    "A call": {
+      "idoma": "Igwu"
+    },
+    "A fight": {
+      "idoma": "Unu"
+    },
+    "A punch or a blow": {
+      "idoma": "Ekwu"
+    },
+    "Accounting or Accountancy": {
+      "idoma": "Okpa Aluk'ije"
+    },
+    "Accounts": {
+      "idoma": "Aluk'ije"
+    },
+    "Age": {
+      "idoma": "Ihayi"
+    },
+    "Age Group": {
+      "idoma": "Ai-egor"
+    },
+    "Age Mate": {
+      "idoma": "Egor"
+    },
+    "Agree or Accept": {
+      "idoma": "Chɛ"
+    },
+    "All": {
+      "idoma": "Kpemm",
+      "example": "central Idoma: Kpemm; western Idoma: Odudu"
+    },
+    "All Three": {
+      "idoma": "Ete tle ta"
+    },
+    "Among": {
+      "idoma": "bɔ́"
+    },
+    "Anchor or Pillar": {
+      "idoma": "Akanaba"
+    },
+    "And": {
+      "idoma": "Mla"
+    },
+    "Answer": {
+      "idoma": "òhì",
+      "example": "central Idoma: òhì; western Idoma: òshì"
+    },
+    "Answer me": {
+      "idoma": "Tum ohi"
+    },
+    "Answer the call": {
+      "idoma": "Ch'igwu meen"
+    },
+    "Art Gallery": {
+      "idoma": "Inu na agbenu k'ogwuchekwo gbaa"
+    },
+    "Ashamed": {
+      "idoma": "T'oweyi"
+    },
+    "Ask": {
+      "idoma": "D'oka"
+    },
+    "Ask For": {
+      "idoma": "Boo",
+      "example": "also: Ba"
+    },
+    "Ask me": {
+      "idoma": "Dum oka"
+    },
+    "Assembly": {
+      "idoma": "Ojila",
+      "example": "central Idoma: Ojila; western Idoma: Ojira"
+    },
+    "Bachelor": {
+      "idoma": "Oklo",
+      "example": "central Idoma: Oklo; western Idoma: Okro"
+    },
+    "Back or Behind": {
+      "idoma": "Igbihi",
+      "example": "central Idoma: Igbihi; western Idoma: Igbishi"
+    },
+    "Bad Luck": {
+      "idoma": "Ucho"
+    },
+    "Barn": {
+      "idoma": "òbá"
+    },
+    "Barrel Chested": {
+      "idoma": "kwlūkwūū"
+    },
+    "Barren": {
+      "idoma": "Odoma"
+    },
+    "Basket": {
+      "idoma": "Ombli"
+    },
+    "Bath or Shower": {
+      "idoma": "Gw'iye"
+    },
+    "Bathing water": {
+      "idoma": "Ennkpo o'gw'iye",
+      "example": "central Idoma: Ennkpo o'gw'iye; western Idoma: Enyi o'gw'iye"
+    },
+    "Bathroom": {
+      "idoma": "Inu o'gw'iye"
+    },
+    "Be at the back or behind": {
+      "idoma": "Y'igbihi"
+    },
+    "Be Equal": {
+      "idoma": "Jonje"
+    },
+    "Be in front or ahead": {
+      "idoma": "Gb'obu",
+      "example": "central Idoma: Gb'obu; western Idoma: Cr'obu"
+    },
+    "Beads": {
+      "idoma": "Eeche"
+    },
+    "Beak": {
+      "idoma": "Oko"
+    },
+    "Bear or Birth": {
+      "idoma": "Ma"
+    },
+    "Beat": {
+      "idoma": "Nm'ìjē"
+    },
+    "Beating": {
+      "idoma": "ìjē"
+    },
+    "Beautiful Woman": {
+      "idoma": "O'jonya"
+    },
+    "Beauty": {
+      "idoma": "Ɔ́hi"
+    },
+    "Because": {
+      "idoma": "Higbu",
+      "example": "central Idoma: Higbu; western Idoma: Sugwu"
+    },
+    "Become Estranged": {
+      "idoma": "Heema"
+    },
+    "Bed": {
+      "idoma": "Agodo"
+    },
+    "Begging": {
+      "idoma": "eba"
+    },
+    "Belong": {
+      "idoma": "We"
+    },
+    "Bend or Narrow": {
+      "idoma": "Nya"
+    },
+    "Betterment": {
+      "idoma": "Olohi"
+    },
+    "Bicycle Wheel": {
+      "idoma": "àk'egle"
+    },
+    "Blacksmith": {
+      "idoma": "Onowa"
+    },
+    "Blame": {
+      "idoma": "Iflaa"
+    },
+    "Body Cream": {
+      "idoma": "Ano ony'iye"
+    },
+    "Boil (Heat Up)": {
+      "idoma": "Woo"
+    },
+    "Borrow": {
+      "idoma": "Kpla"
+    },
+    "Boss": {
+      "idoma": "Oteyi"
+    },
+    "Bottle": {
+      "idoma": "Ikpem"
+    },
+    "Bow (as in Bow & Arrow)": {
+      "idoma": "Ota"
+    },
+    "Box": {
+      "idoma": "Ikpati"
+    },
+    "Bracelet": {
+      "idoma": "Odo t'abo"
+    },
+    "Braids": {
+      "idoma": "Eeyi abo"
+    },
+    "Brave": {
+      "idoma": "O'lotu"
+    },
+    "Brave person": {
+      "idoma": "Oche o'lotu"
+    },
+    "Breath": {
+      "idoma": "Enyo"
+    },
+    "Bridge": {
+      "idoma": "àkpà"
+    },
+    "Brothers or sisters or siblings": {
+      "idoma": "Aine"
+    },
+    "Bush": {
+      "idoma": "Ipachi"
+    },
+    "Call him or her": {
+      "idoma": "Ho igwu"
+    },
+    "Call me": {
+      "idoma": "Hum igwu"
+    },
+    "Can you speak English?": {
+      "idoma": "Aa ku beke gla?"
+    },
+    "Catch": {
+      "idoma": "Kwu"
+    },
+    "Chat": {
+      "idoma": "K'oka"
+    },
+    "Chief": {
+      "idoma": "Oche"
+    },
+    "Chiefs or Kings": {
+      "idoma": "A'oche"
+    },
+    "Clan": {
+      "idoma": "Ipaaje"
+    },
+    "Clay": {
+      "idoma": "Ome"
+    },
+    "Clean": {
+      "idoma": "Nyaa"
+    },
+    "Climb": {
+      "idoma": "Tu"
+    },
+    "Climb Up": {
+      "idoma": "T'icho"
+    },
+    "Cloth": {
+      "idoma": "Ili",
+      "example": "central Idoma: Ili; western Idoma: Iri"
+    },
+    "Come Home": {
+      "idoma": "W'ole"
+    },
+    "Comedy": {
+      "idoma": "Ume"
+    },
+    "Completely": {
+      "idoma": "Kpligidii"
+    },
+    "Confused": {
+      "idoma": "trunyáá"
+    },
+    "Congratulation": {
+      "idoma": "ainya ofu",
+      "example": "western Idoma: ainya ukror; central Idoma: ainya uklor"
+    },
+    "Conversation": {
+      "idoma": "Oka"
+    },
+    "Coral Beads": {
+      "idoma": "Oka"
+    },
+    "Court Case": {
+      "idoma": "Epo"
+    },
+    "Cover": {
+      "idoma": "Kla"
+    },
+    "Create": {
+      "idoma": "Owa"
+    },
+    "Creation": {
+      "idoma": "Orna"
+    },
+    "Creator": {
+      "idoma": "Onowa"
+    },
+    "Crowd": {
+      "idoma": "èwà"
+    },
+    "Cry (noun) or crying": {
+      "idoma": "Ikwu"
+    },
+    "Cut": {
+      "idoma": "He"
+    },
+    "Dance": {
+      "idoma": "Ije"
+    },
+    "Darkness": {
+      "idoma": "Obú",
+      "example": "also: Ajɛodobú"
+    },
+    "Debt": {
+      "idoma": "ekplá"
+    },
+    "Deceive or Deceit": {
+      "idoma": "Plaa"
+    },
+    "Different": {
+      "idoma": "Eeyeyi"
+    },
+    "Dig": {
+      "idoma": "Bu"
+    },
+    "Dig a Hole": {
+      "idoma": "B'ogo"
+    },
+    "Dirty": {
+      "idoma": "Bleeyin"
+    },
+    "Disagree": {
+      "idoma": "Che nn"
+    },
+    "Disrespect": {
+      "idoma": "Atufu",
+      "example": "also: Átuhu"
+    },
+    "Divert": {
+      "idoma": "Nya"
+    },
+    "Do": {
+      "idoma": "Ya"
+    },
+    "Do you love me?": {
+      "idoma": "Aa Yi Ihotu Kum?"
+    },
+    "Do you speak English?": {
+      "idoma": "Aa jo ku beke"
+    },
+    "Do you speak Idoma?": {
+      "idoma": "Aa jo k'Idoma ?"
+    },
+    "Dream": {
+      "idoma": "Ona"
+    },
+    "Dress or shirt": {
+      "idoma": "Uwae"
+    },
+    "Dress Up": {
+      "idoma": "Le gbo"
+    },
+    "Drum": {
+      "idoma": "Uba",
+      "example": "also: Okanga"
+    },
+    "Dwarf": {
+      "idoma": "Imaa"
+    },
+    "Earrings": {
+      "idoma": "Odo pl'aho"
+    },
+    "Electricity": {
+      "idoma": "Ola"
+    },
+    "Empty": {
+      "idoma": "Ancha"
+    },
+    "End": {
+      "idoma": "Me"
+    },
+    "Ended": {
+      "idoma": "Ome"
+    },
+    "Enough": {
+      "idoma": "Je"
+    },
+    "Errand": {
+      "idoma": "Eho",
+      "example": "central Idoma: Eho; western Idoma: Elo"
+    },
+    "Everyone": {
+      "idoma": "Onyo'onye"
+    },
+    "Extinguish": {
+      "idoma": "Mi",
+      "example": "central Idoma: Mi; western Idoma: Nyi"
+    },
+    "Eye": {
+      "idoma": "Eyi"
+    },
+    "Eyeglasses": {
+      "idoma": "Ogigo okw'eyi"
+    },
+    "Eyelashes": {
+      "idoma": "Onwu akp'eyi"
+    },
+    "Fair": {
+      "idoma": "Owa"
+    },
+    "Fall": {
+      "idoma": "Gwonu"
+    },
+    "Family Head": {
+      "idoma": "Ad'ole"
+    },
+    "Fart": {
+      "idoma": "Nw'emi"
+    },
+    "Fast or Quick": {
+      "idoma": "Fia"
+    },
+    "Fetch": {
+      "idoma": "Fu"
+    },
+    "Find": {
+      "idoma": "D'oka"
+    },
+    "Finish": {
+      "idoma": "Me"
+    },
+    "Finished": {
+      "idoma": "O'me"
+    },
+    "Fire or Light": {
+      "idoma": "Ola"
+    },
+    "Firewood": {
+      "idoma": "Effu"
+    },
+    "First": {
+      "idoma": "Afleyi"
+    },
+    "First Son": {
+      "idoma": "Okpla",
+      "example": "central Idoma: Okpla; western Idoma: Okpra"
+    },
+    "Flow": {
+      "idoma": "Pe"
+    },
+    "Flower": {
+      "idoma": "òdòdó"
+    },
+    "Food Envy": {
+      "idoma": "Okonu pioku"
+    },
+    "Forefathers": {
+      "idoma": "Owo"
+    },
+    "Forest": {
+      "idoma": "ùpù"
+    },
+    "Forget": {
+      "idoma": "Mlanyi"
+    },
+    "Foundation Powder": {
+      "idoma": "Kpanke"
+    },
+    "Front": {
+      "idoma": "Obu"
+    },
+    "Fruits": {
+      "idoma": "Aikp'ochi"
+    },
+    "Full": {
+      "idoma": "Mu"
+    },
+    "Garden": {
+      "idoma": "Obobor",
+      "example": "also: Eg'Ohahor; also: O'fu"
+    },
+    "Gently": {
+      "idoma": "Emema"
+    },
+    "Giant": {
+      "idoma": "Agwu"
+    },
+    "Gift": {
+      "idoma": "Ehi"
+    },
+    "Girl": {
+      "idoma": "Ochenya"
+    },
+    "Give": {
+      "idoma": "Je"
+    },
+    "Give me": {
+      "idoma": "Je gam"
+    },
+    "Glass": {
+      "idoma": "Ogigo"
+    },
+    "Go": {
+      "idoma": "Nyo"
+    },
+    "Go By": {
+      "idoma": "Ye"
+    },
+    "Go to the market": {
+      "idoma": "Le t'ukwo",
+      "example": "also: le t'oja; also: le t'olihi"
+    },
+    "God Has Done It": {
+      "idoma": "Owoicho Le Ya"
+    },
+    "Good Afternoon": {
+      "idoma": "Nmaeno"
+    },
+    "Good Evening": {
+      "idoma": "Nmaine"
+    },
+    "Good Luck": {
+      "idoma": "Iyefu"
+    },
+    "Good Terms": {
+      "idoma": "Yeema"
+    },
+    "Goodness": {
+      "idoma": "O'lohi"
+    },
+    "Gossip": {
+      "idoma": "Awanda"
+    },
+    "Grass": {
+      "idoma": "Achi"
+    },
+    "Grind": {
+      "idoma": "Kpa"
+    },
+    "Grow Old": {
+      "idoma": "Hila",
+      "example": "central Idoma: Hila; western Idoma: Hira"
+    },
+    "Guest or Visitor": {
+      "idoma": "Ugboga"
+    },
+    "Hair cream": {
+      "idoma": "Ano ony'eeyi"
+    },
+    "Hard Luck": {
+      "idoma": "Okwiye",
+      "example": "also: Okwo Iye"
+    },
+    "Hat or Cap": {
+      "idoma": "Odo cl'eeyi"
+    },
+    "Have": {
+      "idoma": "Le"
+    },
+    "He beat me": {
+      "idoma": "ó nmúm̀ ìjē"
+    },
+    "He Saw Me": {
+      "idoma": "O mu mm"
+    },
+    "He's someone's child": {
+      "idoma": "Oyi oche ne"
+    },
+    "He/She did not see me": {
+      "idoma": "O'mu mm"
+    },
+    "Head-Tie": {
+      "idoma": "Adiko"
+    },
+    "Heap of Dirt": {
+      "idoma": "óɡbùdù"
+    },
+    "Heart": {
+      "idoma": "Otu"
+    },
+    "Help": {
+      "idoma": "Ot'abo"
+    },
+    "Help me": {
+      "idoma": "Tum abo"
+    },
+    "Hen": {
+      "idoma": "Ugwu"
+    },
+    "Hey": {
+      "idoma": "Oyi"
+    },
+    "Hole": {
+      "idoma": "Ogo"
+    },
+    "Holy Spirit": {
+      "idoma": "Alekwu Iho"
+    },
+    "Hospital": {
+      "idoma": "In'echi"
+    },
+    "Hospitality": {
+      "idoma": "Oga"
+    },
+    "How": {
+      "idoma": "Abo"
+    },
+    "How much": {
+      "idoma": "Emla"
+    },
+    "I am Blinded by Love": {
+      "idoma": "Ihotu L'um Eyi Pù"
+    },
+    "I am drumming": {
+      "idoma": "Nyo g'uba"
+    },
+    "I am singing": {
+      "idoma": "Nyo gw'ije"
+    },
+    "I can speak Hausa": {
+      "idoma": "Mm k'Abakpa gla"
+    },
+    "I can speak Ibo": {
+      "idoma": "Mm k'Egbo gla"
+    },
+    "I can speak Yoruba": {
+      "idoma": "mm ku Yoruba gla"
+    },
+    "I Have Money": {
+      "idoma": "Mm l'ije"
+    },
+    "I Know": {
+      "idoma": "n'je"
+    },
+    "I Love You": {
+      "idoma": "Aa Hum Otu"
+    },
+    "I love you so much": {
+      "idoma": "Aa Hum Otu Nehi",
+      "example": "also: mm y'hotuko gaga"
+    },
+    "I Said": {
+      "idoma": "M Ka"
+    },
+    "I Saw": {
+      "idoma": "m ma"
+    },
+    "I Understand": {
+      "idoma": "M'po"
+    },
+    "I Want Something": {
+      "idoma": "Mm D'oka Odea",
+      "example": "also: Mm D'oka Ole"
+    },
+    "Ibo Man or Woman": {
+      "idoma": "Oligbo"
+    },
+    "Ibo Men or Women": {
+      "idoma": "aligbo"
+    },
+    "Illness or Sickness": {
+      "idoma": "Oche"
+    },
+    "In case": {
+      "idoma": "Ogele"
+    },
+    "Infinity": {
+      "idoma": "Ikoto"
+    },
+    "Inside the Room": {
+      "idoma": "Ip'inu"
+    },
+    "Inspect": {
+      "idoma": "Jila"
+    },
+    "Insubordination": {
+      "idoma": "Afluma"
+    },
+    "Invite": {
+      "idoma": "plà"
+    },
+    "Is Able": {
+      "idoma": "Gla"
+    },
+    "It is spoilt": {
+      "idoma": "O kwu bia ee"
+    },
+    "It's Cold": {
+      "idoma": "Oi H'lan do"
+    },
+    "Joined or Tangled": {
+      "idoma": "Fla"
+    },
+    "Judge": {
+      "idoma": "Oh'epo"
+    },
+    "Jump": {
+      "idoma": "wú"
+    },
+    "Jumping": {
+      "idoma": "Ombli"
+    },
+    "Kill": {
+      "idoma": "Nmo"
+    },
+    "King of Idoma": {
+      "idoma": "Och'Idoma"
+    },
+    "Know": {
+      "idoma": "Je"
+    },
+    "Kola Nut": {
+      "idoma": "Enme"
+    },
+    "Lamp": {
+      "idoma": "Ilampu"
+    },
+    "Land": {
+      "idoma": "Aje"
+    },
+    "Language": {
+      "idoma": "Uche"
+    },
+    "Lawyer": {
+      "idoma": "Ok'epo"
+    },
+    "Leader": {
+      "idoma": "Oteyi"
+    },
+    "Leaf": {
+      "idoma": "Epu"
+    },
+    "Learn": {
+      "idoma": "Nwu"
+    },
+    "Leave it": {
+      "idoma": "Mabutaa",
+      "example": "also: Morta"
+    },
+    "Letter": {
+      "idoma": "Okpa"
+    },
+    "Lice": {
+      "idoma": "Ela"
+    },
+    "Lick": {
+      "idoma": "Plla Nye"
+    },
+    "Lie Down": {
+      "idoma": "Gwuta"
+    },
+    "Lie or False": {
+      "idoma": "Ekemgbe",
+      "example": "central Idoma: Ekemgbe; western Idoma: Achu; northern Idoma: Amgbe; southern Idoma: Okeme"
+    },
+    "Life": {
+      "idoma": "Oyeyi"
+    },
+    "Lipstick": {
+      "idoma": "Eewo"
+    },
+    "Little": {
+      "idoma": "Ligi"
+    },
+    "Live": {
+      "idoma": "Lā"
+    },
+    "Live Long": {
+      "idoma": "L'eche"
+    },
+    "Load": {
+      "idoma": "Iyoo"
+    },
+    "Look": {
+      "idoma": "Mo"
+    },
+    "Looks so much like you": {
+      "idoma": "O'gblla Nehi",
+      "example": "central Idoma: O'gblla Nehi; western Idoma: O'gbrra Neshi"
+    },
+    "Lukewarm": {
+      "idoma": "wléwlé"
+    },
+    "Mad Person": {
+      "idoma": "Oj'ele",
+      "example": "central Idoma: Oj'ele; western Idoma: Ol'ele"
+    },
+    "Madness": {
+      "idoma": "Ele"
+    },
+    "Magic": {
+      "idoma": "Ona"
+    },
+    "Majority Rules": {
+      "idoma": "Ewa Oche"
+    },
+    "Make": {
+      "idoma": "Ya"
+    },
+    "Make a decision": {
+      "idoma": "gb'ela"
+    },
+    "Make-up": {
+      "idoma": "Ifa"
+    },
+    "Male Friend": {
+      "idoma": "Oklobia"
+    },
+    "Man": {
+      "idoma": "Onyilo",
+      "example": "central Idoma: Onyilo; western Idoma: Onyiro"
+    },
+    "Marriage": {
+      "idoma": "Onya o'le"
+    },
+    "Matter": {
+      "idoma": "Ela"
+    },
+    "Maturity": {
+      "idoma": "íkókó"
+    },
+    "Me too": {
+      "idoma": "Ami duu"
+    },
+    "Mechanic": {
+      "idoma": "O'gl'omoto ya"
+    },
+    "Medicine or Tablet": {
+      "idoma": "Echi"
+    },
+    "Meet": {
+      "idoma": "Gbeyi"
+    },
+    "Message": {
+      "idoma": "Eho",
+      "example": "central Idoma: Eho; western Idoma: Elo"
+    },
+    "Mice": {
+      "idoma": "A'ifu"
+    },
+    "Mile": {
+      "idoma": "Onyepa"
+    },
+    "Mine": {
+      "idoma": "Kum",
+      "example": "also: Ekum"
+    },
+    "Mister": {
+      "idoma": "Okpani"
+    },
+    "Mortar": {
+      "idoma": "Oji"
+    },
+    "Motor": {
+      "idoma": "Umoto"
+    },
+    "Mouse": {
+      "idoma": "Ifu"
+    },
+    "Mud": {
+      "idoma": "Oto"
+    },
+    "Multiply": {
+      "idoma": "Nyila"
+    },
+    "Music": {
+      "idoma": "Ije"
+    },
+    "My Guy": {
+      "idoma": "Oyi"
+    },
+    "My Heart": {
+      "idoma": "Ihotu Kum",
+      "example": "also: Odokum"
+    },
+    "My Life": {
+      "idoma": "Oyeyi Kum"
+    },
+    "My Love": {
+      "idoma": "Ihotu Kum"
+    },
+    "My male friend": {
+      "idoma": "Oklobiam"
+    },
+    "My Own": {
+      "idoma": "Kum",
+      "example": "also: Ekum"
+    },
+    "My Skin": {
+      "idoma": "Okpa k'iye kum"
+    },
+    "Name": {
+      "idoma": "Iye"
+    },
+    "Near": {
+      "idoma": "Ajanje"
+    },
+    "Necklace": {
+      "idoma": "Agba ot'oko"
+    },
+    "New": {
+      "idoma": "Mpee"
+    },
+    "Northerner or Hausa": {
+      "idoma": "Abakpa"
+    },
+    "Oath": {
+      "idoma": "Eka"
+    },
+    "Old": {
+      "idoma": "Gb'enenche",
+      "example": "also: Okplichi"
+    },
+    "Old Man": {
+      "idoma": "Okplich'onyilo"
+    },
+    "Old Woman": {
+      "idoma": "Okplich'onya"
+    },
+    "One and Only": {
+      "idoma": "Awoo Foofo"
+    },
+    "Only for Me": {
+      "idoma": "Ekum Foofunu"
+    },
+    "Only You": {
+      "idoma": "Awoo Foofo"
+    },
+    "Ordinance": {
+      "idoma": "Ine"
+    },
+    "Our father": {
+      "idoma": "Ad'alo"
+    },
+    "Our mother": {
+      "idoma": "En'alo"
+    },
+    "Ours": {
+      "idoma": "Ek'alo"
+    },
+    "Ourselves or each other": {
+      "idoma": "Iy'alo"
+    },
+    "Outside": {
+      "idoma": "Eche"
+    },
+    "Over There": {
+      "idoma": "Aaboo",
+      "example": "also: Aablo"
+    },
+    "Overwhelmed Me": {
+      "idoma": "Klam"
+    },
+    "Own": {
+      "idoma": "Le"
+    },
+    "Owner": {
+      "idoma": "Ondu"
+    },
+    "Pack or Evacuate": {
+      "idoma": "Kpo"
+    },
+    "Palm Nut": {
+      "idoma": "àbà"
+    },
+    "Passed By": {
+      "idoma": "Gla"
+    },
+    "Peace": {
+      "idoma": "Ebo"
+    },
+    "Pee (noun) or Urine": {
+      "idoma": "Inchile"
+    },
+    "Peel": {
+      "idoma": "Poo"
+    },
+    "Performance": {
+      "idoma": "Ijah"
+    },
+    "Perm": {
+      "idoma": "Eeyi o'nm'ola"
+    },
+    "Person": {
+      "idoma": "Oche"
+    },
+    "Pet Him or Her": {
+      "idoma": "Joe"
+    },
+    "Pillar of the Family": {
+      "idoma": "Adole"
+    },
+    "Play": {
+      "idoma": "Ijah",
+      "example": "central Idoma: Ijah; western Idoma: Ireh"
+    },
+    "Please Repair It": {
+      "idoma": "K'ocho lo glaa ya"
+    },
+    "Plenty": {
+      "idoma": "Wune"
+    },
+    "Poo (noun)": {
+      "idoma": "Emi"
+    },
+    "Pot": {
+      "idoma": "Ete"
+    },
+    "Prepare or Get Ready": {
+      "idoma": "Tutu"
+    },
+    "Prison": {
+      "idoma": "Agba"
+    },
+    "Prisoner": {
+      "idoma": "Alagba"
+    },
+    "Problem": {
+      "idoma": "Nwalu"
+    },
+    "Prophet": {
+      "idoma": "Ogache"
+    },
+    "Quarrel": {
+      "idoma": "Gbapo"
+    },
+    "Queen of Queens": {
+      "idoma": "Ochanyaba"
+    },
+    "Question me": {
+      "idoma": "Dum oka"
+    },
+    "Questioning": {
+      "idoma": "Oka Oda"
+    },
+    "Quick Temper": {
+      "idoma": "ányà"
+    },
+    "Quickly": {
+      "idoma": "Fia Fia"
+    },
+    "Quiet": {
+      "idoma": "Ma"
+    },
+    "Quit": {
+      "idoma": "Ma"
+    },
+    "Rainbow": {
+      "idoma": "Owohogwa"
+    },
+    "Rainy Season": {
+      "idoma": "Ogwa",
+      "example": "also: Ik'ogwa"
+    },
+    "Ram": {
+      "idoma": "Omlede",
+      "example": "central Idoma: Omlede; western Idoma: Omrede"
+    },
+    "Rat": {
+      "idoma": "Ifu"
+    },
+    "Rats": {
+      "idoma": "A'ifu"
+    },
+    "Rattle (Musical Instrument)": {
+      "idoma": "Ichaka",
+      "example": "western Idoma: Ichaka; central Idoma: Ichicha"
+    },
+    "Receive": {
+      "idoma": "Mie"
+    },
+    "Redness": {
+      "idoma": "ɔ́wá"
+    },
+    "Refuse": {
+      "idoma": "Ta"
+    },
+    "Reject": {
+      "idoma": "Ta"
+    },
+    "Relationship": {
+      "idoma": "Ema"
+    },
+    "Relative": {
+      "idoma": "Omaapum",
+      "example": "western Idoma: Omaapum; central Idoma: Omaafu"
+    },
+    "Remain": {
+      "idoma": "Hle",
+      "example": "central Idoma: Hle; western Idoma: Chire"
+    },
+    "Remember Me": {
+      "idoma": "Blakwum"
+    },
+    "Remind": {
+      "idoma": "Blà"
+    },
+    "Renew or repent": {
+      "idoma": "Piabo"
+    },
+    "Renewal or repentance": {
+      "idoma": "Opiabo"
+    },
+    "Repair": {
+      "idoma": "Glaa ya"
+    },
+    "Resemble": {
+      "idoma": "Gblla",
+      "example": "central Idoma: Gblla; western Idoma: Gbrra"
+    },
+    "Resolve an argument": {
+      "idoma": "Gba ku"
+    },
+    "Respect": {
+      "idoma": "Ojilima"
+    },
+    "Rheumatism": {
+      "idoma": "ákpítī"
+    },
+    "Riddle": {
+      "idoma": "Ogbobitaa"
+    },
+    "Ring": {
+      "idoma": "Alika"
+    },
+    "Ripen": {
+      "idoma": "Pià"
+    },
+    "Roam about": {
+      "idoma": "Bolo'le"
+    },
+    "Room": {
+      "idoma": "Inu"
+    },
+    "Roots": {
+      "idoma": "Egba"
+    },
+    "Rope": {
+      "idoma": "Oli",
+      "example": "central Idoma: Oli; western Idoma: Ori"
+    },
+    "Rotten": {
+      "idoma": "Waa"
+    },
+    "Running or Race": {
+      "idoma": "Inya"
+    },
+    "Same": {
+      "idoma": "Ainkpo"
+    },
+    "Scary thing": {
+      "idoma": "Odo t'ufie"
+    },
+    "Scorpion": {
+      "idoma": "Ena"
+    },
+    "Scratch": {
+      "idoma": "Gla"
+    },
+    "Second": {
+      "idoma": "Ompa"
+    },
+    "Secretary": {
+      "idoma": "O't'okpa"
+    },
+    "See": {
+      "idoma": "Ma"
+    },
+    "Send": {
+      "idoma": "Tu"
+    },
+    "Send a Message": {
+      "idoma": "T'eho",
+      "example": "also: T'elo"
+    },
+    "Sense of entitlement": {
+      "idoma": "Eyi kwoda"
+    },
+    "Settle": {
+      "idoma": "Gbakwu"
+    },
+    "Shade": {
+      "idoma": "Obobor",
+      "example": "also: Eg'Ohahor; also: O'fu"
+    },
+    "Shake hands": {
+      "idoma": "J'abo"
+    },
+    "Shake my hand": {
+      "idoma": "J'abo gam"
+    },
+    "Shame": {
+      "idoma": "Oweyi"
+    },
+    "Sharp Point": {
+      "idoma": "Oko"
+    },
+    "Sheep or Lamb": {
+      "idoma": "álá"
+    },
+    "Shelf": {
+      "idoma": "òbá"
+    },
+    "Shine": {
+      "idoma": "Che"
+    },
+    "Shoot": {
+      "idoma": "Ta"
+    },
+    "Shout": {
+      "idoma": "Egba"
+    },
+    "Show": {
+      "idoma": "Mafú"
+    },
+    "Showing": {
+      "idoma": "Ōmafú"
+    },
+    "Shy": {
+      "idoma": "Y'oweyi"
+    },
+    "Sight": {
+      "idoma": "Eebe"
+    },
+    "Sing": {
+      "idoma": "Gw'ije"
+    },
+    "Singer": {
+      "idoma": "O'gw'ije"
+    },
+    "Singing": {
+      "idoma": "Ije'ogwo"
+    },
+    "Sir": {
+      "idoma": "Okpani"
+    },
+    "Sky": {
+      "idoma": "Icho"
+    },
+    "Slow or Slowly": {
+      "idoma": "Emema"
+    },
+    "Smell (noun)": {
+      "idoma": "Ipi"
+    },
+    "Smells or Stinks": {
+      "idoma": "N'ipi"
+    },
+    "Smoke": {
+      "idoma": "Odudu"
+    },
+    "Snail": {
+      "idoma": "ìɡbí"
+    },
+    "Snoring": {
+      "idoma": "Aflo"
+    },
+    "Someone who roams about": {
+      "idoma": "O bolo'le"
+    },
+    "Something": {
+      "idoma": "Odea",
+      "example": "also: Ole"
+    },
+    "Sometime": {
+      "idoma": "Ikohi"
+    },
+    "Song": {
+      "idoma": "Ije"
+    },
+    "Speak up": {
+      "idoma": "J'ok'ela kwor g'icho"
+    },
+    "Speargrass": {
+      "idoma": "Epe"
+    },
+    "Spoil": {
+      "idoma": "Bia"
+    },
+    "Stand": {
+      "idoma": "Hayi"
+    },
+    "Stand up": {
+      "idoma": "Nyanbe"
+    },
+    "Star": {
+      "idoma": "Enyilowo",
+      "example": "central Idoma: Enyilowo; northern Idoma: Enyinyowo"
+    },
+    "Stay": {
+      "idoma": "Kla"
+    },
+    "Stop": {
+      "idoma": "Ma"
+    },
+    "Story": {
+      "idoma": "Ochaa"
+    },
+    "Storytelling": {
+      "idoma": "Ch'ochaa"
+    },
+    "Stroll or A Walk": {
+      "idoma": "àhà"
+    },
+    "Struggled": {
+      "idoma": "Nyaa"
+    },
+    "Stubborn": {
+      "idoma": "Ikpala"
+    },
+    "Suddenly": {
+      "idoma": "Achigli"
+    },
+    "Suffering": {
+      "idoma": "Owae"
+    },
+    "Suitcase": {
+      "idoma": "Ikpati"
+    },
+    "Sun": {
+      "idoma": "Eno"
+    },
+    "Sun is Shining": {
+      "idoma": "Eno yo' che"
+    },
+    "Sunday": {
+      "idoma": "Aladi"
+    },
+    "Supposing": {
+      "idoma": "Ogele"
+    },
+    "Supreme Serenity": {
+      "idoma": "Ohimini"
+    },
+    "Surprise or my greatest surprise": {
+      "idoma": "Ohumeje"
+    },
+    "Surprised": {
+      "idoma": "Ome"
+    },
+    "Swear": {
+      "idoma": "Okpa"
+    },
+    "Sweetness": {
+      "idoma": "O'lonye"
+    },
+    "Swimming": {
+      "idoma": "àgwa"
+    },
+    "Tailor": {
+      "idoma": "O'g'ili"
+    },
+    "Take": {
+      "idoma": "Mie",
+      "example": "also: Je"
+    },
+    "Take it or Lift it or Pick it": {
+      "idoma": "Joor"
+    },
+    "Tear": {
+      "idoma": "Fa"
+    },
+    "Tell": {
+      "idoma": "Dor"
+    },
+    "Thanks or Thank You": {
+      "idoma": "Ainya",
+      "example": "also: Anya"
+    },
+    "The Almighty": {
+      "idoma": "Omanchala"
+    },
+    "The Day After Tomorrow": {
+      "idoma": "Echiho"
+    },
+    "The World is a Stage": {
+      "idoma": "Eche Une"
+    },
+    "Their House": {
+      "idoma": "Ol'uwa"
+    },
+    "Them or They": {
+      "idoma": "Uwa"
+    },
+    "They are on good terms": {
+      "idoma": "Uwa Yeema"
+    },
+    "They have become estranged": {
+      "idoma": "Uwa heema"
+    },
+    "They Know": {
+      "idoma": "e'je"
+    },
+    "Thief or Theft": {
+      "idoma": "Uwi"
+    },
+    "Thigh": {
+      "idoma": "Atakwu"
+    },
+    "Thing": {
+      "idoma": "Oda",
+      "example": "central Idoma: Oda; western Idoma: Ole"
+    },
+    "This": {
+      "idoma": "Ene",
+      "example": "also: Enyaa"
+    },
+    "Thorn": {
+      "idoma": "Uje"
+    },
+    "Thread": {
+      "idoma": "Ōwú"
+    },
+    "Throw": {
+      "idoma": "Ta"
+    },
+    "Thunder": {
+      "idoma": "Akpaabana"
+    },
+    "Tie": {
+      "idoma": "gbo"
+    },
+    "Tight": {
+      "idoma": "Gbo"
+    },
+    "To Beg": {
+      "idoma": "B'eba"
+    },
+    "To Blind": {
+      "idoma": "Lor Eyi Pù"
+    },
+    "To call someone": {
+      "idoma": "H'igwu"
+    },
+    "To Cry": {
+      "idoma": "J'ikwu"
+    },
+    "To Farm": {
+      "idoma": "H'eho"
+    },
+    "To fight": {
+      "idoma": "N'unu"
+    },
+    "To Help": {
+      "idoma": "T'abo"
+    },
+    "To know my secrets": {
+      "idoma": "J'okwum"
+    },
+    "To Mould": {
+      "idoma": "Ma"
+    },
+    "To Pee": {
+      "idoma": "Nm'inchile"
+    },
+    "To Play": {
+      "idoma": "H'ijah",
+      "example": "central Idoma: H'ijah; western Idoma: R'ireh"
+    },
+    "To play sports": {
+      "idoma": "Ta"
+    },
+    "To Poo": {
+      "idoma": "Kw'emi"
+    },
+    "To punch or to blow": {
+      "idoma": "T'ekwu"
+    },
+    "To run": {
+      "idoma": "Kw'inya"
+    },
+    "To sew a dress": {
+      "idoma": "G'ili"
+    },
+    "To sleep": {
+      "idoma": "Gb'iyola"
+    },
+    "To suffer": {
+      "idoma": "M'owae"
+    },
+    "To Swim": {
+      "idoma": "T'agwa"
+    },
+    "Today": {
+      "idoma": "Inche"
+    },
+    "Toilet": {
+      "idoma": "Ukpo"
+    },
+    "Tomorrow": {
+      "idoma": "Onchi"
+    },
+    "Too much": {
+      "idoma": "Gaga"
+    },
+    "Tortoise": {
+      "idoma": "Ikinabo"
+    },
+    "Tribute": {
+      "idoma": "Egba"
+    },
+    "Trouble": {
+      "idoma": "Ikp'ela"
+    },
+    "Trouser": {
+      "idoma": "Kaaki",
+      "example": "also: or agblagba"
+    },
+    "True": {
+      "idoma": "Okwei",
+      "example": "central Idoma: Okwei; western Idoma: Ojoje"
+    },
+    "Truth": {
+      "idoma": "Okwei",
+      "example": "central Idoma: Okwei; western Idoma: Ojoje"
+    },
+    "Turn": {
+      "idoma": "Pià"
+    },
+    "Turn a good leaf": {
+      "idoma": "Pià ábo"
+    },
+    "Ugliness": {
+      "idoma": "Ɔ́́bi"
+    },
+    "Under": {
+      "idoma": "Okwu"
+    },
+    "Understand": {
+      "idoma": "Po"
+    },
+    "Unity": {
+      "idoma": "Obiatoha"
+    },
+    "Unity Will Always Remain Our Strength": {
+      "idoma": "Obiatoha w'ofu k'alo pio aa"
+    },
+    "Up": {
+      "idoma": "Icho"
+    },
+    "Victory": {
+      "idoma": "O'ya'le"
+    },
+    "Viper or Adder": {
+      "idoma": "Ogwiji"
+    },
+    "Voice": {
+      "idoma": "oko"
+    },
+    "Wait": {
+      "idoma": "Gbeyi"
+    },
+    "Wait for him or her": {
+      "idoma": "Gbeyi nu"
+    },
+    "Wait for me": {
+      "idoma": "Gbeyim"
+    },
+    "Wait for them": {
+      "idoma": "Gbeyuwa"
+    },
+    "Wait for you": {
+      "idoma": "Gbeyo"
+    },
+    "Wake up": {
+      "idoma": "H'eyi",
+      "example": "central Idoma: H'eyi; western Idoma: Sh'eyi"
+    },
+    "Wall": {
+      "idoma": "Odo"
+    },
+    "War": {
+      "idoma": "Ewu",
+      "example": "western Idoma: Ewu; central Idoma: Efu"
+    },
+    "Warrior": {
+      "idoma": "Ogbenjuwa"
+    },
+    "Wash": {
+      "idoma": "Naa"
+    },
+    "Watch Over": {
+      "idoma": "Gbo"
+    },
+    "Weakness": {
+      "idoma": "Eje",
+      "example": "central Idoma: Eje; northern Idoma: Ema"
+    },
+    "Wear": {
+      "idoma": "W'iye"
+    },
+    "Well Done": {
+      "idoma": "ainya ofu",
+      "example": "western Idoma: ainya ofu; western Idoma: ainya ukror; central Idoma: ainya uklor"
+    },
+    "What?": {
+      "idoma": "Odi",
+      "example": "central Idoma: Odi; western Idoma: Ine ne; northern Idoma: Oji"
+    },
+    "Where did he or she come from": {
+      "idoma": "Imi no nma"
+    },
+    "Which language can you speak?": {
+      "idoma": "Uche yan na ka gla?"
+    },
+    "White man": {
+      "idoma": "enefu",
+      "example": "also: beke"
+    },
+    "White men": {
+      "idoma": "anefu",
+      "example": "also: a'ubeke"
+    },
+    "Who knows tomorrow?": {
+      "idoma": "Onye j'onchi?"
+    },
+    "Who?": {
+      "idoma": "Onye?"
+    },
+    "Wide": {
+      "idoma": "L' owa"
+    },
+    "Width": {
+      "idoma": "Owa"
+    },
+    "Win": {
+      "idoma": "Ya'le"
+    },
+    "Wind": {
+      "idoma": "Owu"
+    },
+    "With": {
+      "idoma": "Mla"
+    },
+    "With Him/Her": {
+      "idoma": "Ml'anu"
+    },
+    "With Me": {
+      "idoma": "Ml'am"
+    },
+    "Women or Wives": {
+      "idoma": "Anya"
+    },
+    "Wood": {
+      "idoma": "Effu"
+    },
+    "Wool": {
+      "idoma": "Ōwú"
+    },
+    "Work or Effort": {
+      "idoma": "Ukror",
+      "example": "western Idoma: Ukror; central Idoma: Uklor"
+    },
+    "World": {
+      "idoma": "Eche"
+    },
+    "Yes, I speak Idoma": {
+      "idoma": "Ee",
+      "example": "also: mm jo k'Idoma"
+    },
+    "Yesterday": {
+      "idoma": "Ene"
+    },
+    "You are so beautiful": {
+      "idoma": "Aa Jonya Nehi"
+    },
+    "You are so sweet": {
+      "idoma": "Aa L'onye Nehi"
+    },
+    "You are too beautiful": {
+      "idoma": "Aa l'ohi ebi"
+    },
+    "Your love is sweeter than honey": {
+      "idoma": "Ihotu Kwo L'onye Fie Enwu"
+    }
+  },
+  "ties": {
+    "Adultery": {
+      "idoma": "àɟa"
+    },
+    "Husband or groom": {
+      "idoma": "Oba"
+    },
+    "Marriage Go-between Person": {
+      "idoma": "O'gbo b'onya"
+    },
+    "Marry": {
+      "idoma": "Le"
+    },
+    "Marry a man": {
+      "idoma": "L'oba"
+    },
+    "Marry a woman": {
+      "idoma": "L'onya"
+    }
+  },
+  "culture": {
+    "Ancestors": {
+      "idoma": "Alekwu"
+    },
+    "Evil Intention": {
+      "idoma": "Alachi"
+    },
+    "Fortune Teller": {
+      "idoma": "O'gweba"
+    },
+    "Fortune Telling": {
+      "idoma": "Gweba"
+    },
+    "Juju": {
+      "idoma": "Echi"
+    },
+    "Masquerade": {
+      "idoma": "Ekwu",
+      "example": "also: Akitakpa"
+    },
+    "Oracle (Jujuman)": {
+      "idoma": "Obochi"
+    },
+    "Power or Strength": {
+      "idoma": "Ofu"
+    },
+    "Sorcery": {
+      "idoma": "Ichebo"
+    },
+    "Taboo": {
+      "idoma": "Iho"
+    },
+    "Tradition": {
+      "idoma": "Ogwuchekwo"
+    },
+    "Witch or Wizard": {
+      "idoma": "Ohe"
+    }
+  },
+  "greetings": {
+    "Are you doing OK": {
+      "idoma": "Aa Yo Ya Lohi?"
+    },
+    "Are you doing well": {
+      "idoma": "A Yo Lohi"
+    },
+    "Are You OK?": {
+      "idoma": "A gbe hii"
+    },
+    "Good Morning": {
+      "idoma": "Nmaochi"
+    },
+    "Good Night": {
+      "idoma": "Nmoo Gb'ochi",
+      "example": "also: Ol'bonchi"
+    },
+    "Goodbye": {
+      "idoma": "Nmoo"
+    },
+    "How are your children": {
+      "idoma": "Ayi P'olo Be"
+    },
+    "How is your brother or sister or sibling": {
+      "idoma": "Oine Kwo Be"
+    },
+    "How is your child": {
+      "idoma": "Oyi Kwo Be"
+    },
+    "How is your father": {
+      "idoma": "Adah Kwo Be"
+    },
+    "How is your mother": {
+      "idoma": "Ene Kwo Be"
+    },
+    "I am doing well": {
+      "idoma": "Nyo Lohi"
+    },
+    "I am Ok": {
+      "idoma": "Mgbe Hii"
+    },
+    "My brother or my sister or my sibling is fine": {
+      "idoma": "Oinem Gbe Hii"
+    },
+    "My child is fine": {
+      "idoma": "Oyim Yo Lohi"
+    },
+    "My children are fine": {
+      "idoma": "Ayi P'olum Yo Lohi"
+    },
+    "My father is fine": {
+      "idoma": "Adam Gbe Hii"
+    },
+    "My mother is fine": {
+      "idoma": "Enem Gbee Hii"
+    },
+    "Safe Journey": {
+      "idoma": "Owe Ko Gbo"
+    },
+    "Welcome": {
+      "idoma": "Ainya Owa"
+    },
+    "What is your name": {
+      "idoma": "Odi Wie Iye Kwo"
+    },
+    "Where are you from": {
+      "idoma": "Imi Na Nma a"
+    }
+  },
+  "education": {
+    "Arithmetic": {
+      "idoma": "Aluka"
+    },
+    "Class (School Year)": {
+      "idoma": "Class that"
+    },
+    "Examination or Exam": {
+      "idoma": "Ojama"
+    },
+    "Fail": {
+      "idoma": "Gwonu"
+    },
+    "Higher Institution": {
+      "idoma": "In'okpa Nehi"
+    },
+    "Pass or Succeed": {
+      "idoma": "Ya Lohi"
+    },
+    "Read": {
+      "idoma": "Je"
+    },
+    "Remember": {
+      "idoma": "Blakwu"
+    },
+    "School": {
+      "idoma": "In'okpa"
+    },
+    "School Children": {
+      "idoma": "Ai'pu In'okpa"
+    },
+    "School Uniform": {
+      "idoma": "Uwae In'okpa"
+    },
+    "Secondary School": {
+      "idoma": "Ocollege"
+    },
+    "Teach": {
+      "idoma": "Nwo"
+    },
+    "Teacher": {
+      "idoma": "O'nwo okpa"
+    },
+    "University": {
+      "idoma": "Inivasity"
+    },
+    "Write": {
+      "idoma": "Ta"
+    }
+  },
+  "humans": {
+    "Breast": {
+      "idoma": "Ame"
+    },
+    "Buttocks or Bottom": {
+      "idoma": "Okwu",
+      "example": "central Idoma: Okwu; western Idoma: Oonchu"
+    },
+    "Calf (of leg)": {
+      "idoma": "Oj'ikpo"
+    },
+    "Female": {
+      "idoma": "Ochenya"
+    },
+    "Finger Nail": {
+      "idoma": "Ukwu Aiga"
+    },
+    "Hair (of head)": {
+      "idoma": "Inyileyi",
+      "example": "central Idoma: Inyileyi; western Idoma: Inyirefu"
+    },
+    "His or Her Father": {
+      "idoma": "Adanu"
+    },
+    "How are you": {
+      "idoma": "Abo le?"
+    },
+    "In-law": {
+      "idoma": "Ohili"
+    },
+    "Jaw": {
+      "idoma": "àgbà"
+    },
+    "Lips": {
+      "idoma": "Akp'okonu"
+    },
+    "Male": {
+      "idoma": "Ochenyilo"
+    },
+    "Men": {
+      "idoma": "Anyilo",
+      "example": "central Idoma: Anyilo; western Idoma: Anyiro"
+    },
+    "Moustache": {
+      "idoma": "Onwu Okonu"
+    },
+    "My Brother or my sister or my sibling": {
+      "idoma": "Oinem"
+    },
+    "My Husband": {
+      "idoma": "Obum"
+    },
+    "My Wife": {
+      "idoma": "Onyam"
+    },
+    "Nail": {
+      "idoma": "Ukwu"
+    },
+    "Navel (Belly Button)": {
+      "idoma": "Udro",
+      "example": "also: Udlo"
+    },
+    "Nipple": {
+      "idoma": "Ok'ame"
+    },
+    "Not Bad": {
+      "idoma": "Obo Bin"
+    },
+    "Palm (of Hand)": {
+      "idoma": "Ot'abo"
+    },
+    "People": {
+      "idoma": "Ache"
+    },
+    "Shin": {
+      "idoma": "Oglo"
+    },
+    "Sole (of foot)": {
+      "idoma": "Ot'ikpo"
+    },
+    "Toe Nail": {
+      "idoma": "Ukwu Ikpo"
+    },
+    "Twins": {
+      "idoma": "Aplle"
+    },
+    "Us or We": {
+      "idoma": "Alo"
+    },
+    "Wife or bride": {
+      "idoma": "Onya"
+    },
+    "Woman": {
+      "idoma": "Onya"
+    },
+    "Young Lady": {
+      "idoma": "Onchonya"
+    },
+    "Young Man": {
+      "idoma": "Oklobia"
+    }
+  },
+  "health": {
+    "Bleed": {
+      "idoma": "P'oyi"
+    },
+    "Blood": {
+      "idoma": "Oyi"
+    },
+    "Boil": {
+      "idoma": "Ipi ol'oko"
+    },
+    "Catch a Cold": {
+      "idoma": "Mmofu"
+    },
+    "Corpse": {
+      "idoma": "Okwu"
+    },
+    "Cough": {
+      "idoma": "Oko"
+    },
+    "Diarrhoea": {
+      "idoma": "Okwu Obo"
+    },
+    "Die or Died": {
+      "idoma": "Kwu"
+    },
+    "Doctor": {
+      "idoma": "Olikita"
+    },
+    "Fall Sick or Fall Ill": {
+      "idoma": "D'oche"
+    },
+    "Fever or Cold": {
+      "idoma": "Ofu"
+    },
+    "Have an injection": {
+      "idoma": "Kw'oje"
+    },
+    "Hot": {
+      "idoma": "Kwola",
+      "example": "also: Hola"
+    },
+    "I am sick": {
+      "idoma": "Mm yo d'oche"
+    },
+    "Injection": {
+      "idoma": "Oje"
+    },
+    "Pain": {
+      "idoma": "Ono"
+    },
+    "Painful": {
+      "idoma": "L'ono"
+    },
+    "Sore Throat": {
+      "idoma": "Ipi-oko"
+    },
+    "To Cough": {
+      "idoma": "K'oko"
+    },
+    "To Die (infinitive)": {
+      "idoma": "Ge Kwu"
+    },
+    "To Vomit": {
+      "idoma": "Gba"
+    },
+    "Wound (noun)": {
+      "idoma": "Ipi"
+    }
+  },
+  "romance": {
+    "Boyfriend or girlfriend": {
+      "idoma": "Oya"
+    },
+    "Dating": {
+      "idoma": "Yo Oya"
+    },
+    "My boyfriend or girlfriend": {
+      "idoma": "Oyam"
+    }
+  },
+  "insect": {
+    "Butterfly": {
+      "idoma": "Ibebe"
+    }
+  },
+  "agriculture": {
+    "Chicken Egg": {
+      "idoma": "Ahi'ugwu",
+      "example": "central Idoma: Ahi'ugwu; western Idoma: Aj'ugwu"
+    },
+    "Cock": {
+      "idoma": "Obo Ugwu"
+    },
+    "Farm": {
+      "idoma": "Eho"
+    },
+    "Farmer": {
+      "idoma": "O'h'eho"
+    },
+    "Palm Tree": {
+      "idoma": "Ali",
+      "example": "central Idoma: Ali; western Idoma: Ari"
+    }
+  },
+  "vernacular": {
+    "English Language": {
+      "idoma": "Beke"
+    },
+    "Question": {
+      "idoma": "Oka"
+    },
+    "Share": {
+      "idoma": "Ko"
+    },
+    "Speak": {
+      "idoma": "Ka",
+      "example": "also: K'ela"
+    },
+    "Want": {
+      "idoma": "D'oka"
+    }
+  },
+  "weather": {
+    "Fog": {
+      "idoma": "Ebu"
+    }
+  },
+  "social_interaction": {
+    "Let There Be Peace": {
+      "idoma": "Ebo ko yo"
+    },
+    "Plead": {
+      "idoma": "Gb'oko"
+    },
+    "Sorry": {
+      "idoma": "Nma"
+    }
+  },
+  "economics": {
+    "Money": {
+      "idoma": "Ije"
+    },
+    "Rich Person": {
+      "idoma": "Ol'ije"
+    }
+  },
+  "communication": {
+    "Say": {
+      "idoma": "Ka",
+      "example": "also: K'ela"
+    },
+    "Talk": {
+      "idoma": "Ka",
+      "example": "also: K'ela"
     }
   }
 }

@@ -105,8 +105,15 @@ var dictSource string
 
 // dictionaryFirst controls whether an exact dictionary hit short-circuits the
 // model. It is on by default, and with idoma_dictionary_v3.json that is the right
-// default rather than a trade-off: all 226 entries are curated and tone-marked,
-// with no placeholders, so a hit is correct by construction.
+// default rather than a trade-off: all 1,225 entries are real and none is a
+// placeholder, so a hit is correct by construction.
+//
+// The file is a union of three sources, merged by data_pipeline/merge_dictionary.py
+// so that the tone-marked form always wins: 226 hand-curated tone-marked entries,
+// and 1,000 more from the idomaland.org scrape that the curated set never had. Tone
+// is meaning-bearing in Idoma ("àkpà" is bridge, "ákpá" is cloud), so where both
+// sources have a word the curated form is served and the scraped variant is kept in
+// `example` as "also: X".
 //
 // It earns its place because the fine-tuned checkpoint is dictionary-level. Trained
 // on 989 pairs, it approximates words it has seen ("Nmachi" for the reference
@@ -197,9 +204,14 @@ func translatorBaseURL() string {
 }
 
 // expectedMinEntries is a floor on the entry count of a correctly deployed
-// dictionary. idoma_dictionary_v3.json carries 226; the v1 fallback carries 26, so
+// dictionary. idoma_dictionary_v3.json carries 1,225; the v1 fallback carries 26, so
 // anything near or below that floor means the primary file did not load.
-const expectedMinEntries = 200
+//
+// The floor sits well under 1,225 so that hand-editing entries out of the dictionary
+// does not trip the warning, but well over the 226 the file held before the
+// idomaland.org corpus was merged in -- so a stale image or a half-applied deploy is
+// still caught rather than reported healthy.
+const expectedMinEntries = 1000
 
 // handleRoot answers the bare URL. This is registered on "/" purely so that opening
 // the service in a browser explains what it is: with only /api/* and /health

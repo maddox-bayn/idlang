@@ -115,18 +115,24 @@ data_pipeline/cache/
 data_pipeline/out/
 
 # NOTE: backend/idoma_dictionary_v3.json used to be ignored here, to avoid
-# republishing 1,117 idomaland.org pairs as a bulk download from a public repo.
-# It is committed now because it is no longer that file: it is 226 curated,
-# tone-marked entries (the previous v3 merged with idoma_dictionary.json by
-# data_pipeline/merge_dictionary.py), not the scraped corpus. The corpus itself
-# stays unpublished under data_pipeline/out/ above.
+# republishing idomaland.org pairs as a bulk download from a public repo. It is
+# committed now, and since the corpus was merged in that decision does republish
+# ~1,000 scraped English/Idoma pairs. Deliberate, and the tradeoff is:
 #
-# Keeping it ignored had a real cost: Render builds from git, so every deploy
-# silently fell back to the fabricated v2 and served "òhụ" for house while the
-# model answered words the dictionary was supposed to cover.
+#   * Keeping it ignored had a proven cost. Render builds from git, so every deploy
+#     silently fell back to the fabricated v2 and served "òhụ" for house while the
+#     model answered words the dictionary was supposed to cover. The Secret File that
+#     was supposed to carry the dictionary instead was never added, and nothing in
+#     /health said so.
+#   * What ships is only the English/Idoma/dialect triples the lookup needs. The
+#     scrape's `url` and `definition` fields -- the substance of idomaland.org's
+#     pages -- stay unpublished under data_pipeline/out/ above, and idomaland.org is
+#     credited in the README and on the model card.
 #
-# If you regenerate the full 1,117-entry corpus dictionary with
-# data_pipeline/build_dictionary.py, restore this line before committing.
+# If that tradeoff is not acceptable for your fork, restore the ignore line and use a
+# Render Secret File at /etc/secrets/idoma_dictionary_v3.json -- but then verify the
+# deploy with `curl $URL/health` and check `dictionary_entries`, because that is the
+# exact failure that went unnoticed before.
 
 # TypeScript build artifacts
 tsconfig.*.tsbuildinfo

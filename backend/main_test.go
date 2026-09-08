@@ -188,10 +188,11 @@ func TestDictionaryLookupRespectsDirection(t *testing.T) {
 	}
 }
 
-// idoma_dictionary_v3.json is the dictionary the backend serves: 218 curated
-// entries merged with the 26 of idoma_dictionary.json by
-// data_pipeline/merge_dictionary.py, giving 226. It is the default DICTIONARY_PATH
-// and it is committed, so this test does not skip -- a missing file is a failure.
+// idoma_dictionary_v3.json is the dictionary the backend serves: a union of 226
+// hand-curated tone-marked entries and 1,000 more from the idomaland.org scrape,
+// merged by data_pipeline/merge_dictionary.py into 1,225. It is the default
+// DICTIONARY_PATH and it is committed, so this test does not skip -- a missing file
+// is a failure.
 //
 // This is a regression test on the words the fine-tuned model gets wrong: with
 // dictionary-first routing they must be answered by lookup, because the model
@@ -262,6 +263,63 @@ func TestV3DictionaryAnswersWhatTheModelMisses(t *testing.T) {
 	}
 }
 
+// Everyday words the 226-entry curated dictionary simply did not have, so every one
+// of them reached the model and came back a guess. They are the reason for merging
+// the scrape in: coverage, not polish.
+func TestCorpusMergeAddedTheWordsCurationNeverReached(t *testing.T) {
+	loaded, err := loadDictionary("idoma_dictionary_v3.json")
+	if err != nil {
+		t.Fatalf("idoma_dictionary_v3.json failed to load: %v", err)
+	}
+
+	saved := dict
+	defer func() { dict = saved }()
+	dict = loaded
+
+	for english, want := range map[string]string{
+		"school":   "In'okpa",
+		"teacher":  "O'nwo okpa",
+		"hospital": "In'echi",
+		"money":    "Ije",
+		"farm":     "Eho",
+		"leopard":  "Eje",
+	} {
+		resp := lookupDictionary(english, "English", "Idoma")
+		if resp == nil {
+			t.Errorf("%q: no dictionary hit, so the model has to guess it", english)
+			continue
+		}
+		if !strings.EqualFold(resp.Translation, want) {
+			t.Errorf("%q: got %q, want %q", english, resp.Translation, want)
+		}
+	}
+}
+
+// An English key in two categories is a latent bug rather than a cosmetic one:
+// lookupDictionary iterates the categories and Go randomises map order, so such a key
+// answers from one copy or the other between restarts, and the copies need not agree.
+// The curated file shipped exactly one -- "goat" was both fauna_elements "Èwü" and
+// animals "èwü" -- which data_pipeline/merge_dictionary.py now collapses.
+func TestNoEnglishKeyAppearsInTwoCategories(t *testing.T) {
+	loaded, err := loadDictionary("idoma_dictionary_v3.json")
+	if err != nil {
+		t.Fatalf("idoma_dictionary_v3.json failed to load: %v", err)
+	}
+
+	seen := map[string]string{}
+	for category, words := range loaded {
+		for english := range words {
+			key := strings.ToLower(english)
+			if other, dup := seen[key]; dup {
+				t.Errorf("%q is in both %q and %q; lookup order is nondeterministic",
+					english, other, category)
+				continue
+			}
+			seen[key] = category
+		}
+	}
+}
+
 // The merge resolves a disagreement between the two dictionaries in favour of the
 // tone-marked form, because tone is meaning-bearing in Idoma ("àkpà" is bridge,
 // "ákpá" is cloud). Serving the bare "ole" where "Olé" was available would throw
@@ -280,6 +338,16 @@ func TestMergePreferredTheToneMarkedForm(t *testing.T) {
 		"house":  "Olé",    // beat the bare "ole"
 		"mother": "ēnē",    // beat the bare "ene"
 		"prayer": "Ókògbá", // beat "g'owoicho", which also broke the vowel-initial rule
+		// The same rule applied 100 more times when the idomaland.org corpus was
+		// merged in, and this is the half of the merge that matters most: the corpus
+		// brings 1,000 new words but is almost entirely untoned, so without the rule
+		// it would have flattened every marked form it happened to overlap.
+		"night": "ōtū",     // beat the corpus "Otu"
+		"year":  "ɛ̄wɔ̄",   // beat the corpus "Ihayi"
+		"rice":  "omɛ̄hɛ̄", // beat the corpus "Ochikapa"
+		// And it is not one-directional -- where the corpus is the better-marked
+		// source, the corpus wins. Curated "adah" had no marks at all.
+		"father": "ádah",
 	} {
 		resp := lookupDictionary(english, "English", "Idoma")
 		if resp == nil {
