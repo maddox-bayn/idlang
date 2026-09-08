@@ -29,13 +29,13 @@ COPY --from=builder /app/idlang-backend .
 # the final image too -- copying only the binary left the backend logging all three
 # "could not load dictionary" warnings and serving an empty dictionary.
 #
-# The glob always matches the committed v1/v2 files. It also picks up the generated
-# idoma_dictionary_v3.json when it is present in the build context, which is what
-# makes dictionary-first routing actually work. v3 is not committed (scraped
-# idomaland.org content, public repo), so a git-based build gets v2 unless you
-# regenerate it first:
+# The glob matches both committed dictionaries: idoma_dictionary_v3.json (226 curated
+# entries, the one DICTIONARY_PATH points at) and the small idoma_dictionary.json
+# fallback. v3 is committed now, so a plain git-based build gets a working
+# dictionary-first deploy with no regeneration step.
 #
-#     python data_pipeline/build_dictionary.py
+# It also still picks up a locally regenerated 1,117-entry v3 from
+# data_pipeline/build_dictionary.py if you build from a working tree that has one.
 COPY --from=builder /app/idoma_dictionary*.json ./
 
 EXPOSE 8080

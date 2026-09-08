@@ -114,14 +114,19 @@ logs/
 data_pipeline/cache/
 data_pipeline/out/
 
-# Generated from the scraped corpus by data_pipeline/build_dictionary.py. Committing
-# it would redistribute 1,117 idomaland.org pairs as a bulk downloadable file from a
-# public repo, which is the thing we agreed not to do. Serving the lookups through
-# the app (with attribution) is the intended use; shipping the file is not.
+# NOTE: backend/idoma_dictionary_v3.json used to be ignored here, to avoid
+# republishing 1,117 idomaland.org pairs as a bulk download from a public repo.
+# It is committed now because it is no longer that file: it is 226 curated,
+# tone-marked entries (the previous v3 merged with idoma_dictionary.json by
+# data_pipeline/merge_dictionary.py), not the scraped corpus. The corpus itself
+# stays unpublished under data_pipeline/out/ above.
 #
-# Consequence: a build from git has no v3 and falls back to v2. Regenerate before
-# deploying, or deploy from local disk. See DEPLOYMENT.md.
-backend/idoma_dictionary_v3.json
+# Keeping it ignored had a real cost: Render builds from git, so every deploy
+# silently fell back to the fabricated v2 and served "òhụ" for house while the
+# model answered words the dictionary was supposed to cover.
+#
+# If you regenerate the full 1,117-entry corpus dictionary with
+# data_pipeline/build_dictionary.py, restore this line before committing.
 
 # TypeScript build artifacts
 tsconfig.*.tsbuildinfo

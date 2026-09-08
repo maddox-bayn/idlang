@@ -194,8 +194,8 @@ idlang/
 ├── backend/
 │   ├── main.go              # Go HTTP server (dictionary-first, then the model)
 │   ├── main_test.go
-│   ├── idoma_dictionary_v2.json  # 218 entries, half of them placeholders — see below
-│   ├── idoma_dictionary.json     # v1 fallback, bare-string schema
+│   ├── idoma_dictionary_v3.json  # 226 curated tone-marked entries — the one served
+│   ├── idoma_dictionary.json     # v1 fallback, bare-string schema (subset of v3)
 │   ├── Dockerfile           # build with the REPO ROOT as context
 │   └── go.mod
 ├── src/
@@ -257,18 +257,25 @@ idlang/
 | `HF_TOKEN` | Hugging Face token, only needed for gated/private checkpoints | unset |
 | `CORS_ORIGINS` | Comma-separated browser origins allowed to call the Python service directly. A wildcard disables credentialed requests | `*` |
 | `FRONTEND_DIR` | Built frontend the Python service should serve, when present | `dist/` beside `backup_backend.py` |
-| `DICTIONARY_PATH` | Dictionary file the Go backend loads | `idoma_dictionary_v2.json` |
-| `DICTIONARY_FIRST` | Let exact dictionary hits short-circuit the model, in the Go backend only — the Python service has no dictionary path. Set `false` to always use the model — see the warning below | `true` |
+| `DICTIONARY_PATH` | Dictionary file the Go backend loads | `idoma_dictionary_v3.json` |
+| `DICTIONARY_FIRST` | Let exact dictionary hits short-circuit the model, in the Go backend only — the Python service has no dictionary path. Set `false` to send every request to the model, which is only useful for evaluating the checkpoint | `true` |
 
 Copy `.env.example` to `.env` for a documented starting point.
 
-> **The bundled dictionary is not trustworthy.** 109 of the 218 entries in
-> `backend/idoma_dictionary_v2.json` are the placeholder `ụụ` (now skipped, and
-> counted in the startup log), and among the rest `òdò` is given as the
-> translation of *black, day, evening, morning, night* and *red* alike. Because
-> dictionary hits are served ahead of the model, set `DICTIONARY_FIRST=false` or
-> point `DICTIONARY_PATH` at a dictionary you trust once a trained checkpoint is
-> deployed. The evidence is in `data_pipeline/README.md`.
+> **Leave `DICTIONARY_FIRST=true`.** `backend/idoma_dictionary_v3.json` holds 226
+> curated, tone-marked entries with no placeholders, so a hit is correct by
+> construction — and the fine-tune is dictionary-level, approximating words it has
+> seen ("Nmachi" for the reference "Nmaochi") and guessing at words it has not (it
+> answers "onyilo", meaning *man*, for water). The dictionary is best at exactly
+> what the model is worst at.
+>
+> This warning used to say the opposite, because the file then bundled was
+> `idoma_dictionary_v2.json`: 109 of its 218 entries were the placeholder `ụụ` and
+> `òdò` was given for *black, day, evening, morning, night* and *red* alike. That
+> file has been deleted and is not in the fallback chain. Verify which dictionary a
+> deployment actually loaded with `curl $URL/health` — it reports
+> `dictionary_source` and `dictionary_entries`, and reports
+> `"status":"degraded"` if the primary file did not load.
 
 ### Model Configuration
 
@@ -321,7 +328,7 @@ The application handles errors gracefully:
 
 ### Adding Dictionary Words
 
-Edit `backend/idoma_dictionary_v2.json`:
+Edit `backend/idoma_dictionary_v3.json`:
 
 ```json
 {
@@ -335,6 +342,15 @@ Edit `backend/idoma_dictionary_v2.json`:
   }
 }
 ```
+
+Include the tone diacritics — tone is meaning-bearing in Idoma (`àkpà` is *bridge*,
+`ákpá` is *cloud*), and the backend serves the form you write here verbatim. Never
+use `ụụ` as a stand-in for a word you do not know: `usableEntry` in `main.go` treats
+any entry containing it as absent, precisely so a placeholder cannot be served as a
+translation.
+
+Run `go test ./...` in `backend/` afterwards — the dictionary tests assert the entry
+count and that no placeholders crept back in.
 
 ### Running Tests
 

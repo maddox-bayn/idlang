@@ -97,10 +97,16 @@ func (e *WordEntry) UnmarshalJSON(data []byte) error {
 
 var dict dictionary
 
+// dictSource is the file the loaded dictionary actually came from. /health reports
+// it because a category count alone could not distinguish v3 from the fabricated v2
+// -- both had 22 -- and a deploy silently serving the wrong file looked healthy for
+// as long as nobody translated a word and read the answer closely.
+var dictSource string
+
 // dictionaryFirst controls whether an exact dictionary hit short-circuits the
 // model. It is on by default, and with idoma_dictionary_v3.json that is the right
-// default rather than a trade-off: every entry is a real pair scraped from
-// idomaland.org, so a hit is correct by construction.
+// default rather than a trade-off: all 226 entries are curated and tone-marked,
+// with no placeholders, so a hit is correct by construction.
 //
 // It earns its place because the fine-tuned checkpoint is dictionary-level. Trained
 // on 989 pairs, it approximates words it has seen ("Nmachi" for the reference
@@ -108,9 +114,11 @@ var dict dictionary
 // *man*, for water. A lookup for a covered word cannot make either mistake, so the
 // model is best used for what the dictionary misses.
 //
-// The superseded idoma_dictionary_v2.json is fabricated: 109 of 218 entries are the
-// "ụụ" placeholder, and among the rest "òdò" is given for black, day, evening,
-// morning, night and red alike. Do not point DICTIONARY_PATH back at it.
+// The fabricated idoma_dictionary_v2.json has been deleted: 109 of its 218 entries
+// were the "ụụ" placeholder, and among the rest "òdò" was given for black, day,
+// evening, morning, night and red alike. It is deliberately not in the fallback
+// chain -- serving it was worse than serving nothing, because a dictionary hit also
+// suppresses the model that would otherwise have answered.
 var dictionaryFirst = true
 
 func main() {
@@ -122,16 +130,16 @@ func main() {
 
 	dict, err = loadDictionary(dictPath)
 	if err != nil {
+		// idoma_dictionary_v2.json is NOT a fallback -- see the note on
+		// dictionaryFirst. The only fallback is the small v1 file, whose 26 entries
+		// are all real, and it is now a subset of v3 anyway.
 		log.Printf("Warning: could not load primary dictionary: %v", err)
-		dict, err = loadDictionary("idoma_dictionary_v2.json")
-	}
-	if err != nil {
-		log.Printf("Warning: could not load dictionary fallback: %v", err)
 		dict, err = loadDictionary("idoma_dictionary.json")
 	}
 	if err != nil {
 		log.Printf("Warning: could not load dictionary fallback: %v", err)
 		dict = dictionary{}
+		dictSource = "(none)"
 	}
 
 	if v := os.Getenv("DICTIONARY_FIRST"); v != "" {
@@ -139,17 +147,31 @@ func main() {
 	}
 
 	usable, placeholders := countEntries(dict)
-	log.Printf("Loaded %d categories from dictionary: %d usable entries, %d skipped as placeholders",
-		len(dict), usable, placeholders)
+	log.Printf("Loaded %d categories from %s: %d usable entries, %d skipped as placeholders",
+		len(dict), dictSource, usable, placeholders)
 	if placeholders > 0 {
 		log.Printf("Warning: %d dictionary entries are the %q placeholder and will be ignored; "+
 			"see data_pipeline/README.md", placeholders, idomaPlaceholder)
 	}
+
+	// A fallback that quietly succeeds is the failure mode that actually bit this
+	// deploy: DICTIONARY_PATH pointed at a secret file that was never mounted, the
+	// chain fell through, and /health went on reporting "healthy" while the model
+	// answered words the dictionary was supposed to cover. Say so at the top of the
+	// log instead.
+	if usable < expectedMinEntries {
+		log.Printf("WARNING: only %d usable entries loaded from %s, expected at least %d. "+
+			"The primary dictionary probably did not load, so requests that should be "+
+			"answered by lookup will fall through to the model. Check DICTIONARY_PATH=%q.",
+			usable, dictSource, expectedMinEntries, dictPath)
+	}
+
 	if !dictionaryFirst {
 		log.Printf("DICTIONARY_FIRST=false: every request goes to the model")
 	}
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("/", handleRoot)
 	mux.HandleFunc("/api/translate", handleTranslate)
 	mux.HandleFunc("/api/generate-lesson", handleGenerateLesson)
 	mux.HandleFunc("/api/transcribe", proxyAudioToTranslator("/transcribe"))
@@ -174,12 +196,75 @@ func translatorBaseURL() string {
 	return "http://localhost:5005"
 }
 
+// expectedMinEntries is a floor on the entry count of a correctly deployed
+// dictionary. idoma_dictionary_v3.json carries 226; the v1 fallback carries 26, so
+// anything near or below that floor means the primary file did not load.
+const expectedMinEntries = 200
+
+// handleRoot answers the bare URL. This is registered on "/" purely so that opening
+// the service in a browser explains what it is: with only /api/* and /health
+// registered, ServeMux answered the root with Go's bare "404 page not found", which
+// reads as a dead deploy even while every real endpoint is up.
+//
+// "/" in ServeMux is the catch-all pattern, matching every path no other pattern
+// claims, so genuinely unknown paths must still 404 -- otherwise a typo like
+// /api/translte would return this banner with status 200 and the caller would never
+// learn the route was wrong.
+func handleRoot(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.URL.Path != "/" {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]any{
+			"error": fmt.Sprintf("No such endpoint: %s", r.URL.Path),
+			"endpoints": []string{
+				"GET /health", "POST /api/translate", "POST /api/transcribe",
+				"POST /api/pipeline", "POST /api/generate-lesson",
+			},
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]any{
+		"service": "idlang-backend",
+		"status":  "ok",
+		"description": "English <-> Idoma translation API. Dictionary-first: an exact " +
+			"hit in the curated Idoma dictionary is served directly, and only what the " +
+			"dictionary misses is routed to the neural model.",
+		"endpoints": map[string]string{
+			"GET /health":               "readiness, dictionary source and entry counts",
+			"POST /api/translate":       `{"text","source_lang","target_lang"}`,
+			"POST /api/transcribe":      "multipart audio -> text",
+			"POST /api/pipeline":        "multipart audio -> text -> translation -> speech",
+			"POST /api/generate-lesson": `{"ancestorId"}`,
+		},
+		"example": `curl -X POST $URL/api/translate -H 'Content-Type: application/json' ` +
+			`-d '{"text":"house","source_lang":"English","target_lang":"Idoma"}'`,
+	})
+}
+
 func handleHealth(w http.ResponseWriter, r *http.Request) {
+	usable, placeholders := countEntries(dict)
+
+	// The old payload reported only len(dict), and v2 and v3 both had 22 categories
+	// -- so the number that was supposed to prove the deploy was correct was exactly
+	// the number that could not tell the two files apart. Report the source and the
+	// entry counts, which can.
+	status := "healthy"
+	if usable < expectedMinEntries {
+		status = "degraded"
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
-		"status":     "healthy",
-		"service":    "idlang-backend",
-		"dictionary": len(dict),
+		"status":              status,
+		"service":             "idlang-backend",
+		"dictionary":          len(dict),
+		"dictionary_source":   dictSource,
+		"dictionary_entries":  usable,
+		"dictionary_skipped":  placeholders,
+		"dictionary_first":    dictionaryFirst,
+		"translator_upstream": translatorBaseURL(),
 	})
 }
 
@@ -274,6 +359,7 @@ func loadDictionary(path string) (dictionary, error) {
 		}
 
 		log.Printf("Loaded dictionary from %s", candidate)
+		dictSource = candidate
 		return d, nil
 	}
 
@@ -415,12 +501,15 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 	})()
 }
 
-// idomaPlaceholder is the filler that fills half of idoma_dictionary_v2.json:
-// 109 of its 218 entries map to this single string, including bird, monkey,
-// elephant, sleep, work, buy, sell, white, green, blue, yellow and brown.
-// Returning it as a translation is worse than returning nothing, and because the
-// dictionary is consulted before the model it also suppresses the real
-// translation. Entries containing it are treated as absent.
+// idomaPlaceholder is the filler that filled half of the deleted
+// idoma_dictionary_v2.json: 109 of its 218 entries mapped to this single string,
+// including bird, monkey, elephant, sleep, work, buy, sell, white, green, blue,
+// yellow and brown. Returning it as a translation is worse than returning nothing,
+// and because the dictionary is consulted before the model it also suppressed the
+// real translation. Entries containing it are treated as absent.
+//
+// The check stays after v2's deletion: it is the guard that keeps a regenerated or
+// hand-edited dictionary from reintroducing the same failure silently.
 const idomaPlaceholder = "ụụ"
 
 func usableEntry(entry WordEntry) bool {

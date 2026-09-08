@@ -3,33 +3,39 @@
 #
 # Deploy: Render dashboard -> New -> Blueprint -> point at this repo.
 #
-# ONE MANUAL STEP, and the deploy is wrong without it.
+# NO MANUAL STEPS. This is a change from the previous version of this file, which
+# required backend/idoma_dictionary_v3.json to be pasted in by hand as a Render
+# Secret File because the dictionary was gitignored.
 # ---------------------------------------------------------------------------
-# backend/idoma_dictionary_v3.json is deliberately NOT in git: it is 1,117 pairs
-# scraped from idomaland.org and this repo is public, so committing it would
-# redistribute their dictionary as a bulk download. Render builds from git, so the
-# file has to arrive out of band:
+# That arrangement failed silently and stayed broken. The secret file was never
+# added, DICTIONARY_PATH pointed at a path that did not exist, the loader fell
+# through to the fabricated idoma_dictionary_v2.json, and /health went on reporting
+# "healthy" -- because the only number it reported was a category count, and v2 and
+# v3 both had 22 of them. The deploy served "òhụ" for house and sent bird, sleep,
+# work, buy and sell to the model, since those were "ụụ" placeholders in v2.
 #
-#   1. python data_pipeline/build_dictionary.py     # regenerate locally
-#   2. Render service -> Environment -> Secret Files -> Add
-#        filename: idoma_dictionary_v3.json
-#        contents: paste the generated file
+# The dictionary is committed now (226 curated tone-marked entries, not the scraped
+# corpus -- see .gitignore), the Dockerfile's `COPY idoma_dictionary*.json` picks it
+# up, and v2 has been deleted so there is nothing wrong left to fall back to.
 #
-# Secret files mount at /etc/secrets/, which is what DICTIONARY_PATH points at
-# below. Skip this and the backend falls back to idoma_dictionary_v2.json, half of
-# which is the "ụụ" placeholder -- it will start and serve, just badly.
+# VERIFY AFTER DEPLOY. /health now reports which file loaded and how many entries:
 #
-# /health reports a category count, but v3's 26 against v2's 22 is too close to
-# rely on. Probe a word the model gets wrong instead:
+#   curl -s $URL/health
+#   # {"status":"healthy","dictionary_source":"idoma_dictionary_v3.json",
+#   #  "dictionary_entries":226,"dictionary_skipped":0,...}
+#
+# "status":"degraded" means the primary dictionary did not load and lookups are
+# falling through to the model. Then probe a word the model gets wrong:
 #
 #   curl -s $URL/api/translate -H 'Content-Type: application/json' \
 #     -d '{"text":"house","source_lang":"English","target_lang":"Idoma"}'
 #
-# v3 loaded gives "Ole". The model alone gives "ulo", which is Igbo.
+# Correct deploy: "Olé". The old v2 fallback gave "òhụ". The model alone gives
+# "ulo", which is Igbo.
 #
-# If secret files turn out not to mount for Docker services on the free plan, the
-# fallback is to make the GitHub repo private and drop the gitignore entry, which
-# keeps the file unpublished for the same reason.
+# NOTE ON THE FRONTEND. The Vercel frontend must point VITE_API_URL at this
+# service's URL. Pointing it at the Hugging Face Space works but bypasses this
+# backend and its dictionary, so every translation comes from the model.
 
 services:
   - type: web
@@ -46,8 +52,11 @@ services:
       # appends /translate -- so no /api suffix here.
       - key: TRANSLATOR_URL
         value: https://emoduh-idoma-translator.hf.space
+      # Relative to the container's WORKDIR (/app), where the Dockerfile copies the
+      # dictionary. This was /etc/secrets/idoma_dictionary_v3.json, which is where a
+      # Render Secret File would have mounted had one ever been added.
       - key: DICTIONARY_PATH
-        value: /etc/secrets/idoma_dictionary_v3.json
+        value: idoma_dictionary_v3.json
       - key: DICTIONARY_FIRST
         value: "true"
     # PORT is injected by Render; main.go reads it and defaults to 8080 locally.

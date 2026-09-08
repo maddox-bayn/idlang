@@ -75,8 +75,9 @@ func TestHealthEndpoint(t *testing.T) {
 }
 
 func TestDictionaryLookup(t *testing.T) {
-	// Load test dictionary
-	dict, err := loadDictionary("idoma_dictionary_v2.json")
+	// Load the dictionary the backend actually serves. This pointed at
+	// idoma_dictionary_v2.json until that file was deleted as fabricated.
+	dict, err := loadDictionary("idoma_dictionary_v3.json")
 	if err != nil {
 		t.Fatalf("Failed to load dictionary: %v", err)
 	}
@@ -101,7 +102,7 @@ func TestDictionaryLookup(t *testing.T) {
 }
 
 func TestWordEntrySchema(t *testing.T) {
-	dict, err := loadDictionary("idoma_dictionary_v2.json")
+	dict, err := loadDictionary("idoma_dictionary_v3.json")
 	if err != nil {
 		t.Fatalf("Failed to load dictionary: %v", err)
 	}
@@ -139,9 +140,10 @@ func TestV1BareStringDictionaryLoads(t *testing.T) {
 	}
 }
 
-// Half of idoma_dictionary_v2.json maps to the placeholder "ụụ". The dictionary
-// is consulted before the model, so serving those entries both returns nonsense
-// and hides the model's real output.
+// Half of the deleted idoma_dictionary_v2.json mapped to the placeholder "ụụ". The
+// dictionary is consulted before the model, so serving those entries both returned
+// nonsense and hid the model's real output. The guard is kept after v2's deletion so
+// a regenerated or hand-edited dictionary cannot reintroduce the failure silently.
 func TestPlaceholderEntriesAreNotServed(t *testing.T) {
 	if usableEntry(WordEntry{Idoma: idomaPlaceholder}) {
 		t.Error("placeholder entry should be treated as absent")
@@ -186,19 +188,19 @@ func TestDictionaryLookupRespectsDirection(t *testing.T) {
 	}
 }
 
-// The v3 dictionary is the corpus scraped from idomaland.org, and it is the default
-// DICTIONARY_PATH. This is a regression test on the words the fine-tuned model gets
-// wrong: with dictionary-first routing they must be answered exactly, because a
-// lookup cannot approximate ("Nmachi" for the reference "Nmaochi") or guess
-// ("onyilo", meaning *man*, for water) the way a 989-pair fine-tune does.
+// idoma_dictionary_v3.json is the dictionary the backend serves: 218 curated
+// entries merged with the 26 of idoma_dictionary.json by
+// data_pipeline/merge_dictionary.py, giving 226. It is the default DICTIONARY_PATH
+// and it is committed, so this test does not skip -- a missing file is a failure.
+//
+// This is a regression test on the words the fine-tuned model gets wrong: with
+// dictionary-first routing they must be answered by lookup, because the model
+// approximates words it has seen ("Nmachi" for the reference "Nmaochi") and guesses
+// at words it has not ("onyilo", meaning *man*, for water).
 func TestV3DictionaryAnswersWhatTheModelMisses(t *testing.T) {
 	loaded, err := loadDictionary("idoma_dictionary_v3.json")
 	if err != nil {
-		// v3 is generated, not committed: it is scraped idomaland.org content and the
-		// GitHub repo is public. Regenerate with:
-		//     python data_pipeline/build_dictionary.py
-		t.Skipf("idoma_dictionary_v3.json not present (%v); "+
-			"run: python data_pipeline/build_dictionary.py", err)
+		t.Fatalf("idoma_dictionary_v3.json failed to load: %v", err)
 	}
 
 	saved := dict
@@ -209,45 +211,115 @@ func TestV3DictionaryAnswersWhatTheModelMisses(t *testing.T) {
 	if placeholders != 0 {
 		t.Errorf("v3 must contain no %q placeholders, found %d", idomaPlaceholder, placeholders)
 	}
-	if usable < 1000 {
-		t.Errorf("expected >1000 usable entries, got %d", usable)
+	if usable < expectedMinEntries {
+		t.Errorf("expected at least %d usable entries, got %d", expectedMinEntries, usable)
 	}
 
-	// english -> the forms idomaland.org gives; any one of them is correct, since
-	// central and western Idoma differ and neither is more authoritative.
-	cases := map[string][]string{
-		"water":        {"Ennkpo", "Enyi"},
-		"good morning": {"Nmaochi"},
-		"my father":    {"Adam"},
-		"house":        {"Ole"},
-		"man":          {"Onyilo", "Onyiro"},
-		"eat":          {"Le", "Re"},
+	// Every one of these was the "ụụ" placeholder in the deleted v2, so the
+	// dictionary skipped it and the model answered instead -- that is exactly how a
+	// deploy serving v2 was caught: /api/translate returned NLLB's "inyinya" for
+	// bird and "le" for sleep.
+	filledFromPlaceholders := map[string]string{
+		"bird":  "enu",
+		"sleep": "ny'ogwū",
+		"work":  "g'uklo",
+		"buy":   "jē",
+		"sell":  "hɔ́",
 	}
-
-	for english, want := range cases {
+	for english, want := range filledFromPlaceholders {
 		resp := lookupDictionary(english, "English", "Idoma")
 		if resp == nil {
 			t.Errorf("%q: no dictionary hit; the model would have to guess", english)
 			continue
 		}
-		if !containsFold(want, resp.Translation) {
-			t.Errorf("%q: got %q, want one of %v", english, resp.Translation, want)
+		if !strings.EqualFold(resp.Translation, want) {
+			t.Errorf("%q: got %q, want %q", english, resp.Translation, want)
+		}
+	}
+
+	// The 8 entries idoma_dictionary.json contributed, which v3 never had.
+	for english, want := range map[string]string{
+		"king":         "Óché",
+		"husband":      "Obá",
+		"death":        "ikwū",
+		"he will come": "Ó gè wa",
+	} {
+		resp := lookupDictionary(english, "English", "Idoma")
+		if resp == nil {
+			t.Errorf("%q: merged entry missing from the dictionary", english)
+			continue
+		}
+		if !strings.EqualFold(resp.Translation, want) {
+			t.Errorf("%q: got %q, want %q", english, resp.Translation, want)
 		}
 	}
 
 	// Reverse direction, which the model also gets wrong ("Ennkpo" -> "Neck").
-	if resp := lookupDictionary("Ennkpo", "Idoma", "English"); resp == nil {
-		t.Error("Ennkpo: no reverse hit")
+	if resp := lookupDictionary("ēnyi", "Idoma", "English"); resp == nil {
+		t.Error("ēnyi: no reverse hit")
 	} else if !strings.EqualFold(resp.Translation, "water") {
-		t.Errorf("Ennkpo -> %q, want water", resp.Translation)
+		t.Errorf("ēnyi -> %q, want water", resp.Translation)
 	}
 }
 
-func containsFold(haystack []string, needle string) bool {
-	for _, candidate := range haystack {
-		if strings.EqualFold(strings.TrimSpace(candidate), strings.TrimSpace(needle)) {
-			return true
+// The merge resolves a disagreement between the two dictionaries in favour of the
+// tone-marked form, because tone is meaning-bearing in Idoma ("àkpà" is bridge,
+// "ákpá" is cloud). Serving the bare "ole" where "Olé" was available would throw
+// away the distinction the language depends on.
+func TestMergePreferredTheToneMarkedForm(t *testing.T) {
+	loaded, err := loadDictionary("idoma_dictionary_v3.json")
+	if err != nil {
+		t.Fatalf("idoma_dictionary_v3.json failed to load: %v", err)
+	}
+
+	saved := dict
+	defer func() { dict = saved }()
+	dict = loaded
+
+	for english, want := range map[string]string{
+		"house":  "Olé",    // beat the bare "ole"
+		"mother": "ēnē",    // beat the bare "ene"
+		"prayer": "Ókògbá", // beat "g'owoicho", which also broke the vowel-initial rule
+	} {
+		resp := lookupDictionary(english, "English", "Idoma")
+		if resp == nil {
+			t.Errorf("%q: no dictionary hit", english)
+			continue
+		}
+		if resp.Translation != want {
+			t.Errorf("%q: got %q, want the tone-marked %q", english, resp.Translation, want)
 		}
 	}
-	return false
+
+	// The displaced form is kept as a variant rather than dropped, so the
+	// information survives in the response explanation.
+	if entry, ok := loaded["places"]["house"]; !ok {
+		t.Error("house missing from places")
+	} else if !strings.Contains(entry.Example, "ole") {
+		t.Errorf("displaced form not preserved in example, got %q", entry.Example)
+	}
+}
+
+// The bare URL is what a human clicks, and ServeMux answered it with Go's
+// "404 page not found" because only /api/* and /health were registered -- a live
+// service that looked like a failed deploy. The catch-all must still 404 unknown
+// paths, or a typo would return the banner with status 200.
+func TestRootRouteExplainsTheServiceButStill404sUnknownPaths(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", handleRoot)
+
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Code != http.StatusOK {
+		t.Errorf("GET / = %d, want 200", rec.Code)
+	}
+	if body := rec.Body.String(); !strings.Contains(body, "/api/translate") {
+		t.Errorf("GET / should advertise the endpoints, got %q", body)
+	}
+
+	rec = httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/translte", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("GET /api/translte = %d, want 404 for an unknown path", rec.Code)
+	}
 }

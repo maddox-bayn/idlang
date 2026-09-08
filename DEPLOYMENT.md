@@ -201,15 +201,26 @@ docker build -f backend/Dockerfile -t idlang-backend .   # context is the repo r
 docker run -p 8080:8080 -e TRANSLATOR_URL=https://<backend-host> idlang-backend
 ```
 
-Note the bundled dictionary is not trustworthy: 109 of its 218 entries are the
-placeholder `ụụ` (now skipped, and reported at startup), and among the rest `òdò`
-is given for *black, day, evening, morning, night* and *red* alike. Because
-dictionary hits short-circuit the model, once your trained checkpoint is live
-either replace the file with `DICTIONARY_PATH` or turn the shortcut off:
+The dictionary the backend serves, `backend/idoma_dictionary_v3.json`, is committed
+and copied into the image by the Dockerfile, so a build from git gets working
+dictionary-first routing with no extra step. Confirm it after deploying:
 
 ```bash
-DICTIONARY_FIRST=false
+curl -s $URL/health
+# {"status":"healthy","dictionary_source":"idoma_dictionary_v3.json",
+#  "dictionary_entries":226,"dictionary_skipped":0,...}
 ```
+
+`"status":"degraded"` means the primary dictionary did not load and lookups are
+falling through to the model. That is the failure this check exists to catch: the
+earlier setup kept the dictionary out of git and expected it as a Render Secret
+File, the secret was never added, and the deploy served the fabricated
+`idoma_dictionary_v2.json` while still reporting itself healthy. v2 has since been
+deleted, so there is nothing wrong left to fall back to.
+
+Leave `DICTIONARY_FIRST=true`: the fine-tune is dictionary-level and guesses at
+words it has not seen, so lookups are best at exactly what the model is worst at.
+Set it to `false` only to evaluate the checkpoint on words the dictionary covers.
 
 ### B3. Deploy the frontend to Vercel
 
@@ -241,6 +252,26 @@ Values it accepts:
 | `https://api.example.com` | send `/api/*` there |
 | *(empty string)* | same origin — for Path A |
 | *(unset)* | same origin in a production build, `http://localhost:8080` in `vite dev` |
+
+> **Point it at the Go backend, not the Hugging Face Space.** The Space serves
+> `/api/translate` as well, so setting `VITE_API_URL` to
+> `https://<user>-<space>.hf.space` *works* — requests succeed and translations come
+> back. What it silently skips is the Go backend, and with it the whole
+> dictionary-first chain, so every word is answered by the model even when the
+> dictionary has a correct entry for it. The symptom is that the app "ignores the
+> dictionary" while the backend, tested directly with `curl`, is demonstrably
+> routing correctly.
+>
+> Right value for a split deploy:
+>
+> ```
+> VITE_API_URL = https://idlang-backend.onrender.com
+> ```
+>
+> Check what a built deployment is actually calling by opening the browser devtools
+> Network tab and translating a word — the request host is the one that matters, and
+> a dictionary hit comes back with an `explanation` beginning
+> `Found in dictionary [...]`.
 
 ---
 
@@ -297,7 +328,7 @@ leaving it enabled on a CPU-only host makes `up` fail outright.
 |---|---|---|
 | `TRANSLATOR_URL` | `http://localhost:5005` | Where the Python service lives. |
 | `PORT` | `8080` | |
-| `DICTIONARY_PATH` | `idoma_dictionary_v2.json` | Point at a dictionary you trust. |
+| `DICTIONARY_PATH` | `idoma_dictionary_v3.json` | 226 curated tone-marked entries, committed. |
 | `DICTIONARY_FIRST` | `true` | `false` sends every request to the model. |
 
 ### Frontend (build time)
