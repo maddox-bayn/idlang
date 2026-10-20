@@ -39,3 +39,77 @@ export interface FullPipelineResponse {
   audioFormat?: string;
   timestamp?: string;
 }
+
+export interface User {
+  id: string;
+  username: string;
+  display_name: string;
+  avatar_url?: string;
+  bio?: string;
+  created_at?: string;
+}
+
+export type MediaType = "text" | "image" | "audio" | "video";
+
+export interface Post {
+  id: string;
+  user_id: string;
+  author?: User;
+  content: string;
+  media_type: MediaType;
+  media_url?: string;
+  created_at: string;
+}
+
+export type ConnectionStatus = "none" | "pending" | "connected" | "blocked";
+
+export interface DirectMessage {
+  id: string;
+  sender_id: string;
+  receiver_id: string;
+  body: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface Book {
+  id: string;
+  title: string;
+  author: string;
+  uploaded_by: string;
+  file_url: string;
+  description?: string;
+  created_at?: string;
+}
+
+export type FluencyTier = "beginner" | "intermediate" | "advanced";
+
+export interface LearningProfile {
+  user_id: string;
+  completed_tracks: string[];
+  xp_points: number;
+  fluency_tier: FluencyTier;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface LearningTrack {
+  id: string;
+  step: number;
+  title: string;
+  description: string;
+  xp_reward: number;
+  category: string;
+  status: "completed" | "active" | "locked";
+}
+
+export interface ProfileResponse {
+  user: User;
+  is_owner: boolean;
+  connection_status: ConnectionStatus;
+  connection_direction?: string;
+  learning_profile: LearningProfile;
+  posts: Post[];
+  connection_count: number;
+}
+
