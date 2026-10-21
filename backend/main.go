@@ -177,6 +177,17 @@ func main() {
 		log.Printf("DICTIONARY_FIRST=false: every request goes to the model")
 	}
 
+	dbPath := os.Getenv("DATABASE_PATH")
+	if dbPath == "" {
+		dbPath = "idlang.db"
+	}
+	db, err = initDB(dbPath)
+	if err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer db.Close()
+	log.Printf("Connected to database at %s", dbPath)
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleRoot)
 	mux.HandleFunc("/api/translate", handleTranslate)
@@ -184,6 +195,31 @@ func main() {
 	mux.HandleFunc("/api/transcribe", proxyAudioToTranslator("/transcribe"))
 	mux.HandleFunc("/api/pipeline", proxyAudioToTranslator("/pipeline"))
 	mux.HandleFunc("/health", handleHealth)
+
+	// Social, Media, E-Library & Learning Routes
+	mux.HandleFunc("/api/posts", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			handleGetPosts(w, r)
+		} else if r.Method == http.MethodPost {
+			handleCreatePost(w, r)
+		} else {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+	mux.HandleFunc("/api/profile", handleProfile)
+	mux.HandleFunc("/api/profile/", handleProfile)
+	mux.HandleFunc("/api/connections", handleConnections)
+	mux.HandleFunc("/api/messages", handleMessages)
+	mux.HandleFunc("/api/books", handleBooks)
+	mux.HandleFunc("/api/books/sample/", handleSampleBookContent)
+	mux.HandleFunc("/api/learning/tracks", handleGetLearningTracks)
+	mux.HandleFunc("/api/learning/complete-track", handleCompleteLearningTrack)
+	mux.HandleFunc("/api/users", handleGetUsers)
+
+	// Uploads static directory
+	uploadDir := "uploads"
+	os.MkdirAll(uploadDir, 0755)
+	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadDir))))
 
 	handler := corsMiddleware(mux)
 
@@ -381,8 +417,8 @@ func loadDictionary(path string) (dictionary, error) {
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, PATCH")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Viewer-ID, Accept, Origin, X-Requested-With")
 
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)

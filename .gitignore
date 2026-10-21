@@ -1,4 +1,5 @@
 # Node.js
+.node/
 node_modules/
 dist/
 build/
@@ -50,6 +51,8 @@ pip-delete-this-directory.txt
 *.dll
 *.so
 *.dylib
+*.db
+uploads/
 *.test
 *.out
 go.work

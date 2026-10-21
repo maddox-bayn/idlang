@@ -25,7 +25,8 @@ export default function AudioVisualizer({
     if (!canvas) return;
 
     const setupCanvas = () => {
-      const ctx = audioContext || new (window.AudioContext || (window as any).webkitAudioContext)();
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      const ctx = audioContext || new AudioCtx();
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
       analyserRef.current = analyser;
@@ -71,10 +72,10 @@ export default function AudioVisualizer({
             const arrayBuffer = await response.arrayBuffer();
             const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
 
-            if (sourceRef.current) {
+            if (sourceRef.current && "stop" in sourceRef.current) {
               try {
-                (sourceRef.current as any).stop();
-              } catch (e) {
+                (sourceRef.current as AudioBufferSourceNode).stop();
+              } catch {
                 // Ignore
               }
             }
@@ -138,12 +139,10 @@ export default function AudioVisualizer({
         if (animationRef.current) {
           cancelAnimationFrame(animationRef.current);
         }
-        if (sourceRef.current) {
+        if (sourceRef.current && "stop" in sourceRef.current) {
           try {
-            if ("stop" in sourceRef.current) {
-              (sourceRef.current as any).stop();
-            }
-          } catch (e) {
+            (sourceRef.current as AudioBufferSourceNode).stop();
+          } catch {
             // Ignore errors
           }
         }
