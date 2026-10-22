@@ -1,0 +1,94 @@
+{
+  "seed": 42,
+  "alignment": "identifier",
+  "english": {
+    "raw_items": 31101,
+    "blocked_duplicate_ids": 0
+  },
+  "idoma": {
+    "invalid_text_rows": 3,
+    "raw_items": 31075,
+    "blocked_duplicate_ids": 0
+  },
+  "unified_before_deduplication": 31069,
+  "discarded_by_reason": {
+    "missing_counterpart": 32,
+    "invalid_text": 3,
+    "duplicate_text_pair": 76
+  },
+  "max_sequence_tokens": 96,
+  "input_sha256": {
+    "english": "8125d064f3b2d4d8f4693fa58ad17c70585fc6c4c83ad5e94ad5ea834ef39c1d",
+    "idoma": "b3f78e92703065e8e7ea7e6dee4c61b1dd2cbd550668ecea143461dee3631d70"
+  },
+  "words_before_token_filter": {
+    "eng_Latn": {
+      "max": 87,
+      "average": 25.43477559448908,
+      "above_96_words": 0
+    },
+    "idu_Latn": {
+      "max": 122,
+      "average": 31.771561320298133,
+      "above_96_words": 28
+    }
+  },
+  "token_check": "NOT RUN. Word counts cannot verify a 96-subword-token constraint.",
+  "length_strata_upper_bounds": {
+    "16": {
+      "groups": 2763,
+      "allocated_groups": [
+        2349,
+        276,
+        138
+      ]
+    },
+    "32": {
+      "groups": 14318,
+      "allocated_groups": [
+        12170,
+        1432,
+        716
+      ]
+    },
+    "64": {
+      "groups": 12700,
+      "allocated_groups": [
+        10795,
+        1270,
+        635
+      ]
+    },
+    "96": {
+      "groups": 971,
+      "allocated_groups": [
+        825,
+        97,
+        49
+      ]
+    },
+    "97": {
+      "groups": 28,
+      "allocated_groups": [
+        24,
+        3,
+        1
+      ]
+    }
+  },
+  "final_pairs": 30993,
+  "splits": {
+    "train": {
+      "rows": 26358,
+      "percent": 85.045
+    },
+    "dev": {
+      "rows": 3081,
+      "percent": 9.941
+    },
+    "test": {
+      "rows": 1554,
+      "percent": 5.014
+    }
+  }
+}

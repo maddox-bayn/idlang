@@ -70,6 +70,14 @@ Override any of them with `NMT_MODEL_ID`, `ASR_IDOMA_MODEL`, `ASR_ENGLISH_MODEL`
 
 ### Training data
 
+For the aligned English–Idoma Bible corpus and bidirectional Colab workflow, see
+[training/PREPROCESSING.md](training/PREPROCESSING.md). It includes reference-based
+alignment, reproducible grouped splits, token-length checks, resumable Drive
+checkpoints, and evaluation in both translation directions.
+
+[Open the Bible training notebook in Colab](https://colab.research.google.com/github/maddox-bayn/idlang/blob/main/training/train_bible_colab.ipynb)
+
+
 The bundled `backend/idoma_dictionary_v2.json` is fabricated and is not used for
 training. A real corpus is scraped from idomaland.org by `data_pipeline/`:
 
