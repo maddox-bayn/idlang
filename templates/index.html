@@ -43,14 +43,26 @@
       add("you", text);
       input.value = "";
       const thinking = add("bot", "Thinking...");
-      try {
+            try {
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: text }),
         });
-        const data = await res.json();
-        thinking.textContent = data.reply || data.error;
+        if (!res.ok) {
+          const data = await res.json();
+          thinking.textContent = data.error;
+          return;
+        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        thinking.textContent = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          thinking.textContent += decoder.decode(value, { stream: true });
+          chat.scrollTop = chat.scrollHeight;
+        }
       } catch {
         thinking.textContent = "Network error. Try again.";
       }

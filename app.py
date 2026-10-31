@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, Response, stream_with_context
 from openai import OpenAI
 
 load_dotenv()
@@ -8,12 +8,13 @@ load_dotenv()
 app = Flask(__name__)
 
 client = OpenAI(
-    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-    api_key=os.environ["GEMINI_API_KEY"],
+    base_url="https://api.groq.com/openai/v1",
+    api_key=os.environ["GROQ_API_KEY"],
+    timeout=30,
+    max_retries=1,
 )
 
-MODEL = "gemini-3.8-flash"  # use the model name that worked in test.py
-
+MODEL = "openai/gpt-oss-120b"
 
 @app.route("/")
 def home():
@@ -27,18 +28,24 @@ def chat():
     if not message:
         return jsonify({"error": "Message is empty"}), 400
 
-    try:
-        response = client.chat.completions.create(
-            model=MODEL,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": message},
-            ],
-        )
-        return jsonify({"reply": response.choices[0].message.content})
-    except Exception as e:
-        print("LLM error:", e)
-        return jsonify({"error": "The model is busy or the limit was reached. Try again shortly."}), 503
+    def generate():
+        try:
+            stream = client.chat.completions.create(
+                model=MODEL,
+                messages=[
+                    {"role": "system", "content": "You are a helpful assistant."},
+                    {"role": "user", "content": message},
+                ],
+                stream=True,
+            )
+            for chunk in stream:
+                if chunk.choices and chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+        except Exception as e:
+            print("LLM error:", e)
+            yield "\n[Error: the model is busy or the limit was reached.]"
+
+    return Response(stream_with_context(generate()), mimetype="text/plain")
 
 
 if __name__ == "__main__":
