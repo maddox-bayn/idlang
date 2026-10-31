@@ -1,0 +1,16 @@
+CORE NOUNS — SAMPLE RECORD
+
+Source: idlang dictionary (idoma_dictionary_v3.json)
+License: CC-BY-SA-4.0
+
+Olé   — house    (low tone)
+ukpá  — book     (high tone)
+Òyá   — friend
+ádah  — father   (high tone)
+ēnē   — mother   (high tone)
+
+Note that all five begin with a vowel sound, in line with the initial
+vowel rule that governs native Idoma nouns.
+
+This is a sample record installed with the application. It is not a
+scholarly publication.

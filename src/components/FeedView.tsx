@@ -134,9 +134,16 @@ export default function FeedView({ currentUser }: FeedViewProps) {
                       className="h-10 w-10 rounded-full border border-red-700 object-cover transition-transform group-hover:scale-105"
                     />
                     <div>
-                      <h4 className="text-sm font-bold text-red-100 group-hover:text-red-400 transition-colors">
-                        {author.display_name}
-                      </h4>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="text-sm font-bold text-red-100 group-hover:text-red-400 transition-colors">
+                          {author.display_name}
+                        </h4>
+                        {author.native_name && (
+                          <span className="rounded bg-red-950 px-1.5 py-0.5 text-[10px] font-semibold text-red-300 border border-red-900">
+                            🪘 {author.native_name}
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[11px] text-red-500">@{author.username}</p>
                     </div>
                   </div>

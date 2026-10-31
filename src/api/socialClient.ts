@@ -6,6 +6,8 @@ import type {
   Book,
   LearningTrack,
   LearningProfile,
+  ConnectionsResponse,
+  ConnectionUserItem,
 } from "../types";
 import {
   mockUsers,
@@ -16,11 +18,32 @@ import {
 
 const API_BASE = "";
 
-// In-memory state for fallback mode
-const fallbackPosts: Post[] = [...mockPosts];
+// In-memory / localStorage state for fallback mode
+const STORAGE_PREFIX = "idlang_";
+
+function getStorage<T>(key: string, defaultValue: T): T {
+  try {
+    const raw = localStorage.getItem(STORAGE_PREFIX + key);
+    return raw ? JSON.parse(raw) : defaultValue;
+  } catch {
+    return defaultValue;
+  }
+}
+
+function setStorage<T>(key: string, value: T): void {
+  try {
+    localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(value));
+  } catch {
+    // Ignore storage quota or SSR issues
+  }
+}
+
+// Fallback state
+const fallbackUsers: User[] = getStorage("users", [...mockUsers]);
+const fallbackPosts: Post[] = getStorage("posts", [...mockPosts]);
 const fallbackBooks: Book[] = [...mockBooks];
 const fallbackTracks: LearningTrack[] = [...mockCurriculumTracks];
-const fallbackMessages: DirectMessage[] = [
+const fallbackMessages: DirectMessage[] = getStorage("messages", [
   {
     id: "m1",
     sender_id: "user_oche",
@@ -45,16 +68,424 @@ const fallbackMessages: DirectMessage[] = [
     is_read: true,
     created_at: new Date(Date.now() - 10 * 60000).toISOString(),
   },
-];
-const fallbackConnections: Record<string, "none" | "pending" | "connected" | "blocked"> = {
-  "user_oche:user_ada": "connected",
-  "user_ada:user_oche": "connected",
-  "user_idoko:user_oche": "pending",
-};
+]);
+
+// Connections in fallback: stores pair relationships with requester and status
+// status: 'pending' | 'connected' | 'blocked'
+interface FallbackConnectionRecord {
+  id: string;
+  requester_id: string;
+  receiver_id: string;
+  status: "pending" | "connected" | "blocked";
+  created_at: string;
+  updated_at: string;
+}
+
+const fallbackConnectionsMap: Record<string, FallbackConnectionRecord> = getStorage("connections", {
+  "user_oche:user_ada": {
+    id: "c1",
+    requester_id: "user_oche",
+    receiver_id: "user_ada",
+    status: "connected",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+  "user_idoko:user_oche": {
+    id: "c2",
+    requester_id: "user_idoko",
+    receiver_id: "user_oche",
+    status: "pending",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  },
+});
+
+function pairKey(a: string, b: string): string {
+  return a < b ? `${a}:${b}` : `${b}:${a}`;
+}
+
+// Custom error for auth actions
+export interface ApiError extends Error {
+  code?: string;
+  status?: number;
+}
+
+// ==========================================
+// AUTHENTICATION APIs
+// ==========================================
+
+export async function loginUser(identifier: string, password: string): Promise<User> {
+  const trimmed = identifier.trim();
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/login`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ identifier: trimmed, password }),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.user) {
+      setStorage("current_user", data.user);
+      return data.user;
+    }
+
+    if (res.status === 404 || data.code === "USER_NOT_FOUND" || (data.error && /not exist|sign up/i.test(data.error))) {
+      const err: ApiError = new Error(data.error || "Account does not exist. Please create an account first.");
+      err.code = "USER_NOT_FOUND";
+      err.status = 404;
+      throw err;
+    }
+
+    if (res.status === 401 || data.code === "INVALID_PASSWORD" || (data.error && /invalid credentials|incorrect password/i.test(data.error))) {
+      const err: ApiError = new Error(data.error || "Incorrect password. Please verify your password.");
+      err.code = "INVALID_PASSWORD";
+      err.status = 401;
+      throw err;
+    }
+
+    throw new Error(data.error || "Login failed. Please try again.");
+  } catch (err: unknown) {
+    if ((err as ApiError).code) throw err;
+
+    // Fallback mode for offline / local testing:
+    console.warn("Backend login failed or unavailable, checking local accounts:", err);
+    const existing = fallbackUsers.find(
+      (u) =>
+        u.username.toLowerCase() === trimmed.toLowerCase() ||
+        (u as unknown as { email?: string }).email?.toLowerCase() === trimmed.toLowerCase()
+    );
+
+    if (!existing) {
+      const notFoundErr: ApiError = new Error("Account does not exist. Please create an account first.");
+      notFoundErr.code = "USER_NOT_FOUND";
+      notFoundErr.status = 404;
+      throw notFoundErr;
+    }
+
+    setStorage("current_user", existing);
+    return existing;
+  }
+}
+
+export async function signupUser(userData: {
+  username: string;
+  display_name: string;
+  native_name?: string;
+  email: string;
+  password: string;
+  native_speaker?: boolean;
+  dialect?: string;
+}): Promise<User> {
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/signup`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(userData),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (res.ok && data.user) {
+      setStorage("current_user", data.user);
+      return data.user;
+    }
+
+    throw new Error(data.error || "Failed to create account. Please try again.");
+  } catch (err: unknown) {
+    if (err instanceof Error && !err.message.includes("Failed to fetch") && !err.message.includes("NetworkError")) {
+      throw err;
+    }
+
+    console.warn("Backend signup unavailable, registering in local store:", err);
+    const newUser: User = {
+      id: "user_" + Date.now(),
+      username: userData.username.trim(),
+      display_name: userData.display_name.trim() || userData.username.trim(),
+      native_name: userData.native_name?.trim() || "",
+      avatar_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${userData.username}`,
+      bio: "Heritage speaker preserving ancient Idoma traditions.",
+      dialect: userData.dialect || "Central Otukpo",
+      native_speaker: userData.native_speaker ?? false,
+      created_at: new Date().toISOString(),
+    };
+    fallbackUsers.push(newUser);
+    setStorage("users", fallbackUsers);
+    setStorage("current_user", newUser);
+    return newUser;
+  }
+}
+
+export async function logoutUser(): Promise<void> {
+  try {
+    await fetch(`${API_BASE}/api/auth/logout`, {
+      method: "POST",
+      credentials: "include",
+    });
+  } catch (err) {
+    console.warn("Backend logout error:", err);
+  } finally {
+    try {
+      localStorage.removeItem(STORAGE_PREFIX + "current_user");
+    } catch {
+      // Ignore
+    }
+  }
+}
+
+export async function fetchCurrentUser(): Promise<User | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/me`, {
+      credentials: "include",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.user) {
+        setStorage("current_user", data.user);
+        return data.user;
+      }
+    }
+  } catch (err) {
+    console.warn("Backend auth/me unavailable:", err);
+  }
+
+  // Fallback check
+  const local = getStorage<User | null>("current_user", null);
+  if (local) return local;
+
+  // If no logged in user, return null so app can prompt login/signup
+  return null;
+}
+
+export async function updateUserProfile(data: {
+  display_name?: string;
+  native_name?: string;
+  bio?: string;
+  dialect?: string;
+  region?: string;
+  native_speaker?: boolean;
+}): Promise<User> {
+  try {
+    const res = await fetch(`${API_BASE}/api/profile/update`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (res.ok) {
+      const resData = await res.json();
+      if (resData.user) {
+        setStorage("current_user", resData.user);
+        return resData.user;
+      }
+    }
+  } catch (err) {
+    console.warn("Backend profile update unavailable, updating locally:", err);
+  }
+
+  // Fallback update
+  const current = getStorage<User | null>("current_user", null) || fallbackUsers[0];
+  const updated: User = {
+    ...current,
+    ...(data.display_name !== undefined && { display_name: data.display_name }),
+    ...(data.native_name !== undefined && { native_name: data.native_name }),
+    ...(data.bio !== undefined && { bio: data.bio }),
+    ...(data.dialect !== undefined && { dialect: data.dialect }),
+    ...(data.native_speaker !== undefined && { native_speaker: data.native_speaker }),
+  };
+  setStorage("current_user", updated);
+
+  const idx = fallbackUsers.findIndex((u) => u.id === updated.id);
+  if (idx !== -1) {
+    fallbackUsers[idx] = updated;
+    setStorage("users", fallbackUsers);
+  }
+
+  return updated;
+}
+
+export async function uploadUserAvatar(file: File): Promise<string> {
+  const form = new FormData();
+  form.append("avatar", file);
+
+  try {
+    const res = await fetch(`${API_BASE}/api/profile/avatar`, {
+      method: "POST",
+      credentials: "include",
+      body: form,
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.avatar_url) {
+        const current = getStorage<User | null>("current_user", null);
+        if (current) {
+          current.avatar_url = data.avatar_url;
+          setStorage("current_user", current);
+        }
+        return data.avatar_url;
+      }
+    }
+  } catch (err) {
+    console.warn("Backend avatar upload unavailable, using blob URL locally:", err);
+  }
+
+  const url = URL.createObjectURL(file);
+  const current = getStorage<User | null>("current_user", null);
+  if (current) {
+    current.avatar_url = url;
+    setStorage("current_user", current);
+  }
+  return url;
+}
+
+// ==========================================
+// CONNECTIONS & FRIEND REQUESTS APIs
+// ==========================================
+
+export async function fetchConnectionsList(): Promise<ConnectionsResponse> {
+  try {
+    const res = await fetch(`${API_BASE}/api/connections`, {
+      credentials: "include",
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn("Backend connections list unavailable, building from local state:", err);
+  }
+
+  // Fallback computation
+  const current = getStorage<User | null>("current_user", null) || fallbackUsers[0];
+  const connected: ConnectionUserItem[] = [];
+  const incoming: ConnectionUserItem[] = [];
+  const outgoing: ConnectionUserItem[] = [];
+
+  for (const record of Object.values(fallbackConnectionsMap)) {
+    if (record.status === "connected") {
+      if (record.requester_id === current.id || record.receiver_id === current.id) {
+        const peerId = record.requester_id === current.id ? record.receiver_id : record.requester_id;
+        const peer = fallbackUsers.find((u) => u.id === peerId);
+        if (peer) {
+          connected.push({ user: peer, connection_id: record.id, created_at: record.updated_at });
+        }
+      }
+    } else if (record.status === "pending") {
+      if (record.receiver_id === current.id) {
+        const peer = fallbackUsers.find((u) => u.id === record.requester_id);
+        if (peer) {
+          incoming.push({ user: peer, connection_id: record.id, created_at: record.created_at });
+        }
+      } else if (record.requester_id === current.id) {
+        const peer = fallbackUsers.find((u) => u.id === record.receiver_id);
+        if (peer) {
+          outgoing.push({ user: peer, connection_id: record.id, created_at: record.created_at });
+        }
+      }
+    }
+  }
+
+  return { connected, incoming, outgoing };
+}
+
+export async function updateConnection(
+  targetId: string,
+  action: "connect" | "accept" | "reject" | "disconnect" | "block" | "unblock",
+  viewerId?: string
+): Promise<{ status: string; message: string }> {
+  try {
+    const res = await fetch(`${API_BASE}/api/connections`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ target_id: targetId, action }),
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn("Backend connections update unavailable, modifying fallback:", err);
+  }
+
+  const vId = viewerId || getStorage<User | null>("current_user", null)?.id || "user_oche";
+  const pKey = pairKey(vId, targetId);
+  const now = new Date().toISOString();
+
+  if (action === "connect") {
+    fallbackConnectionsMap[pKey] = {
+      id: "c_" + Date.now(),
+      requester_id: vId,
+      receiver_id: targetId,
+      status: "pending",
+      created_at: now,
+      updated_at: now,
+    };
+  } else if (action === "accept") {
+    const existing = fallbackConnectionsMap[pKey];
+    if (existing && existing.receiver_id === vId) {
+      existing.status = "connected";
+      existing.updated_at = now;
+    } else {
+      fallbackConnectionsMap[pKey] = {
+        id: "c_" + Date.now(),
+        requester_id: targetId,
+        receiver_id: vId,
+        status: "connected",
+        created_at: now,
+        updated_at: now,
+      };
+    }
+  } else if (action === "reject" || action === "disconnect") {
+    delete fallbackConnectionsMap[pKey];
+  } else if (action === "block") {
+    fallbackConnectionsMap[pKey] = {
+      id: "c_" + Date.now(),
+      requester_id: vId,
+      receiver_id: targetId,
+      status: "blocked",
+      created_at: now,
+      updated_at: now,
+    };
+  }
+
+  setStorage("connections", fallbackConnectionsMap);
+  return { status: fallbackConnectionsMap[pKey]?.status || "none", message: "Updated" };
+}
+
+export async function searchRealUsers(query: string): Promise<User[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/users/search?q=${encodeURIComponent(query)}`, {
+      credentials: "include",
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (Array.isArray(data.users)) {
+        return data.users;
+      }
+    }
+  } catch (err) {
+    console.warn("Backend user search unavailable:", err);
+  }
+
+  // Fallback search
+  const q = query.trim().toLowerCase();
+  if (!q) return fallbackUsers;
+  return fallbackUsers.filter(
+    (u) =>
+      u.username.toLowerCase().includes(q) ||
+      u.display_name.toLowerCase().includes(q) ||
+      u.native_name?.toLowerCase().includes(q)
+  );
+}
+
+// ==========================================
+// FEED & POSTS APIs
+// ==========================================
 
 export async function fetchPosts(page = 1, limit = 10): Promise<{ posts: Post[]; total: number }> {
   try {
-    const res = await fetch(`${API_BASE}/api/posts?page=${page}&limit=${limit}`);
+    const res = await fetch(`${API_BASE}/api/posts?page=${page}&limit=${limit}`, {
+      credentials: "include",
+    });
     if (res.ok) {
       const data = await res.json();
       return { posts: data.posts || [], total: data.total || 0 };
@@ -83,11 +514,13 @@ export async function createPost(post: {
       form.append("media_file", post.media_file);
       res = await fetch(`${API_BASE}/api/posts`, {
         method: "POST",
+        credentials: "include",
         body: form,
       });
     } else {
       res = await fetch(`${API_BASE}/api/posts`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(post),
       });
@@ -99,7 +532,7 @@ export async function createPost(post: {
     console.warn("Backend unavailable, storing post locally:", err);
   }
 
-  const author = mockUsers.find((u) => u.id === post.user_id) || {
+  const author = fallbackUsers.find((u) => u.id === post.user_id) || {
     id: post.user_id,
     username: post.user_id,
     display_name: post.user_id,
@@ -117,12 +550,18 @@ export async function createPost(post: {
     created_at: new Date().toISOString(),
   };
   fallbackPosts.unshift(newPost);
+  setStorage("posts", fallbackPosts);
   return newPost;
 }
+
+// ==========================================
+// PROFILE API
+// ==========================================
 
 export async function fetchProfile(targetId: string, viewerId: string): Promise<ProfileResponse> {
   try {
     const res = await fetch(`${API_BASE}/api/profile?id=${targetId}`, {
+      credentials: "include",
       headers: { "X-Viewer-ID": viewerId },
     });
     if (res.ok) {
@@ -132,20 +571,28 @@ export async function fetchProfile(targetId: string, viewerId: string): Promise<
     console.warn("Backend unavailable, using mock profile:", err);
   }
 
-  const user = mockUsers.find((u) => u.id === targetId) || {
+  const user = fallbackUsers.find((u) => u.id === targetId) || {
     id: targetId,
     username: targetId,
     display_name: targetId,
+    native_name: "Idoma Descendant",
   };
 
-  const connKey = `${viewerId}:${targetId}`;
-  const reverseKey = `${targetId}:${viewerId}`;
-  const status = fallbackConnections[connKey] || fallbackConnections[reverseKey] || "none";
+  const pKey = pairKey(viewerId, targetId);
+  const conn = fallbackConnectionsMap[pKey];
+  let status: "none" | "pending" | "connected" | "blocked" = "none";
+  let direction = "";
+
+  if (conn) {
+    status = conn.status;
+    direction = conn.requester_id === viewerId ? "outgoing" : "incoming";
+  }
 
   return {
     user,
     is_owner: viewerId === targetId,
     connection_status: status,
+    connection_direction: direction,
     learning_profile: {
       user_id: targetId,
       completed_tracks: ["track_1_greetings", "track_2_numbers"],
@@ -153,40 +600,19 @@ export async function fetchProfile(targetId: string, viewerId: string): Promise<
       fluency_tier: "intermediate",
     },
     posts: fallbackPosts.filter((p) => p.user_id === targetId),
-    connection_count: 1,
+    connection_count: status === "connected" ? 1 : 0,
   };
 }
 
-export async function updateConnection(
-  requesterId: string,
-  receiverId: string,
-  action: "connect" | "accept" | "reject" | "block"
-): Promise<{ status: string; message: string }> {
-  try {
-    const res = await fetch(`${API_BASE}/api/connections`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ requester_id: requesterId, receiver_id: receiverId, action }),
-    });
-    if (res.ok) {
-      return await res.json();
-    }
-  } catch (err) {
-    console.warn("Backend unavailable, updating connection locally:", err);
-  }
-
-  const key = `${requesterId}:${receiverId}`;
-  if (action === "connect") fallbackConnections[key] = "pending";
-  else if (action === "accept") fallbackConnections[key] = "connected";
-  else if (action === "block") fallbackConnections[key] = "blocked";
-  else delete fallbackConnections[key];
-
-  return { status: fallbackConnections[key] || "none", message: "Updated" };
-}
+// ==========================================
+// MESSAGING APIs
+// ==========================================
 
 export async function fetchMessages(userId: string, peerId: string): Promise<DirectMessage[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/messages?user_id=${userId}&peer_id=${peerId}`);
+    const res = await fetch(`${API_BASE}/api/messages?user_id=${userId}&peer_id=${peerId}`, {
+      credentials: "include",
+    });
     if (res.ok) {
       return await res.json();
     } else if (res.status === 403) {
@@ -198,9 +624,9 @@ export async function fetchMessages(userId: string, peerId: string): Promise<Dir
   }
 
   // Check connection in fallback
-  const connKey = `${userId}:${peerId}`;
-  const reverseKey = `${peerId}:${userId}`;
-  if (fallbackConnections[connKey] !== "connected" && fallbackConnections[reverseKey] !== "connected") {
+  const pKey = pairKey(userId, peerId);
+  const conn = fallbackConnectionsMap[pKey];
+  if (!conn || conn.status !== "connected") {
     throw new Error("Forbidden: You must be connected with this user to view or send direct messages.");
   }
 
@@ -212,31 +638,66 @@ export async function fetchMessages(userId: string, peerId: string): Promise<Dir
 }
 
 export async function sendMessage(senderId: string, receiverId: string, body: string): Promise<DirectMessage> {
-  const res = await fetch(`${API_BASE}/api/messages`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sender_id: senderId, receiver_id: receiverId, body }),
-  });
+  try {
+    const res = await fetch(`${API_BASE}/api/messages`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sender_id: senderId, receiver_id: receiverId, body }),
+    });
 
-  if (!res.ok) {
+    if (res.ok) {
+      return await res.json();
+    }
+
     const errData = await res.json().catch(() => ({}));
     if (res.status === 403) {
       throw new Error(errData.error || "Forbidden: Direct messaging is strictly restricted to active connected peers.");
     }
     throw new Error(errData.error || "Failed to send message");
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message.includes("Forbidden")) throw err;
+    console.warn("Backend send message unavailable, saving locally:", err);
   }
 
-  return await res.json();
+  // Check connection in fallback
+  const pKey = pairKey(senderId, receiverId);
+  const conn = fallbackConnectionsMap[pKey];
+  if (!conn || conn.status !== "connected") {
+    throw new Error("Forbidden: Direct messaging is strictly restricted to active connected peers.");
+  }
+
+  const msg: DirectMessage = {
+    id: "m_" + Date.now(),
+    sender_id: senderId,
+    receiver_id: receiverId,
+    body,
+    is_read: false,
+    created_at: new Date().toISOString(),
+  };
+  fallbackMessages.push(msg);
+  setStorage("messages", fallbackMessages);
+  return msg;
 }
+
+// ==========================================
+// E-LIBRARY APIs
+// ==========================================
 
 export async function fetchBooks(): Promise<Book[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/books`);
+    // Try /api/library first, then fallback to /api/books
+    let res = await fetch(`${API_BASE}/api/library`, { credentials: "include" });
+    if (!res.ok) {
+      res = await fetch(`${API_BASE}/api/books`, { credentials: "include" });
+    }
     if (res.ok) {
-      return await res.json();
+      const data = await res.json();
+      if (Array.isArray(data)) return data;
+      if (Array.isArray(data.items)) return data.items;
     }
   } catch (err) {
-    console.warn("Backend unavailable, using mock books:", err);
+    console.warn("Backend library unavailable, using fallback:", err);
   }
   return fallbackBooks;
 }
@@ -258,10 +719,11 @@ export async function createBook(book: {
       form.append("uploaded_by", book.uploaded_by);
       if (book.description) form.append("description", book.description);
       form.append("book_file", book.book_file);
-      res = await fetch(`${API_BASE}/api/books`, { method: "POST", body: form });
+      res = await fetch(`${API_BASE}/api/library`, { method: "POST", credentials: "include", body: form });
     } else {
       res = await fetch(`${API_BASE}/api/books`, {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(book),
       });
@@ -286,14 +748,20 @@ export async function createBook(book: {
   return newBook;
 }
 
+// ==========================================
+// LEARNING TRACKS APIs
+// ==========================================
+
 export async function fetchLearningTracks(userId: string): Promise<{ profile: LearningProfile; tracks: LearningTrack[] }> {
   try {
-    const res = await fetch(`${API_BASE}/api/learning/tracks?user_id=${userId}`);
+    const res = await fetch(`${API_BASE}/api/learning/tracks?user_id=${userId}`, {
+      credentials: "include",
+    });
     if (res.ok) {
       return await res.json();
     }
   } catch (err) {
-    console.warn("Backend unavailable, using mock tracks:", err);
+    console.warn("Backend learning tracks unavailable, using mock:", err);
   }
 
   return {
@@ -313,6 +781,7 @@ export async function completeLearningTrack(
 ): Promise<{ success: boolean; message: string; learning_profile: LearningProfile; tracks: LearningTrack[] }> {
   const res = await fetch(`${API_BASE}/api/learning/complete-track`, {
     method: "POST",
+    credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ user_id: userId, track_id: trackId }),
   });
@@ -327,12 +796,15 @@ export async function completeLearningTrack(
 
 export async function fetchUsers(): Promise<User[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/users`);
+    const res = await fetch(`${API_BASE}/api/users/search?q=`, { credentials: "include" });
     if (res.ok) {
-      return await res.json();
+      const data = await res.json();
+      if (Array.isArray(data.users) && data.users.length > 0) {
+        return data.users;
+      }
     }
   } catch (err) {
-    console.warn("Backend unavailable, using mock users:", err);
+    console.warn("Backend users unavailable, using fallback:", err);
   }
-  return mockUsers;
+  return fallbackUsers;
 }

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My AI App</title>
+  <style>
+    body { font-family: sans-serif; max-width: 600px; margin: 2rem auto; padding: 0 1rem; }
+    #chat { border: 1px solid #ccc; border-radius: 8px; padding: 1rem; height: 350px; overflow-y: auto; }
+    .you { text-align: right; color: #0b5; margin: .5rem 0; }
+    .bot { text-align: left; margin: .5rem 0; white-space: pre-wrap; }
+    form { display: flex; gap: .5rem; margin-top: 1rem; }
+    input { flex: 1; padding: .6rem; }
+    button { padding: .6rem 1rem; }
+  </style>
+</head>
+<body>
+  <h1>My AI App</h1>
+  <div id="chat"></div>
+  <form id="form">
+    <input id="msg" placeholder="Type a message..." autocomplete="off" required>
+    <button type="submit">Send</button>
+  </form>
+
+  <script>
+    const chat = document.getElementById("chat");
+    const form = document.getElementById("form");
+    const input = document.getElementById("msg");
+
+    function add(cls, text) {
+      const div = document.createElement("div");
+      div.className = cls;
+      div.textContent = text;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+      return div;
+    }
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const text = input.value.trim();
+      if (!text) return;
+      add("you", text);
+      input.value = "";
+      const thinking = add("bot", "Thinking...");
+      try {
+        const res = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: text }),
+        });
+        const data = await res.json();
+        thinking.textContent = data.reply || data.error;
+      } catch {
+        thinking.textContent = "Network error. Try again.";
+      }
+    });
+  </script>
+</body>
+</html>

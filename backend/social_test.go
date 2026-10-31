@@ -10,6 +10,7 @@ import (
 )
 
 func setupTestDB(t *testing.T) {
+	demoMode = true
 	testDBPath := "test_idlang.db"
 	os.Remove(testDBPath)
 	var err error
