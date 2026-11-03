@@ -116,11 +116,6 @@ func sessionToken(r *http.Request) (string, bool) {
 func sessionUser(r *http.Request) *User {
 	token, ok := sessionToken(r)
 	if !ok {
-		if viewerID := strings.TrimSpace(r.Header.Get("X-Viewer-ID")); viewerID != "" {
-			if u, err := getUserByID(viewerID); err == nil {
-				return u
-			}
-		}
 		return nil
 	}
 	sum := sha256.Sum256([]byte(token))

@@ -116,56 +116,42 @@ export interface ApiError extends Error {
 
 export async function loginUser(identifier: string, password: string): Promise<User> {
   const trimmed = identifier.trim();
+  let res: Response;
   try {
-    const res = await fetch(`${API_BASE}/api/auth/login`, {
+    res = await fetch(`${API_BASE}/api/auth/login`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ identifier: trimmed, password }),
     });
-
-    const data = await res.json().catch(() => ({}));
-    if (res.ok && data.user) {
-      setStorage("current_user", data.user);
-      return data.user;
-    }
-
-    if (res.status === 404 || data.code === "USER_NOT_FOUND" || (data.error && /not exist|sign up/i.test(data.error))) {
-      const err: ApiError = new Error(data.error || "Account does not exist. Please create an account first.");
-      err.code = "USER_NOT_FOUND";
-      err.status = 404;
-      throw err;
-    }
-
-    if (res.status === 401 || data.code === "INVALID_PASSWORD" || (data.error && /invalid credentials|incorrect password/i.test(data.error))) {
-      const err: ApiError = new Error(data.error || "Incorrect password. Please verify your password.");
-      err.code = "INVALID_PASSWORD";
-      err.status = 401;
-      throw err;
-    }
-
-    throw new Error(data.error || "Login failed. Please try again.");
-  } catch (err: unknown) {
-    if ((err as ApiError).code) throw err;
-
-    // Fallback mode for offline / local testing:
-    console.warn("Backend login failed or unavailable, checking local accounts:", err);
-    const existing = fallbackUsers.find(
-      (u) =>
-        u.username.toLowerCase() === trimmed.toLowerCase() ||
-        (u as unknown as { email?: string }).email?.toLowerCase() === trimmed.toLowerCase()
-    );
-
-    if (!existing) {
-      const notFoundErr: ApiError = new Error("Account does not exist. Please create an account first.");
-      notFoundErr.code = "USER_NOT_FOUND";
-      notFoundErr.status = 404;
-      throw notFoundErr;
-    }
-
-    setStorage("current_user", existing);
-    return existing;
+  } catch {
+    const err: ApiError = new Error("Sign-in service is unavailable. Please try again.");
+    err.code = "SERVICE_UNAVAILABLE";
+    err.status = 503;
+    throw err;
   }
+
+  const data = await res.json().catch(() => ({}));
+  if (res.ok && data.user) {
+    setStorage("current_user", data.user);
+    return data.user;
+  }
+
+  if (res.status === 404 || data.code === "USER_NOT_FOUND" || (data.error && /not exist|sign up/i.test(data.error))) {
+    const err: ApiError = new Error(data.error || "Account does not exist. Please create an account first.");
+    err.code = "USER_NOT_FOUND";
+    err.status = 404;
+    throw err;
+  }
+
+  if (res.status === 401 || data.code === "INVALID_PASSWORD" || (data.error && /invalid credentials|incorrect password/i.test(data.error))) {
+    const err: ApiError = new Error(data.error || "Incorrect password. Please verify your password.");
+    err.code = "INVALID_PASSWORD";
+    err.status = 401;
+    throw err;
+  }
+
+  throw new Error(data.error || "Login failed. Please try again.");
 }
 
 export async function signupUser(userData: {
@@ -177,43 +163,29 @@ export async function signupUser(userData: {
   native_speaker?: boolean;
   dialect?: string;
 }): Promise<User> {
+  let res: Response;
   try {
-    const res = await fetch(`${API_BASE}/api/auth/signup`, {
+    res = await fetch(`${API_BASE}/api/auth/signup`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(userData),
     });
 
-    const data = await res.json().catch(() => ({}));
-    if (res.ok && data.user) {
-      setStorage("current_user", data.user);
-      return data.user;
-    }
-
-    throw new Error(data.error || "Failed to create account. Please try again.");
-  } catch (err: unknown) {
-    if (err instanceof Error && !err.message.includes("Failed to fetch") && !err.message.includes("NetworkError")) {
-      throw err;
-    }
-
-    console.warn("Backend signup unavailable, registering in local store:", err);
-    const newUser: User = {
-      id: "user_" + Date.now(),
-      username: userData.username.trim(),
-      display_name: userData.display_name.trim() || userData.username.trim(),
-      native_name: userData.native_name?.trim() || "",
-      avatar_url: `https://api.dicebear.com/7.x/bottts/svg?seed=${userData.username}`,
-      bio: "Heritage speaker preserving ancient Idoma traditions.",
-      dialect: userData.dialect || "Central Otukpo",
-      native_speaker: userData.native_speaker ?? false,
-      created_at: new Date().toISOString(),
-    };
-    fallbackUsers.push(newUser);
-    setStorage("users", fallbackUsers);
-    setStorage("current_user", newUser);
-    return newUser;
+  } catch {
+    const err: ApiError = new Error("Sign-up service is unavailable. Please try again.");
+    err.code = "SERVICE_UNAVAILABLE";
+    err.status = 503;
+    throw err;
   }
+
+  const data = await res.json().catch(() => ({}));
+  if (res.ok && data.user) {
+    setStorage("current_user", data.user);
+    return data.user;
+  }
+
+  throw new Error(data.error || "Failed to create account. Please try again.");
 }
 
 export async function logoutUser(): Promise<void> {
@@ -245,15 +217,16 @@ export async function fetchCurrentUser(): Promise<User | null> {
         return data.user;
       }
     }
-  } catch (err) {
-    console.warn("Backend auth/me unavailable:", err);
+  } catch {
+    // A cached profile is not proof of an active authenticated session.
   }
 
-  // Fallback check
-  const local = getStorage<User | null>("current_user", null);
-  if (local) return local;
+  try {
+    localStorage.removeItem(STORAGE_PREFIX + "current_user");
+  } catch {
+    // Ignore storage errors.
+  }
 
-  // If no logged in user, return null so app can prompt login/signup
   return null;
 }
 
@@ -507,7 +480,6 @@ export async function createPost(post: {
     let res: Response;
     if (post.media_file) {
       const form = new FormData();
-      form.append("user_id", post.user_id);
       form.append("content", post.content);
       form.append("media_type", post.media_type);
       if (post.media_url) form.append("media_url", post.media_url);
@@ -522,7 +494,11 @@ export async function createPost(post: {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(post),
+        body: JSON.stringify({
+          content: post.content,
+          media_type: post.media_type,
+          media_url: post.media_url,
+        }),
       });
     }
     if (res.ok) {
@@ -562,7 +538,6 @@ export async function fetchProfile(targetId: string, viewerId: string): Promise<
   try {
     const res = await fetch(`${API_BASE}/api/profile?id=${targetId}`, {
       credentials: "include",
-      headers: { "X-Viewer-ID": viewerId },
     });
     if (res.ok) {
       return await res.json();
@@ -610,7 +585,7 @@ export async function fetchProfile(targetId: string, viewerId: string): Promise<
 
 export async function fetchMessages(userId: string, peerId: string): Promise<DirectMessage[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/messages?user_id=${userId}&peer_id=${peerId}`, {
+    const res = await fetch(`${API_BASE}/api/messages?peer_id=${peerId}`, {
       credentials: "include",
     });
     if (res.ok) {
@@ -643,7 +618,7 @@ export async function sendMessage(senderId: string, receiverId: string, body: st
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sender_id: senderId, receiver_id: receiverId, body }),
+      body: JSON.stringify({ receiver_id: receiverId, body }),
     });
 
     if (res.ok) {
@@ -754,7 +729,7 @@ export async function createBook(book: {
 
 export async function fetchLearningTracks(userId: string): Promise<{ profile: LearningProfile; tracks: LearningTrack[] }> {
   try {
-    const res = await fetch(`${API_BASE}/api/learning/tracks?user_id=${userId}`, {
+    const res = await fetch(`${API_BASE}/api/learning/tracks`, {
       credentials: "include",
     });
     if (res.ok) {
@@ -783,7 +758,7 @@ export async function completeLearningTrack(
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: userId, track_id: trackId }),
+    body: JSON.stringify({ track_id: trackId }),
   });
 
   if (!res.ok) {

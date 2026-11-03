@@ -106,15 +106,9 @@ func handleCreatePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Identity comes from the session, falling back to header/body for test compatibility.
 	author := currentUser(r)
-	if author == nil {
-		if uid := strings.TrimSpace(r.Header.Get("X-Viewer-ID")); uid != "" {
-			author, _ = getUserByID(uid)
-		}
-	}
 
-	var content, mediaType, mediaURL, requestedUserID string
+	var content, mediaType, mediaURL string
 
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
 		r.Body = http.MaxBytesReader(w, r.Body, 25<<20)
@@ -125,7 +119,6 @@ func handleCreatePost(w http.ResponseWriter, r *http.Request) {
 		content = r.FormValue("content")
 		mediaType = r.FormValue("media_type")
 		mediaURL = r.FormValue("media_url")
-		requestedUserID = r.FormValue("user_id")
 
 		file, header, err := r.FormFile("media_file")
 		if err == nil && file != nil {
@@ -139,7 +132,6 @@ func handleCreatePost(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		var req struct {
-			UserID    string `json:"user_id"`
 			Content   string `json:"content"`
 			MediaType string `json:"media_type"`
 			MediaURL  string `json:"media_url"`
@@ -151,11 +143,6 @@ func handleCreatePost(w http.ResponseWriter, r *http.Request) {
 		content = req.Content
 		mediaType = req.MediaType
 		mediaURL = req.MediaURL
-		requestedUserID = req.UserID
-	}
-
-	if author == nil && requestedUserID != "" {
-		author, _ = getUserByID(requestedUserID)
 	}
 	if author == nil {
 		writeError(w, http.StatusUnauthorized, "Sign in to post.")
@@ -279,8 +266,6 @@ func handleProfile(w http.ResponseWriter, r *http.Request) {
 	viewerID := ""
 	if viewer != nil {
 		viewerID = viewer.ID
-	} else if vid := strings.TrimSpace(r.Header.Get("X-Viewer-ID")); vid != "" {
-		viewerID = vid
 	}
 
 	target, err := getUserByID(targetID)
@@ -668,6 +653,10 @@ type DirectMessageResponse struct {
 }
 
 func handleMessages(w http.ResponseWriter, r *http.Request) {
+	if currentUser(r) == nil {
+		writeError(w, http.StatusUnauthorized, "Sign in to continue.")
+		return
+	}
 	switch r.Method {
 	case http.MethodPost:
 		sendMessage(w, r)
@@ -680,14 +669,8 @@ func handleMessages(w http.ResponseWriter, r *http.Request) {
 
 func sendMessage(w http.ResponseWriter, r *http.Request) {
 	sender := currentUser(r)
-	if sender == nil {
-		if uid := strings.TrimSpace(r.Header.Get("X-Viewer-ID")); uid != "" {
-			sender, _ = getUserByID(uid)
-		}
-	}
 
 	var req struct {
-		SenderID   string `json:"sender_id"`
 		ReceiverID string `json:"receiver_id"`
 		Body       string `json:"body"`
 	}
@@ -696,9 +679,6 @@ func sendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if sender == nil && req.SenderID != "" {
-		sender, _ = getUserByID(req.SenderID)
-	}
 	if sender == nil {
 		writeError(w, http.StatusUnauthorized, "Sign in to send messages.")
 		return
@@ -764,13 +744,6 @@ func sendMessage(w http.ResponseWriter, r *http.Request) {
 
 func readMessages(w http.ResponseWriter, r *http.Request) {
 	viewer := currentUser(r)
-	if viewer == nil {
-		if uid := strings.TrimSpace(r.Header.Get("X-Viewer-ID")); uid != "" {
-			viewer, _ = getUserByID(uid)
-		} else if uid := strings.TrimSpace(r.URL.Query().Get("user_id")); uid != "" {
-			viewer, _ = getUserByID(uid)
-		}
-	}
 	if viewer == nil {
 		writeError(w, http.StatusUnauthorized, "Sign in to read messages.")
 		return
@@ -858,7 +831,6 @@ func handleMarkMessagesRead(w http.ResponseWriter, r *http.Request) {
 // --- Gamified Learning Tracks API ---
 
 type CompleteTrackRequest struct {
-	UserID  string `json:"user_id,omitempty"`
 	TrackID string `json:"track_id"`
 }
 
@@ -878,13 +850,6 @@ func handleGetLearningTracks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := currentUser(r)
-	if user == nil {
-		if uid := strings.TrimSpace(r.URL.Query().Get("user_id")); uid != "" {
-			user, _ = getUserByID(uid)
-		} else if uid := strings.TrimSpace(r.Header.Get("X-Viewer-ID")); uid != "" {
-			user, _ = getUserByID(uid)
-		}
-	}
 	if user == nil {
 		writeError(w, http.StatusUnauthorized, "Sign in to see your learning tracks.")
 		return
@@ -939,13 +904,6 @@ func handleCompleteLearningTrack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	user := currentUser(r)
-	if user == nil {
-		if req.UserID != "" {
-			user, _ = getUserByID(req.UserID)
-		} else if uid := strings.TrimSpace(r.Header.Get("X-Viewer-ID")); uid != "" {
-			user, _ = getUserByID(uid)
-		}
-	}
 	if user == nil {
 		writeError(w, http.StatusUnauthorized, "Sign in to record progress.")
 		return

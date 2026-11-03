@@ -217,7 +217,7 @@ func main() {
 		case http.MethodGet:
 			handleGetPosts(w, r)
 		case http.MethodPost:
-			handleCreatePost(w, r)
+			requireAuth(handleCreatePost)(w, r)
 		default:
 			methodNotAllowed(w, "GET, POST")
 		}
@@ -228,8 +228,8 @@ func main() {
 	mux.HandleFunc("/api/messages/read", withUser(handleMarkMessagesRead))
 
 	// --- Learning ---
-	mux.HandleFunc("/api/learning/tracks", withUser(handleGetLearningTracks))
-	mux.HandleFunc("/api/learning/complete-track", withUser(handleCompleteLearningTrack))
+	mux.HandleFunc("/api/learning/tracks", requireAuth(handleGetLearningTracks))
+	mux.HandleFunc("/api/learning/complete-track", requireAuth(handleCompleteLearningTrack))
 
 	// --- E-Library. Files are streamed through a handler, never a static
 	// FileServer, so type, disposition and visibility are controlled. ---
@@ -457,12 +457,12 @@ func corsMiddleware(next http.Handler) http.Handler {
 			w.Header().Set("Vary", "Origin")
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept, X-Requested-With, X-Viewer-ID")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept, X-Requested-With")
 			w.Header().Set("Access-Control-Max-Age", "600")
 		} else if origin == "" {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept, X-Requested-With, X-Viewer-ID")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept, X-Requested-With")
 		}
 
 		if r.Method == http.MethodOptions {
