@@ -46,7 +46,7 @@ export default function ConnectionsModal({
         setTab("connected");
       }
     } catch (err) {
-      console.error("Failed to load connections:", err);
+      setActionError(err instanceof Error ? err.message : "Could not load connections.");
     } finally {
       setLoading(false);
     }
@@ -60,7 +60,8 @@ export default function ConnectionsModal({
       // Filter out self
       setDiscoveredUsers(results.filter((u) => u.id !== currentUser.id));
     } catch (err) {
-      console.error("Search failed:", err);
+      setDiscoveredUsers([]);
+      setActionError(err instanceof Error ? err.message : "Could not search users.");
     } finally {
       setSearching(false);
     }

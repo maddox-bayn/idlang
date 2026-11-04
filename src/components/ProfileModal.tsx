@@ -55,6 +55,9 @@ export default function ProfileModal({
   const loadData = async () => {
     setLoading(true);
     setChatError(null);
+    setProfileError(null);
+    setProfile(null);
+    setMessages([]);
     try {
       const p = await fetchProfile(targetUserId, viewerUserId);
       setProfile(p);
@@ -73,7 +76,7 @@ export default function ProfileModal({
         }
       }
     } catch (err) {
-      console.error("Failed to load profile:", err);
+      setProfileError(err instanceof Error ? err.message : "Could not load this profile.");
     } finally {
       setLoading(false);
     }
@@ -665,7 +668,7 @@ export default function ProfileModal({
               </div>
             )}
           </div>
-        ) : null}
+        ) : <p role="alert" className="py-6 text-red-300">{profileError || "Could not load this profile."}</p>}
       </div>
     </div>
   );

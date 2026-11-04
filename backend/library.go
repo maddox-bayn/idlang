@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"html"
 	"io"
@@ -429,9 +428,9 @@ func getLibraryItem(id string, viewer *User) (*LibraryItem, error) {
 	`, id)
 
 	var (
-		item                            LibraryItem
-		createdStr, updatedStr          sql.NullString
-		contentText                     sql.NullString
+		item                   LibraryItem
+		createdStr, updatedStr sql.NullString
+		contentText            sql.NullString
 	)
 	if err := row.Scan(
 		&item.ID, &item.Title, &item.Author, &item.UploadedBy, &item.Description,

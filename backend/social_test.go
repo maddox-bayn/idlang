@@ -3,20 +3,23 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
-	"os"
+	"path/filepath"
 	"testing"
 )
 
 func setupTestDB(t *testing.T) {
+	t.Helper()
+	oldDemo := demoMode
 	demoMode = true
-	testDBPath := "test_idlang.db"
-	os.Remove(testDBPath)
+	t.Cleanup(func() { demoMode = oldDemo })
+	t.Setenv("LIBRARY_DIR", t.TempDir())
 	var err error
-	db, err = initDB(testDBPath)
+	db, err = initDB(filepath.Join(t.TempDir(), "idlang.db"))
 	if err != nil {
-		t.Fatalf("Failed to initialize test DB: %v", err)
+		t.Fatal(err)
 	}
 }
 
@@ -24,7 +27,15 @@ func cleanupTestDB() {
 	if db != nil {
 		db.Close()
 	}
-	os.Remove("test_idlang.db")
+}
+
+func authenticateTestRequest(t *testing.T, req *http.Request, userID string) {
+	t.Helper()
+	rec := httptest.NewRecorder()
+	if err := issueSession(rec, req, userID); err != nil {
+		t.Fatal(err)
+	}
+	req.AddCookie(rec.Result().Cookies()[0])
 }
 
 func TestPostsAPI(t *testing.T) {
@@ -55,7 +66,7 @@ func TestPostsAPI(t *testing.T) {
 
 	// 2. POST /api/posts - Create a new post
 	newPost := map[string]string{
-		"user_id":    "user_oche",
+
 		"content":    "Exploring ancient tone inflections in Idoma storytelling.",
 		"media_type": "audio",
 		"media_url":  "https://example.com/audio/inflections.mp3",
@@ -64,6 +75,7 @@ func TestPostsAPI(t *testing.T) {
 	postReq := httptest.NewRequest(http.MethodPost, "/api/posts", bytes.NewReader(body))
 	postReq.Header.Set("Content-Type", "application/json")
 	postRec := httptest.NewRecorder()
+	authenticateTestRequest(t, postReq, "user_oche")
 	handleCreatePost(postRec, postReq)
 
 	if postRec.Code != http.StatusCreated {
@@ -72,7 +84,7 @@ func TestPostsAPI(t *testing.T) {
 
 	// 3. POST /api/posts - Invalid media_type should fail
 	invalidPost := map[string]string{
-		"user_id":    "user_oche",
+
 		"content":    "Testing invalid media",
 		"media_type": "invalid_format",
 	}
@@ -80,6 +92,7 @@ func TestPostsAPI(t *testing.T) {
 	invReq := httptest.NewRequest(http.MethodPost, "/api/posts", bytes.NewReader(invBody))
 	invReq.Header.Set("Content-Type", "application/json")
 	invRec := httptest.NewRecorder()
+	authenticateTestRequest(t, invReq, "user_oche")
 	handleCreatePost(invRec, invReq)
 
 	if invRec.Code != http.StatusBadRequest {
@@ -98,7 +111,7 @@ func TestDMGatewayPolicy(t *testing.T) {
 
 	// 1. Unconnected peers (Idoko -> Ada): MUST FAIL AT CONTROLLER with 403 Forbidden
 	unconnectedPayload := map[string]string{
-		"sender_id":   "user_idoko",
+
 		"receiver_id": "user_ada",
 		"body":        "Hello Ada, can I send you this unsolicited message?",
 	}
@@ -106,6 +119,7 @@ func TestDMGatewayPolicy(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/api/messages", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
+	authenticateTestRequest(t, req, "user_idoko")
 	handleMessages(rec, req)
 
 	if rec.Code != http.StatusForbidden {
@@ -114,7 +128,7 @@ func TestDMGatewayPolicy(t *testing.T) {
 
 	// 2. Pending peers (Idoko -> Oche): MUST ALSO FAIL WITH 403 Forbidden
 	pendingPayload := map[string]string{
-		"sender_id":   "user_idoko",
+
 		"receiver_id": "user_oche",
 		"body":        "Hello Oche, our connection is still pending!",
 	}
@@ -122,6 +136,7 @@ func TestDMGatewayPolicy(t *testing.T) {
 	pReq := httptest.NewRequest(http.MethodPost, "/api/messages", bytes.NewReader(pBody))
 	pReq.Header.Set("Content-Type", "application/json")
 	pRec := httptest.NewRecorder()
+	authenticateTestRequest(t, pReq, "user_idoko")
 	handleMessages(pRec, pReq)
 
 	if pRec.Code != http.StatusForbidden {
@@ -130,7 +145,7 @@ func TestDMGatewayPolicy(t *testing.T) {
 
 	// 3. Connected peers (Oche -> Ada): MUST SUCCEED with 201 Created
 	connectedPayload := map[string]string{
-		"sender_id":   "user_oche",
+
 		"receiver_id": "user_ada",
 		"body":        "Aôlô Ada, thank you for sharing the folklore recording!",
 	}
@@ -138,6 +153,7 @@ func TestDMGatewayPolicy(t *testing.T) {
 	cReq := httptest.NewRequest(http.MethodPost, "/api/messages", bytes.NewReader(cBody))
 	cReq.Header.Set("Content-Type", "application/json")
 	cRec := httptest.NewRecorder()
+	authenticateTestRequest(t, cReq, "user_oche")
 	handleMessages(cRec, cReq)
 
 	if cRec.Code != http.StatusCreated {
@@ -147,6 +163,7 @@ func TestDMGatewayPolicy(t *testing.T) {
 	// 4. Retrieve conversation history between connected peers
 	getReq := httptest.NewRequest(http.MethodGet, "/api/messages?user_id=user_oche&peer_id=user_ada", nil)
 	getRec := httptest.NewRecorder()
+	authenticateTestRequest(t, getReq, "user_oche")
 	handleMessages(getRec, getReq)
 
 	if getRec.Code != http.StatusOK {
@@ -176,6 +193,7 @@ func TestLazyModuleProgression(t *testing.T) {
 	// Verify track list
 	req := httptest.NewRequest(http.MethodGet, "/api/learning/tracks?user_id="+testUserID, nil)
 	rec := httptest.NewRecorder()
+	authenticateTestRequest(t, req, testUserID)
 	handleGetLearningTracks(rec, req)
 
 	if rec.Code != http.StatusOK {
@@ -184,13 +202,14 @@ func TestLazyModuleProgression(t *testing.T) {
 
 	// Try to complete Track 3 (Proverbial Idioms) directly without completing Track 1 & 2
 	skipPayload := map[string]string{
-		"user_id":  testUserID,
+
 		"track_id": "track_3_idioms",
 	}
 	sBody, _ := json.Marshal(skipPayload)
 	sReq := httptest.NewRequest(http.MethodPost, "/api/learning/complete-track", bytes.NewReader(sBody))
 	sReq.Header.Set("Content-Type", "application/json")
 	sRec := httptest.NewRecorder()
+	authenticateTestRequest(t, sReq, testUserID)
 	handleCompleteLearningTrack(sRec, sReq)
 
 	// MUST FAIL with 400 Bad Request due to Lazy Module Progression rule!
@@ -200,13 +219,14 @@ func TestLazyModuleProgression(t *testing.T) {
 
 	// Now complete Track 1 (Daily Greetings)
 	t1Payload := map[string]string{
-		"user_id":  testUserID,
+
 		"track_id": "track_1_greetings",
 	}
 	t1Body, _ := json.Marshal(t1Payload)
 	t1Req := httptest.NewRequest(http.MethodPost, "/api/learning/complete-track", bytes.NewReader(t1Body))
 	t1Req.Header.Set("Content-Type", "application/json")
 	t1Rec := httptest.NewRecorder()
+	authenticateTestRequest(t, t1Req, testUserID)
 	handleCompleteLearningTrack(t1Rec, t1Req)
 
 	if t1Rec.Code != http.StatusOK {
@@ -223,6 +243,7 @@ func TestLazyModuleProgression(t *testing.T) {
 	sReq2 := httptest.NewRequest(http.MethodPost, "/api/learning/complete-track", bytes.NewReader(sBody))
 	sReq2.Header.Set("Content-Type", "application/json")
 	sRec2 := httptest.NewRecorder()
+	authenticateTestRequest(t, sReq2, testUserID)
 	handleCompleteLearningTrack(sRec2, sReq2)
 
 	if sRec2.Code != http.StatusBadRequest {
@@ -231,13 +252,14 @@ func TestLazyModuleProgression(t *testing.T) {
 
 	// Complete Track 2 (Numerical Quantifiers)
 	t2Payload := map[string]string{
-		"user_id":  testUserID,
+
 		"track_id": "track_2_numbers",
 	}
 	t2Body, _ := json.Marshal(t2Payload)
 	t2Req := httptest.NewRequest(http.MethodPost, "/api/learning/complete-track", bytes.NewReader(t2Body))
 	t2Req.Header.Set("Content-Type", "application/json")
 	t2Rec := httptest.NewRecorder()
+	authenticateTestRequest(t, t2Req, testUserID)
 	handleCompleteLearningTrack(t2Rec, t2Req)
 
 	if t2Rec.Code != http.StatusOK {
@@ -248,6 +270,7 @@ func TestLazyModuleProgression(t *testing.T) {
 	t3Req := httptest.NewRequest(http.MethodPost, "/api/learning/complete-track", bytes.NewReader(sBody))
 	t3Req.Header.Set("Content-Type", "application/json")
 	t3Rec := httptest.NewRecorder()
+	authenticateTestRequest(t, t3Req, testUserID)
 	handleCompleteLearningTrack(t3Rec, t3Req)
 
 	if t3Rec.Code != http.StatusOK {
@@ -284,22 +307,38 @@ func TestELibraryAPI(t *testing.T) {
 		t.Errorf("Expected baseline books in e-library, got 0")
 	}
 
-	// 2. POST /api/books - Catalog a new document
-	newBook := map[string]string{
-		"title":       "Dialects of the Lower Benue Valley",
-		"author":      "Dr. O. Armstrong",
-		"uploaded_by": "user_oche",
-		"description": "Comparative linguistic analysis of Okpokwu, Otukpo, and Ogbadibo dialects.",
-		"file_url":    "/api/books/sample/lower_benue.txt",
+	// Upload a real document through the authenticated multipart API.
+	var body bytes.Buffer
+	form := multipart.NewWriter(&body)
+	for key, value := range map[string]string{"title": "Dialects", "author": "Test Author", "license": "CC-BY-4.0"} {
+		if err := form.WriteField(key, value); err != nil {
+			t.Fatal(err)
+		}
 	}
-	bJSON, _ := json.Marshal(newBook)
-	postReq := httptest.NewRequest(http.MethodPost, "/api/books", bytes.NewReader(bJSON))
-	postReq.Header.Set("Content-Type", "application/json")
+	file, err := form.CreateFormFile("file", "dialects.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := file.Write([]byte("An Idoma language study.")); err != nil {
+		t.Fatal(err)
+	}
+	if err := form.Close(); err != nil {
+		t.Fatal(err)
+	}
+	postReq := httptest.NewRequest(http.MethodPost, "/api/library", &body)
+	postReq.Header.Set("Content-Type", form.FormDataContentType())
+	authenticateTestRequest(t, postReq, "user_oche")
 	postRec := httptest.NewRecorder()
-	handleBooks(postRec, postReq)
-
+	handleLibrary(postRec, postReq)
 	if postRec.Code != http.StatusCreated {
-		t.Fatalf("Expected 201 Created for cataloged book, got %d", postRec.Code)
+		t.Fatalf("Upload: %d %s", postRec.Code, postRec.Body.String())
+	}
+	var item LibraryItem
+	if err := json.NewDecoder(postRec.Body).Decode(&item); err != nil {
+		t.Fatal(err)
+	}
+	if item.UploadedBy != "user_oche" || item.Status != "draft" {
+		t.Fatalf("Unexpected upload: %+v", item)
 	}
 }
 
@@ -309,7 +348,7 @@ func TestProfileEngineRouting(t *testing.T) {
 
 	// 1. Non-owner view: Ada viewing Oche
 	req := httptest.NewRequest(http.MethodGet, "/api/profile?id=user_oche", nil)
-	req.Header.Set("X-Viewer-ID", "user_ada")
+	authenticateTestRequest(t, req, "user_ada")
 	rec := httptest.NewRecorder()
 	handleProfile(rec, req)
 
@@ -329,7 +368,7 @@ func TestProfileEngineRouting(t *testing.T) {
 
 	// 2. Owner view: Oche viewing himself
 	req2 := httptest.NewRequest(http.MethodGet, "/api/profile?id=user_oche", nil)
-	req2.Header.Set("X-Viewer-ID", "user_oche")
+	authenticateTestRequest(t, req2, "user_oche")
 	rec2 := httptest.NewRecorder()
 	handleProfile(rec2, req2)
 

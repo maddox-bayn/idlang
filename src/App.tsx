@@ -55,9 +55,13 @@ export default function App() {
   }, []);
 
   const handleLogout = async () => {
-    await logoutUser();
-    setCurrentUser(null);
-    setPendingRequestsCount(0);
+    try {
+      await logoutUser();
+      setCurrentUser(null);
+      setPendingRequestsCount(0);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Could not sign out. Please try again.");
+    }
   };
 
   const openAuth = (mode: "login" | "signup") => {

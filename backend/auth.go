@@ -144,7 +144,7 @@ func sessionUser(r *http.Request) *User {
 	}
 
 	expires := parseDBTime(expiresStr.String)
-	if !expires.IsZero() && time.Now().After(expires) {
+	if expires.IsZero() || !time.Now().Before(expires) {
 		db.Exec(`DELETE FROM sessions WHERE token_hash = ?`, hex.EncodeToString(sum[:]))
 		return nil
 	}
@@ -286,9 +286,15 @@ func handleSignup(w http.ResponseWriter, r *http.Request) {
 	if _, err := getUserByEmailOrUsername(email); err == nil {
 		writeError(w, http.StatusConflict, "That username or email is already in use.")
 		return
+	} else if err != sql.ErrNoRows {
+		writeError(w, http.StatusInternalServerError, "Could not check account availability. Please try again.")
+		return
 	}
 	if _, err := getUserByEmailOrUsername(username); err == nil {
 		writeError(w, http.StatusConflict, "That username or email is already in use.")
+		return
+	} else if err != sql.ErrNoRows {
+		writeError(w, http.StatusInternalServerError, "Could not check account availability. Please try again.")
 		return
 	}
 
@@ -372,6 +378,10 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	u, err := getUserByEmailOrUsername(identifier)
 	if err != nil {
+		if err != sql.ErrNoRows {
+			writeError(w, http.StatusInternalServerError, "Sign-in service is unavailable. Please try again.")
+			return
+		}
 		// Equalise timing so a missing account is not distinguishable by brute timing
 		bcrypt.CompareHashAndPassword([]byte("$2a$12$abcdefghijklmnopqrstuuJ0Y1r5M5wC0M3z3z3z3z3z3z3z3z3z"), []byte(req.Password))
 		writeJSON(w, http.StatusNotFound, map[string]any{
@@ -414,7 +424,10 @@ func handleLogout(w http.ResponseWriter, r *http.Request) {
 	}
 	if token, ok := sessionToken(r); ok {
 		sum := sha256.Sum256([]byte(token))
-		db.Exec(`DELETE FROM sessions WHERE token_hash = ?`, hex.EncodeToString(sum[:]))
+		if _, err := db.Exec(`DELETE FROM sessions WHERE token_hash = ?`, hex.EncodeToString(sum[:])); err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not sign out. Please try again.")
+			return
+		}
 	}
 	clearSessionCookie(w, r)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
@@ -502,14 +515,14 @@ func handleUpdateProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		DisplayName    *string `json:"display_name"`
-		NativeName     *string `json:"native_name"`
-		Bio            *string `json:"bio"`
-		Dialect        *string `json:"dialect"`
-		Region         *string `json:"region"`
-		NativeSpeaker  *bool   `json:"native_speaker"`
-		DMPolicy       *string `json:"dm_policy"`
-		Visibility     *string `json:"visibility"`
+		DisplayName   *string `json:"display_name"`
+		NativeName    *string `json:"native_name"`
+		Bio           *string `json:"bio"`
+		Dialect       *string `json:"dialect"`
+		Region        *string `json:"region"`
+		NativeSpeaker *bool   `json:"native_speaker"`
+		DMPolicy      *string `json:"dm_policy"`
+		Visibility    *string `json:"visibility"`
 	}
 	if err := decodeJSON(w, r, &req, 16<<10); err != nil {
 		writeError(w, http.StatusBadRequest, "Could not read that request.")
@@ -744,4 +757,3 @@ func allowRate(w http.ResponseWriter, r *http.Request, key string, limit int, wi
 	}
 	return true
 }
-

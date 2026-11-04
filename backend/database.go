@@ -36,9 +36,9 @@ type User struct {
 	CreatedAt     time.Time `json:"created_at"`
 
 	// Never serialised by accident.
-	Email        string `json:"-"`
-	PasswordHash string `json:"-"`
-	Status       string `json:"-"`
+	Email        string    `json:"-"`
+	PasswordHash string    `json:"-"`
+	Status       string    `json:"-"`
 	UpdatedAt    time.Time `json:"-"`
 
 	// Privacy preferences. Safe to expose; they only describe the owner's rules.
@@ -206,6 +206,7 @@ func initDB(dbPath string) (*sql.DB, error) {
 	}
 
 	if err := runMigrations(database); err != nil {
+		database.Close()
 		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
@@ -333,12 +334,16 @@ func migrateAuth(database *sql.DB) error {
 		{"region", "ALTER TABLE users ADD COLUMN region TEXT NOT NULL DEFAULT ''"},
 		{"dm_policy", "ALTER TABLE users ADD COLUMN dm_policy TEXT NOT NULL DEFAULT 'connections'"},
 		{"visibility", "ALTER TABLE users ADD COLUMN visibility TEXT NOT NULL DEFAULT 'public'"},
-		{"updated_at", "ALTER TABLE users ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP"},
+		{"updated_at", "ALTER TABLE users ADD COLUMN updated_at DATETIME"},
 	}
 	for _, c := range columns {
 		if err := addColumnIfMissing(database, "users", c.name, c.ddl); err != nil {
 			return err
 		}
+	}
+
+	if _, err := database.Exec(`UPDATE users SET updated_at = COALESCE(created_at, CURRENT_TIMESTAMP) WHERE updated_at IS NULL`); err != nil {
+		return err
 	}
 
 	_, err := database.Exec(`
@@ -409,12 +414,16 @@ func migrateLibrary(database *sql.DB) error {
 		{"content_text", "ALTER TABLE library_items ADD COLUMN content_text TEXT NOT NULL DEFAULT ''"},
 		{"status", "ALTER TABLE library_items ADD COLUMN status TEXT NOT NULL DEFAULT 'published'"},
 		{"reviewed_by", "ALTER TABLE library_items ADD COLUMN reviewed_by TEXT REFERENCES users(id)"},
-		{"updated_at", "ALTER TABLE library_items ADD COLUMN updated_at DATETIME DEFAULT CURRENT_TIMESTAMP"},
+		{"updated_at", "ALTER TABLE library_items ADD COLUMN updated_at DATETIME"},
 	}
 	for _, c := range columns {
 		if err := addColumnIfMissing(database, "library_items", c.name, c.ddl); err != nil {
 			return err
 		}
+	}
+
+	if _, err := database.Exec(`UPDATE library_items SET updated_at = COALESCE(created_at, CURRENT_TIMESTAMP) WHERE updated_at IS NULL`); err != nil {
+		return err
 	}
 
 	if _, err := database.Exec(`
@@ -556,15 +565,15 @@ func seedDemoSocial(database *sql.DB) error {
 
 	users := []struct {
 		User
-		XP      int
-		Tracks  []string
-		Tier    FluencyTier
+		XP     int
+		Tracks []string
+		Tier   FluencyTier
 	}{
 		{
 			User: User{
 				ID: "user_oche", Username: "oche", DisplayName: "Oche Adole",
 				NativeName: "Onyilo",
-				AvatarURL: "", Bio: "Native Idoma linguist and custodian of Otukpo ancestral traditions.",
+				AvatarURL:  "", Bio: "Native Idoma linguist and custodian of Otukpo ancestral traditions.",
 				Dialect: "Otukpo", NativeSpeaker: true,
 			},
 			XP: 950, Tracks: []string{"track_1_greetings", "track_2_numbers", "track_3_idioms"}, Tier: FluencyAdvanced,
@@ -573,8 +582,8 @@ func seedDemoSocial(database *sql.DB) error {
 			User: User{
 				ID: "user_ada", Username: "ada", DisplayName: "Ada Owoicho",
 				NativeName: "Onyeche",
-				Bio:   "Passionate about digitizing Idoma folklore, music, and oral dialects.",
-				Dialect: "Otukpo", NativeSpeaker: true,
+				Bio:        "Passionate about digitizing Idoma folklore, music, and oral dialects.",
+				Dialect:    "Otukpo", NativeSpeaker: true,
 			},
 			XP: 520, Tracks: []string{"track_1_greetings", "track_2_numbers"}, Tier: FluencyIntermediate,
 		},
@@ -582,7 +591,7 @@ func seedDemoSocial(database *sql.DB) error {
 			User: User{
 				ID: "user_idoko", Username: "idoko", DisplayName: "Idoko Ejembi",
 				NativeName: "Agbo",
-				Bio: "Language learner tracking my path to intermediate Idoma speaker status.",
+				Bio:        "Language learner tracking my path to intermediate Idoma speaker status.",
 			},
 			XP: 200, Tracks: []string{"track_1_greetings"}, Tier: FluencyBeginner,
 		},

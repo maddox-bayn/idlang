@@ -19,12 +19,15 @@ export default function LearningDashboard({
 
   const loadData = async () => {
     setLoading(true);
+    setProfile(null);
+    setTracks([]);
+    setFeedback(null);
     try {
       const data = await fetchLearningTracks(currentUser.id);
       setProfile(data.profile);
       setTracks(data.tracks);
     } catch (err) {
-      console.error("Failed to load tracks:", err);
+      setFeedback({ message: err instanceof Error ? err.message : "Could not load learning progress.", isError: true });
     } finally {
       setLoading(false);
     }
