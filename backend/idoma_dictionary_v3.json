@@ -147,16 +147,16 @@
       "example": "Òkpíye àma wá (Scratch the skin); also: Okpa'iye"
     },
     "bone": {
-      "idoma": "ùkpòkpú",
+      "idoma": "ùkpòkú",
       "tone": "low",
       "pos": "noun",
       "example": "Ùkpòkpú àma chì (Break the bone); also: Ikpokwu"
     },
     "stomach": {
-      "idoma": "ìpún",
+      "idoma": "ìpú",
       "tone": "low",
       "pos": "noun",
-      "example": "Ìpún àma bá (Rub the stomach); also: Ipu"
+      "example": "Ìpú àma bá (Rub the stomach); also: Ipu"
     },
     "back": {
       "idoma": "ìgbíhì",
@@ -177,7 +177,7 @@
       "example": "Òdò àma wá (Tie the waist); also: Ohí"
     },
     "chest": {
-      "idoma": "òhù",
+      "idoma": "òtù",
       "tone": "low",
       "pos": "noun",
       "example": "Òhù àma chì (Pat the chest); also: Otu"
@@ -191,7 +191,7 @@
       "example": "Èwo àma chì (Call the dog); also: Ewo"
     },
     "fish": {
-      "idoma": "Èbínyi",
+      "idoma": "ẹbényi)",
       "tone": "high-low",
       "pos": "noun",
       "example": "Èbínyi àma bá (Cook the fish); also: Eb'enyi"
