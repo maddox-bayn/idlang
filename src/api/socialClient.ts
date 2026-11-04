@@ -362,66 +362,19 @@ export async function fetchConnectionsList(): Promise<ConnectionsResponse> {
 
 export async function updateConnection(
   targetId: string,
-  action: "connect" | "accept" | "reject" | "disconnect" | "block" | "unblock",
-  viewerId?: string
+  action: "connect" | "accept" | "reject" | "disconnect" | "block" | "unblock"
 ): Promise<{ status: string; message: string }> {
-  try {
-    const res = await fetch(`${API_BASE}/api/connections`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ target_id: targetId, action }),
-    });
-    if (res.ok) {
-      return await res.json();
-    }
-  } catch (err) {
-    console.warn("Backend connections update unavailable, modifying fallback:", err);
+  const res = await fetch(`${API_BASE}/api/connections`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ target_id: targetId, action }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || "Could not update this connection. Please try again.");
   }
-
-  const vId = viewerId || getStorage<User | null>("current_user", null)?.id || "user_oche";
-  const pKey = pairKey(vId, targetId);
-  const now = new Date().toISOString();
-
-  if (action === "connect") {
-    fallbackConnectionsMap[pKey] = {
-      id: "c_" + Date.now(),
-      requester_id: vId,
-      receiver_id: targetId,
-      status: "pending",
-      created_at: now,
-      updated_at: now,
-    };
-  } else if (action === "accept") {
-    const existing = fallbackConnectionsMap[pKey];
-    if (existing && existing.receiver_id === vId) {
-      existing.status = "connected";
-      existing.updated_at = now;
-    } else {
-      fallbackConnectionsMap[pKey] = {
-        id: "c_" + Date.now(),
-        requester_id: targetId,
-        receiver_id: vId,
-        status: "connected",
-        created_at: now,
-        updated_at: now,
-      };
-    }
-  } else if (action === "reject" || action === "disconnect") {
-    delete fallbackConnectionsMap[pKey];
-  } else if (action === "block") {
-    fallbackConnectionsMap[pKey] = {
-      id: "c_" + Date.now(),
-      requester_id: vId,
-      receiver_id: targetId,
-      status: "blocked",
-      created_at: now,
-      updated_at: now,
-    };
-  }
-
-  setStorage("connections", fallbackConnectionsMap);
-  return { status: fallbackConnectionsMap[pKey]?.status || "none", message: "Updated" };
+  return data;
 }
 
 export async function searchRealUsers(query: string): Promise<User[]> {
@@ -661,11 +614,7 @@ export async function sendMessage(senderId: string, receiverId: string, body: st
 
 export async function fetchBooks(): Promise<Book[]> {
   try {
-    // Try /api/library first, then fallback to /api/books
-    let res = await fetch(`${API_BASE}/api/library`, { credentials: "include" });
-    if (!res.ok) {
-      res = await fetch(`${API_BASE}/api/books`, { credentials: "include" });
-    }
+    const res = await fetch(`${API_BASE}/api/library`, { credentials: "include" });
     if (res.ok) {
       const data = await res.json();
       if (Array.isArray(data)) return data;
@@ -680,47 +629,58 @@ export async function fetchBooks(): Promise<Book[]> {
 export async function createBook(book: {
   title: string;
   author: string;
-  uploaded_by: string;
   description?: string;
-  file_url?: string;
   book_file?: File;
+  license: string;
+  kind?: string;
+  language?: string;
+  dialect?: string;
+  source_url?: string;
+  consent_note?: string;
 }): Promise<Book> {
-  try {
-    let res: Response;
-    if (book.book_file) {
-      const form = new FormData();
-      form.append("title", book.title);
-      form.append("author", book.author);
-      form.append("uploaded_by", book.uploaded_by);
-      if (book.description) form.append("description", book.description);
-      form.append("book_file", book.book_file);
-      res = await fetch(`${API_BASE}/api/library`, { method: "POST", credentials: "include", body: form });
-    } else {
-      res = await fetch(`${API_BASE}/api/books`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(book),
-      });
-    }
-    if (res.ok) {
-      return await res.json();
-    }
-  } catch (err) {
-    console.warn("Backend unavailable, saving book locally:", err);
+  if (!book.book_file) {
+    throw new Error("Choose a document to upload.");
   }
 
-  const newBook: Book = {
-    id: "book_" + Date.now(),
-    title: book.title,
-    author: book.author,
-    uploaded_by: book.uploaded_by,
-    description: book.description || "",
-    file_url: book.file_url || "/api/books/sample/idoma_orthography.txt",
-    created_at: new Date().toISOString(),
-  };
-  fallbackBooks.unshift(newBook);
-  return newBook;
+  const form = new FormData();
+  form.append("title", book.title);
+  form.append("author", book.author);
+  form.append("description", book.description || "");
+  form.append("kind", book.kind || "book");
+  form.append("language", book.language || "idoma");
+  form.append("license", book.license);
+  if (book.dialect) form.append("dialect", book.dialect);
+  if (book.source_url) form.append("source_url", book.source_url);
+  if (book.consent_note) form.append("consent_note", book.consent_note);
+  form.append("file", book.book_file);
+
+  const res = await fetch(`${API_BASE}/api/library`, {
+    method: "POST",
+    credentials: "include",
+    body: form,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || "Could not upload this library item.");
+  }
+  return data;
+}
+
+export async function fetchLibraryItem(id: string): Promise<Book> {
+  const res = await fetch(`${API_BASE}/api/library/${encodeURIComponent(id)}`, {
+    credentials: "include",
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || "Could not load this library item.");
+  }
+  return data;
+}
+
+export function libraryFileURL(book: Book, inline = false): string {
+  if (book.file_url) return book.file_url;
+  const path = `${API_BASE}/api/library/${encodeURIComponent(book.id)}/file`;
+  return inline ? `${path}?inline=1` : path;
 }
 
 // ==========================================
@@ -751,7 +711,6 @@ export async function fetchLearningTracks(userId: string): Promise<{ profile: Le
 }
 
 export async function completeLearningTrack(
-  userId: string,
   trackId: string
 ): Promise<{ success: boolean; message: string; learning_profile: LearningProfile; tracks: LearningTrack[] }> {
   const res = await fetch(`${API_BASE}/api/learning/complete-track`, {

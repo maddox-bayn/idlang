@@ -22,6 +22,7 @@ export default function ConnectionsModal({
   const [tab, setTab] = useState<"incoming" | "connected" | "outgoing" | "discover">("incoming");
   const [loading, setLoading] = useState(true);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const [connected, setConnected] = useState<ConnectionUserItem[]>([]);
   const [incoming, setIncoming] = useState<ConnectionUserItem[]>([]);
@@ -72,15 +73,16 @@ export default function ConnectionsModal({
 
   const handleAction = async (targetId: string, action: "accept" | "reject" | "connect" | "disconnect") => {
     setActionLoadingId(targetId);
+    setActionError(null);
     try {
-      await updateConnection(targetId, action, currentUser.id);
+      await updateConnection(targetId, action);
       await loadConnections();
       if (tab === "discover") {
         handleSearch(searchQuery);
       }
       if (onConnectionsUpdated) onConnectionsUpdated();
     } catch (err) {
-      console.error("Connection action failed:", err);
+      setActionError(err instanceof Error ? err.message : "Could not update this connection.");
     } finally {
       setActionLoadingId(null);
     }
@@ -159,6 +161,12 @@ export default function ConnectionsModal({
             <span>🔍 Discover People</span>
           </button>
         </div>
+
+        {actionError && (
+          <div role="alert" className="mt-3 rounded-lg border border-red-700 bg-red-950/50 px-3 py-2 text-xs text-red-200">
+            {actionError}
+          </div>
+        )}
 
         {/* Essential Rule Banner */}
         <div className="mt-3 rounded-lg border border-red-900/50 bg-red-950/30 px-3.5 py-2 text-[11px] text-red-300 flex items-center gap-2">

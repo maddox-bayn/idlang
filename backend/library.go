@@ -132,6 +132,9 @@ func listLibrary(w http.ResponseWriter, r *http.Request) {
 	} else if canCurate(viewer) && wantStatus != "" {
 		where = append(where, "status = ?")
 		args = append(args, wantStatus)
+	} else if viewer != nil {
+		where = append(where, "(status = 'published' OR (status = 'draft' AND uploaded_by = ?))")
+		args = append(args, viewer.ID)
 	} else {
 		where = append(where, "status = 'published'")
 	}
@@ -446,6 +449,9 @@ func getLibraryItem(id string, viewer *User) (*LibraryItem, error) {
 	}
 
 	item.ContentText = truncate(contentText.String, maxContentText)
+	if item.HasFile {
+		item.FileURL = libraryFilePath(item.ID)
+	}
 	item.CreatedAt = parseDBTime(createdStr.String)
 	item.UpdatedAt = parseDBTime(updatedStr.String)
 	return &item, nil
@@ -465,9 +471,16 @@ func scanLibraryItem(rows *sql.Rows) (*LibraryItem, error) {
 	if err != nil {
 		return nil, err
 	}
+	if item.HasFile {
+		item.FileURL = libraryFilePath(item.ID)
+	}
 	item.CreatedAt = parseDBTime(createdStr.String)
 	item.UpdatedAt = parseDBTime(updatedStr.String)
 	return &item, nil
+}
+
+func libraryFilePath(id string) string {
+	return "/api/library/" + id + "/file"
 }
 
 func serveLibraryFile(w http.ResponseWriter, r *http.Request, id string) {
@@ -750,8 +763,10 @@ type Book = LibraryItem
 func handleBooks(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
 		rows, err := db.Query(`
-			SELECT id, title, author, uploaded_by, COALESCE(file_url, ''), COALESCE(description, ''), created_at
-			FROM library_items
+			SELECT id, title, author, uploaded_by,
+			       CASE WHEN file_key != '' THEN '/api/library/' || id || '/file' ELSE COALESCE(file_url, '') END,
+			       COALESCE(description, ''), created_at
+			FROM library_items WHERE status = 'published'
 			ORDER BY created_at DESC
 		`)
 		if err != nil {
@@ -765,6 +780,7 @@ func handleBooks(w http.ResponseWriter, r *http.Request) {
 			var it LibraryItem
 			var fileURL, desc, crStr sql.NullString
 			if err := rows.Scan(&it.ID, &it.Title, &it.Author, &it.UploadedBy, &fileURL, &desc, &crStr); err == nil {
+				it.FileURL = fileURL.String
 				it.Description = desc.String
 				it.CreatedAt = parseDBTime(crStr.String)
 				items = append(items, it)
@@ -773,36 +789,9 @@ func handleBooks(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, items)
 		return
 	}
-	if r.Method == http.MethodPost && strings.HasPrefix(r.Header.Get("Content-Type"), "application/json") {
-		var req struct {
-			Title       string `json:"title"`
-			Author      string `json:"author"`
-			UploadedBy  string `json:"uploaded_by"`
-			Description string `json:"description"`
-			FileURL     string `json:"file_url"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err == nil && req.Title != "" {
-			uploader := req.UploadedBy
-			if uploader == "" {
-				if u := currentUser(r); u != nil {
-					uploader = u.ID
-				} else {
-					uploader = "user_oche"
-				}
-			}
-			id := uuid.New().String()
-			now := time.Now()
-			db.Exec(`
-				INSERT INTO library_items (id, title, author, uploaded_by, file_url, description, kind, status, created_at)
-				VALUES (?, ?, ?, ?, ?, ?, 'book', 'published', ?)
-			`, id, req.Title, req.Author, uploader, req.FileURL, req.Description, now)
-
-			writeJSON(w, http.StatusCreated, LibraryItem{
-				ID: id, Title: req.Title, Author: req.Author, UploadedBy: uploader,
-				Description: req.Description, CreatedAt: now,
-			})
-			return
-		}
+	if r.Method == http.MethodPost {
+		createLibraryItem(w, r)
+		return
 	}
-	createLibraryItem(w, r)
+	methodNotAllowed(w, "GET, POST")
 }

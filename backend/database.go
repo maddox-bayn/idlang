@@ -126,6 +126,7 @@ type LibraryItem struct {
 	ConsentNote string    `json:"consent_note,omitempty"`
 	Mime        string    `json:"mime"`
 	SizeBytes   int64     `json:"size_bytes"`
+	FileURL     string    `json:"file_url,omitempty"`
 	Status      string    `json:"status"` // draft, published, rejected, removed
 	HasFile     bool      `json:"has_file"`
 	ContentText string    `json:"content_text,omitempty"`

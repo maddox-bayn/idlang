@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import type { Book, User } from "../types";
-import { fetchBooks, createBook } from "../api/socialClient";
+import { fetchBooks, fetchLibraryItem, createBook, libraryFileURL } from "../api/socialClient";
 
 interface LibraryViewProps {
   currentUser: User;
@@ -16,9 +16,12 @@ export default function LibraryView({ currentUser }: LibraryViewProps) {
   const [title, setTitle] = useState("");
   const [author, setAuthor] = useState("");
   const [description, setDescription] = useState("");
-  const [fileUrl, setFileUrl] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [license, setLicense] = useState("CC-BY-4.0");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [readerLoading, setReaderLoading] = useState(false);
+  const [readerError, setReaderError] = useState<string | null>(null);
 
   const loadBooks = async () => {
     setLoading(true);
@@ -29,6 +32,19 @@ export default function LibraryView({ currentUser }: LibraryViewProps) {
       console.error("Failed to load books:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openBook = async (book: Book) => {
+    setViewingBook(book);
+    setReaderError(null);
+    setReaderLoading(true);
+    try {
+      setViewingBook(await fetchLibraryItem(book.id));
+    } catch (err) {
+      setReaderError(err instanceof Error ? err.message : "Could not open this document.");
+    } finally {
+      setReaderLoading(false);
     }
   };
 
@@ -46,15 +62,16 @@ export default function LibraryView({ currentUser }: LibraryViewProps) {
       const newBook = await createBook({
         title: title.trim(),
         author: author.trim(),
-        uploaded_by: currentUser.id,
         description: description.trim(),
-        file_url: fileUrl.trim() || undefined,
+        book_file: selectedFile || undefined,
+        license,
       });
       setBooks((prev) => [newBook, ...prev]);
       setTitle("");
       setAuthor("");
       setDescription("");
-      setFileUrl("");
+      setSelectedFile(null);
+      setLicense("CC-BY-4.0");
       setShowUploadModal(false);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to catalog manuscript");
@@ -78,15 +95,19 @@ export default function LibraryView({ currentUser }: LibraryViewProps) {
             Preserving historical grammatical texts, Alekwu coronation dirges, and tonal dictionaries for scholars and descendants.
           </p>
         </div>
-        <button
-          onClick={() => setShowUploadModal(true)}
-          className="flex items-center gap-2 rounded-lg bg-red-800 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-red-100 shadow hover:bg-red-700 active:scale-95"
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-          </svg>
-          Catalog Document
-        </button>
+        {currentUser.id !== "guest" ? (
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="flex items-center gap-2 rounded-lg bg-red-800 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-red-100 shadow hover:bg-red-700 active:scale-95"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            Catalog Document
+          </button>
+        ) : (
+          <p className="text-xs text-red-400">Sign in to submit a document.</p>
+        )}
       </div>
 
       {/* Grid of Books */}
@@ -136,23 +157,22 @@ export default function LibraryView({ currentUser }: LibraryViewProps) {
 
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setViewingBook(book)}
+                    onClick={() => openBook(book)}
                     className="rounded border border-red-900/60 bg-neutral-900 px-3 py-1.5 text-xs font-semibold text-red-300 hover:bg-red-900/40"
                   >
                     Read
                   </button>
-                  <a
-                    href={book.file_url}
-                    download
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex items-center gap-1 rounded bg-red-900 px-3 py-1.5 text-xs font-semibold text-red-100 hover:bg-red-800"
-                  >
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                    </svg>
-                    Download
-                  </a>
+                  {(book.has_file || book.file_url) && (
+                    <a
+                      href={libraryFileURL(book)}
+                      className="flex items-center gap-1 rounded bg-red-900 px-3 py-1.5 text-xs font-semibold text-red-100 hover:bg-red-800"
+                    >
+                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                      </svg>
+                      Download
+                    </a>
+                  )}
                 </div>
               </div>
             </div>
@@ -182,32 +202,16 @@ export default function LibraryView({ currentUser }: LibraryViewProps) {
               </button>
             </div>
 
-            <div className="my-6 rounded-lg border border-red-950 bg-black/70 p-5 font-serif text-sm leading-relaxed text-red-200 whitespace-pre-wrap">
-              {`[ ARCHIVAL RECORD — HISTORICAL IDOMA CORPUS ]
-
-Title: ${viewingBook.title}
-Author: ${viewingBook.author}
-Archived Under: Idlang Guardian of History Repository
-
-${viewingBook.description}
-
-Section I: Orthographic Principles and Pronunciation Rules
-1. High tone (é) signifies ascending pitch (e.g. Óché - King/Leader).
-2. Low tone (è) represents descending reverence.
-3. Mid tone remains unmarked.
-
-Central Idioms:
-• "Ékwù n'wà guide our path" — Ancestral guidance in daily choices.
-• "Aôlô l'ohe o" — Dawn's salutation for peace.
-• "Nmaochi" — Gratitude for fellowship.
-
-This manuscript is preserved as an open heritage artifact for language revival.`}
+            <div className="my-6 min-h-32 rounded-lg border border-red-950 bg-black/70 p-5 font-serif text-sm leading-relaxed text-red-200 whitespace-pre-wrap">
+              {readerLoading ? "Loading document text..." : readerError ? readerError : viewingBook.content_text || "This file has no extracted text preview. Open or download the original document below."}
             </div>
 
             <div className="flex justify-between items-center border-t border-red-900/30 pt-4">
-              <span className="text-xs text-neutral-500">
-                Resource URL: {viewingBook.file_url}
-              </span>
+              {viewingBook.has_file || viewingBook.file_url ? (
+                <a href={libraryFileURL(viewingBook, true)} target="_blank" rel="noreferrer" className="text-xs text-red-300 underline">
+                  Open original file
+                </a>
+              ) : <span />}
               <button
                 onClick={() => setViewingBook(null)}
                 className="rounded-lg bg-red-900/60 border border-red-800 px-4 py-1.5 text-xs font-semibold text-red-200 hover:bg-red-800"
@@ -284,16 +288,26 @@ This manuscript is preserved as an open heritage artifact for language revival.`
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-red-400 mb-1">
-                  Document Resource URL (Optional)
-                </label>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-red-400 mb-1">Document file (25 MB maximum)</label>
                 <input
-                  type="text"
-                  value={fileUrl}
-                  onChange={(e) => setFileUrl(e.target.value)}
-                  placeholder="Leave blank for sample repository link"
-                  className="w-full rounded-lg border border-red-900/50 bg-neutral-900 px-3 py-2 text-xs text-red-100 placeholder-neutral-500 focus:border-red-500 focus:outline-none"
+                  type="file"
+                  required
+                  accept=".pdf,.epub,.txt,.mp3,.ogg,.wav,.m4a,.jpg,.jpeg,.png,.webp"
+                  onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                  className="w-full rounded-lg border border-red-900/50 bg-neutral-900 px-3 py-2 text-xs text-red-100 file:mr-3 file:rounded file:border-0 file:bg-red-900 file:px-3 file:py-1 file:text-red-100"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-red-400 mb-1">Usage license</label>
+                <select value={license} onChange={(e) => setLicense(e.target.value)} className="w-full rounded-lg border border-red-900/50 bg-neutral-900 px-3 py-2 text-xs text-red-100">
+                  <option value="CC-BY-4.0">CC BY 4.0</option>
+                  <option value="CC-BY-SA-4.0">CC BY-SA 4.0</option>
+                  <option value="CC-BY-NC-4.0">CC BY-NC 4.0</option>
+                  <option value="public-domain">Public domain</option>
+                  <option value="all-rights-reserved">All rights reserved</option>
+                  <option value="consent-granted">Permission granted</option>
+                </select>
               </div>
 
               <div className="flex justify-end gap-2 pt-2">
@@ -306,7 +320,7 @@ This manuscript is preserved as an open heritage artifact for language revival.`
                 </button>
                 <button
                   type="submit"
-                  disabled={uploading || !title.trim() || !author.trim()}
+                  disabled={uploading || !title.trim() || !author.trim() || !selectedFile}
                   className="rounded-lg bg-red-800 px-5 py-2 text-xs font-semibold uppercase tracking-wider text-red-100 shadow hover:bg-red-700 disabled:opacity-50"
                 >
                   {uploading ? "Cataloging..." : "Catalog Document"}

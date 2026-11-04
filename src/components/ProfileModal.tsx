@@ -27,6 +27,7 @@ export default function ProfileModal({
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [connectionLoading, setConnectionLoading] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [messages, setMessages] = useState<DirectMessage[]>([]);
   const [newMessageText, setNewMessageText] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
@@ -85,12 +86,13 @@ export default function ProfileModal({
   const handleConnectionAction = async (action: "connect" | "accept" | "reject" | "block") => {
     if (!profile) return;
     setConnectionLoading(true);
+    setConnectionError(null);
     try {
-      await updateConnection(targetUserId, action, viewerUserId);
+      await updateConnection(targetUserId, action);
       await loadData();
       if (onConnectionChange) onConnectionChange();
     } catch (err) {
-      console.error("Connection update error:", err);
+      setConnectionError(err instanceof Error ? err.message : "Could not update this connection.");
     } finally {
       setConnectionLoading(false);
     }
@@ -337,6 +339,12 @@ export default function ProfileModal({
                 )}
               </div>
             </div>
+
+            {connectionError && (
+              <div role="alert" className="rounded-lg border border-red-700 bg-red-950/50 px-3 py-2 text-xs text-red-200">
+                {connectionError}
+              </div>
+            )}
 
             {/* EDIT PROFILE FORM (Toggled for Owner) */}
             {profile.is_owner && isEditing && (

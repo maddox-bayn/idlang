@@ -51,7 +51,7 @@ export default function LearningDashboard({
     setCompletingId(track.id);
     setFeedback(null);
     try {
-      const res = await completeLearningTrack(currentUser.id, track.id);
+      const res = await completeLearningTrack(track.id);
       setProfile(res.learning_profile);
       setTracks(res.tracks);
       setFeedback({
