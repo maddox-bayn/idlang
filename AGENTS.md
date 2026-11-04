@@ -9,7 +9,7 @@ This is a Vite + React SPA with a Go backend for the Idlang Idoma language learn
 
 ## Running the app
 - Frontend: `npm run dev` (starts Vite on :5173)
-- Backend: `cd backend && go run main.go` (starts Go on :8080)
+- Backend: `cd backend && go run .` (starts Go on :8080)
 
 ## Key conventions
 - Red (#dc2626) & Black (#000) aesthetic

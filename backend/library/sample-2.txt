@@ -1,0 +1,16 @@
+EVERYDAY GREETINGS — SAMPLE RECORD
+
+Source: idlang dictionary (idoma_dictionary_v3.json)
+License: CC-BY-SA-4.0
+
+A Yo Lohi      — Are you doing well?
+Aa Yo Ya Lohi? — Are you doing OK?
+A gbe hii      — Are You OK?
+Nma            — Sorry
+Ebo ko yo      — Let there be peace
+
+Greeting is a social act before it is a vocabulary item: the question
+expects an answer, and the answer is the point.
+
+This is a sample record installed with the application. It is not a
+scholarly publication.

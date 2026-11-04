@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -196,30 +197,51 @@ func main() {
 	mux.HandleFunc("/api/pipeline", proxyAudioToTranslator("/pipeline"))
 	mux.HandleFunc("/health", handleHealth)
 
-	// Social, Media, E-Library & Learning Routes
-	mux.HandleFunc("/api/posts", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodGet {
-			handleGetPosts(w, r)
-		} else if r.Method == http.MethodPost {
-			handleCreatePost(w, r)
-		} else {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		}
-	})
-	mux.HandleFunc("/api/profile", handleProfile)
-	mux.HandleFunc("/api/profile/", handleProfile)
-	mux.HandleFunc("/api/connections", handleConnections)
-	mux.HandleFunc("/api/messages", handleMessages)
-	mux.HandleFunc("/api/books", handleBooks)
-	mux.HandleFunc("/api/books/sample/", handleSampleBookContent)
-	mux.HandleFunc("/api/learning/tracks", handleGetLearningTracks)
-	mux.HandleFunc("/api/learning/complete-track", handleCompleteLearningTrack)
-	mux.HandleFunc("/api/users", handleGetUsers)
+	// --- Auth. Identity is established here and nowhere else. ---
+	mux.HandleFunc("/api/auth/signup", handleSignup)
+	mux.HandleFunc("/api/auth/login", handleLogin)
+	mux.HandleFunc("/api/auth/logout", handleLogout)
+	mux.HandleFunc("/api/auth/me", withUser(handleMe))
+	mux.HandleFunc("/api/auth/password", requireAuth(handleChangePassword))
 
-	// Uploads static directory
-	uploadDir := "uploads"
-	os.MkdirAll(uploadDir, 0755)
-	mux.Handle("/uploads/", http.StripPrefix("/uploads/", http.FileServer(http.Dir(uploadDir))))
+	// --- Profiles ---
+	mux.HandleFunc("/api/profile", withUser(handleProfile))
+	mux.HandleFunc("/api/profile/", withUser(handleProfile))
+	mux.HandleFunc("/api/profile/update", requireAuth(handleUpdateProfile))
+	mux.HandleFunc("/api/profile/avatar", requireAuth(handleUploadAvatar))
+	mux.HandleFunc("/api/users/search", requireAuth(handleSearchUsers))
+
+	// --- Social feed ---
+	mux.HandleFunc("/api/posts", withUser(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			handleGetPosts(w, r)
+		case http.MethodPost:
+			requireAuth(handleCreatePost)(w, r)
+		default:
+			methodNotAllowed(w, "GET, POST")
+		}
+	}))
+	mux.HandleFunc("/api/posts/", requireAuth(handleDeletePost))
+	mux.HandleFunc("/api/connections", requireAuth(handleConnections))
+	mux.HandleFunc("/api/messages", withUser(handleMessages))
+	mux.HandleFunc("/api/messages/read", withUser(handleMarkMessagesRead))
+
+	// --- Learning ---
+	mux.HandleFunc("/api/learning/tracks", requireAuth(handleGetLearningTracks))
+	mux.HandleFunc("/api/learning/complete-track", requireAuth(handleCompleteLearningTrack))
+
+	// --- E-Library. Files are streamed through a handler, never a static
+	// FileServer, so type, disposition and visibility are controlled. ---
+	mux.HandleFunc("/api/library", withUser(handleLibrary))
+	mux.HandleFunc("/api/library/", withUser(handleLibraryByID))
+	mux.HandleFunc("/api/books", withUser(handleBooks))
+	mux.HandleFunc("/api/books/", withUser(handleLibraryByID))
+
+	// Uploaded post media. Extension allowlist + nosniff: an uploaded .svg or
+	// .html can no longer execute same-origin.
+	os.MkdirAll("uploads", 0755)
+	mux.HandleFunc("/uploads/", handleUploadedFile)
 
 	handler := corsMiddleware(mux)
 
@@ -416,9 +438,32 @@ func loadDictionary(path string) (dictionary, error) {
 
 func corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, PATCH")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Viewer-ID, Accept, Origin, X-Requested-With")
+		origin := r.Header.Get("Origin")
+		stateChanging := r.Method == http.MethodPost || r.Method == http.MethodPatch ||
+			r.Method == http.MethodPut || r.Method == http.MethodDelete
+
+		// CSRF gate. A cross-site form POST carries an Origin that we did not
+		// allow, and browsers will not let the attacker read the response --
+		// but the mutation would still happen. Reject it before dispatch.
+		if stateChanging && origin != "" && !originAllowed(r, origin) {
+			writeError(w, http.StatusForbidden, "Origin not allowed.")
+			return
+		}
+
+		if origin != "" && originAllowed(r, origin) {
+			// Echo the origin rather than "*": credentials and "*" are
+			// mutually exclusive.
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept, X-Requested-With")
+			w.Header().Set("Access-Control-Max-Age", "600")
+		} else if origin == "" {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept, X-Requested-With")
+		}
 
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
@@ -427,6 +472,110 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
+}
+
+// allowedOrigins is configured with ALLOWED_ORIGINS (comma separated). Requests
+// with no Origin header (same-origin navigation, curl, health checks) are
+// always permitted; cross-origin browser requests must match.
+func allowedOrigins() []string {
+	raw := os.Getenv("ALLOWED_ORIGINS")
+	if strings.TrimSpace(raw) == "" {
+		return []string{"http://localhost:5173", "http://127.0.0.1:5173"}
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimRight(strings.TrimSpace(p), "/"); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func originAllowed(r *http.Request, origin string) bool {
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	// Same host, any scheme (the reverse-proxy case).
+	if strings.EqualFold(u.Host, r.Host) {
+		return true
+	}
+	for _, allowed := range allowedOrigins() {
+		if strings.EqualFold(strings.TrimRight(allowed, "/"), strings.TrimRight(origin, "/")) {
+			return true
+		}
+	}
+	return false
+}
+
+// handleUploadedFile serves post media. Extensions are allowlisted so an
+// uploaded .html or .svg cannot execute on this origin.
+func handleUploadedFile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		methodNotAllowed(w, "GET, HEAD")
+		return
+	}
+
+	rel := strings.TrimPrefix(r.URL.Path, "/uploads/")
+	rel = strings.Trim(rel, "/")
+	if rel == "" || strings.Contains(rel, "..") || strings.Contains(rel, `\`) {
+		writeError(w, http.StatusNotFound, "Not found.")
+		return
+	}
+
+	ext := strings.ToLower(filepath.Ext(rel))
+	if !allowedUploadExt[ext] {
+		writeError(w, http.StatusNotFound, "Not found.")
+		return
+	}
+
+	clean := filepath.Clean(rel)
+	if filepath.IsAbs(clean) || strings.HasPrefix(clean, "..") {
+		writeError(w, http.StatusNotFound, "Not found.")
+		return
+	}
+
+	full := filepath.Join("uploads", clean)
+	info, err := os.Stat(full)
+	if err != nil || info.IsDir() {
+		writeError(w, http.StatusNotFound, "Not found.")
+		return
+	}
+
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Security-Policy", "sandbox")
+	w.Header().Set("Content-Disposition", "inline")
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+
+	if ct := contentTypeForExt(ext); ct != "" {
+		w.Header().Set("Content-Type", ct)
+	}
+	http.ServeFile(w, r, full)
+}
+
+func contentTypeForExt(ext string) string {
+	switch ext {
+	case ".jpg", ".jpeg":
+		return "image/jpeg"
+	case ".png":
+		return "image/png"
+	case ".webp":
+		return "image/webp"
+	case ".mp3":
+		return "audio/mpeg"
+	case ".ogg":
+		return "audio/ogg"
+	case ".wav":
+		return "audio/wav"
+	case ".m4a":
+		return "audio/mp4"
+	case ".mp4":
+		return "video/mp4"
+	case ".webm":
+		return "video/webm"
+	}
+	return ""
 }
 
 const linguisticRules = `LINGUISTIC GUARDRAILS — Idoma Language Rules:

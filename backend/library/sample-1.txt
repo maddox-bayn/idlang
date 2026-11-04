@@ -1,0 +1,14 @@
+COUNTING IN IDOMA — SAMPLE RECORD
+
+Source: idlang dictionary (idoma_dictionary_v3.json)
+License: CC-BY-SA-4.0
+
+òyé  — one
+èpà  — two
+ɛ́mā — three
+
+Tone is part of the word, not an accent on top of it. Practise each
+form aloud, then count a real object three times: òyé, èpà, ɛ́mā.
+
+This is a sample record installed with the application so the archive
+is not empty on first run. It is not a scholarly publication.

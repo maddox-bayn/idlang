@@ -44,9 +44,26 @@ export interface User {
   id: string;
   username: string;
   display_name: string;
+  native_name?: string;
   avatar_url?: string;
   bio?: string;
+  dialect?: string;
+  region?: string;
+  native_speaker?: boolean;
+  role?: string;
   created_at?: string;
+}
+
+export interface ConnectionUserItem {
+  user: User;
+  connection_id: string;
+  created_at: string;
+}
+
+export interface ConnectionsResponse {
+  connected: ConnectionUserItem[];
+  incoming: ConnectionUserItem[];
+  outgoing: ConnectionUserItem[];
 }
 
 export type MediaType = "text" | "image" | "audio" | "video";
@@ -77,8 +94,15 @@ export interface Book {
   title: string;
   author: string;
   uploaded_by: string;
-  file_url: string;
+  file_url?: string;
   description?: string;
+  content_text?: string;
+  has_file?: boolean;
+  mime?: string;
+  kind?: string;
+  language?: string;
+  license?: string;
+  status?: string;
   created_at?: string;
 }
 

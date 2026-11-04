@@ -129,7 +129,7 @@ The service will be available at `http://localhost:5005`.
 ```bash
 # Terminal 2
 cd backend
-go run main.go
+go run .
 # or
 go build -o idlang-backend && ./idlang-backend
 ```
@@ -152,7 +152,7 @@ The frontend will be available at `http://localhost:5173`.
 cd translator_service && uvicorn backup_backend:app --port 5005
 
 # Terminal 2: Go backend
-cd backend && go run main.go
+cd backend && go run .
 
 # Terminal 3: React frontend
 npm run dev
@@ -452,3 +452,7 @@ curl -s <host>/api/translate -H 'Content-Type: application/json' \
 ## License
 
 MIT
+
+### Authentication and social deployment
+
+See [Authentication and social deployment](docs/AUTHENTICATION.md) for the request flow, password/session handling, deployment variables, and regression checks.
