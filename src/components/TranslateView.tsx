@@ -6,7 +6,36 @@ import { translationClient } from "../api/translationClient";
 
 type TranslationMode = "text" | "speech" | "full";
 
-export default function TranslateView() {
+const GUEST_TRANSLATION_LIMIT = 2;
+const GUEST_TRANSLATION_COUNT_KEY = "idlang_guest_translation_count";
+let guestTranslationCountFallback = 0;
+
+function getGuestTranslationCount(): number {
+  try {
+    const count = Number(localStorage.getItem(GUEST_TRANSLATION_COUNT_KEY));
+    return Number.isFinite(count) && count > 0 ? count : 0;
+  } catch {
+    return guestTranslationCountFallback;
+  }
+}
+
+function recordGuestTranslation(): number {
+  const count = getGuestTranslationCount() + 1;
+  guestTranslationCountFallback = count;
+  try {
+    localStorage.setItem(GUEST_TRANSLATION_COUNT_KEY, String(count));
+  } catch {
+    // Keep the in-memory count for this page if storage is unavailable.
+  }
+  return count;
+}
+
+interface TranslateViewProps {
+  isAuthenticated: boolean;
+  onGuestLimitReached: () => void;
+}
+
+export default function TranslateView({ isAuthenticated, onGuestLimitReached }: TranslateViewProps) {
   const {
     mode,
     direction,
@@ -50,9 +79,24 @@ export default function TranslateView() {
   const sourceLang = direction === "en-to-id" ? "English" : "Idoma";
   const targetLang = direction === "en-to-id" ? "Idoma" : "English";
 
+  function guestCanTranslate(): boolean {
+    if (isAuthenticated) return true;
+    if (getGuestTranslationCount() >= GUEST_TRANSLATION_LIMIT) {
+      onGuestLimitReached();
+      return false;
+    }
+    return true;
+  }
+
+  function countGuestTranslation(): void {
+    if (!isAuthenticated && recordGuestTranslation() >= GUEST_TRANSLATION_LIMIT) {
+      onGuestLimitReached();
+    }
+  }
+
   async function handleTranslate() {
     const text = inputText.trim();
-    if (!text) return;
+    if (!text || !guestCanTranslate()) return;
 
     setIsTranslating(true);
     setError(null);
@@ -62,6 +106,7 @@ export default function TranslateView() {
       const data = await translationClient.translateText(text, sourceLang, targetLang);
       setTranslation(data);
       addToHistory(data, text);
+      countGuestTranslation();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Translation failed");
     } finally {
@@ -70,7 +115,7 @@ export default function TranslateView() {
   }
 
   async function handleTranscribeAndTranslate() {
-    if (!audioBlob) return;
+    if (!audioBlob || !guestCanTranslate()) return;
 
     setIsTranscribing(true);
     setError(null);
@@ -90,6 +135,7 @@ export default function TranslateView() {
       );
       setTranslation(translateData);
       addToHistory(translateData, transcribeData.transcription);
+      countGuestTranslation();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Translation failed");
     } finally {
@@ -98,7 +144,7 @@ export default function TranslateView() {
   }
 
   async function handleFullPipeline() {
-    if (!audioBlob) return;
+    if (!audioBlob || !guestCanTranslate()) return;
 
     setIsSynthesizing(true);
     setError(null);
@@ -112,6 +158,7 @@ export default function TranslateView() {
       setTranslation(data.translation);
       setSynthesizedAudio(data.audio ? `data:audio/wav;base64,${data.audio}` : null);
       addToHistory(data.translation, data.transcription.transcription);
+      countGuestTranslation();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Translation failed");
     } finally {

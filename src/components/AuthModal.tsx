@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { User } from "../types";
 import { loginUser, signupUser, type ApiError } from "../api/socialClient";
 
@@ -39,6 +39,16 @@ export default function AuthModal({
     message: string;
     targetIdentifier?: string;
   } | null>(null);
+
+  // The modal stays mounted while closed, so useState(initialMode) alone keeps
+  // the previous tab when it is opened again from a different auth button.
+  useEffect(() => {
+    if (isOpen) {
+      setMode(initialMode);
+      setError(null);
+      setPopupAlert(null);
+    }
+  }, [isOpen, initialMode]);
 
   if (!isOpen) return null;
 

@@ -241,7 +241,12 @@ export default function App() {
         {activeTab === "feed" && <FeedView currentUser={effectiveUser} />}
         {activeTab === "library" && <LibraryView currentUser={effectiveUser} />}
         {activeTab === "learn" && <LearnView currentUser={effectiveUser} />}
-        {activeTab === "translate" && <TranslateView />}
+        {activeTab === "translate" && (
+          <TranslateView
+            isAuthenticated={!!currentUser}
+            onGuestLimitReached={() => openAuth("login")}
+          />
+        )}
       </main>
 
       {/* Footer */}

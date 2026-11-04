@@ -252,7 +252,10 @@ export async function updateUserProfile(data: {
         return resData.user;
       }
     }
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || "Could not update your profile.");
   } catch (err) {
+    if (err instanceof Error && !(err instanceof TypeError)) throw err;
     console.warn("Backend profile update unavailable, updating locally:", err);
   }
 
@@ -457,7 +460,10 @@ export async function createPost(post: {
     if (res.ok) {
       return await res.json();
     }
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.error || "Could not publish this post.");
   } catch (err) {
+    if (err instanceof Error && !(err instanceof TypeError)) throw err;
     console.warn("Backend unavailable, storing post locally:", err);
   }
 
