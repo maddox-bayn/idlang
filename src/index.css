@@ -11,6 +11,33 @@ body {
   background: #000;
   color: #fef2f2;
   font-family: var(--font-sans);
+  min-width: 320px;
+  min-height: 100vh;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  color: #fff;
+  background: #991b1b;
+}
+
+:focus-visible {
+  outline: 2px solid #f87171;
+  outline-offset: 3px;
+}
+
+button, a, textarea, input, select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 h1, h2, h3, h4, h5, h6 {

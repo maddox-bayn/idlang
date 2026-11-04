@@ -78,8 +78,8 @@ export default function App() {
   return (
     <div className="flex min-h-screen flex-col bg-black text-red-100">
       {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-red-900/30 bg-black/95 backdrop-blur-md px-4 sm:px-6 py-3.5">
-        <div className="mx-auto flex max-w-6xl flex-col md:flex-row items-center justify-between gap-3">
+      <header className="sticky top-0 z-40 border-b border-red-900/30 bg-black/95 backdrop-blur-md px-4 sm:px-6 py-3">
+        <div className="mx-auto flex max-w-7xl flex-col md:flex-row items-center justify-between gap-3">
           {/* Logo & Slogan */}
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-900/80 border border-red-700 shadow-md">
@@ -99,10 +99,11 @@ export default function App() {
           </div>
 
           {/* Navigation Tabs */}
-          <nav className="flex flex-wrap justify-center gap-1 rounded-lg border border-red-900/30 bg-neutral-950 p-1">
+          <nav aria-label="Main navigation" className="flex w-full md:w-auto justify-start md:justify-center gap-1 overflow-x-auto rounded-lg border border-red-900/30 bg-neutral-950 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <button
+              aria-current={activeTab === "feed" ? "page" : undefined}
               onClick={() => setActiveTab("feed")}
-              className={`rounded-md px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all ${
+              className={`whitespace-nowrap rounded-md px-3.5 py-2 text-xs font-semibold uppercase tracking-wider transition-all ${
                 activeTab === "feed"
                   ? "bg-red-900 text-red-100 shadow"
                   : "text-red-500 hover:text-red-300"
@@ -111,8 +112,9 @@ export default function App() {
               Feed
             </button>
             <button
+              aria-current={activeTab === "library" ? "page" : undefined}
               onClick={() => setActiveTab("library")}
-              className={`rounded-md px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all ${
+              className={`whitespace-nowrap rounded-md px-3.5 py-2 text-xs font-semibold uppercase tracking-wider transition-all ${
                 activeTab === "library"
                   ? "bg-red-900 text-red-100 shadow"
                   : "text-red-500 hover:text-red-300"
@@ -121,8 +123,9 @@ export default function App() {
               E-Library
             </button>
             <button
+              aria-current={activeTab === "learn" ? "page" : undefined}
               onClick={() => setActiveTab("learn")}
-              className={`rounded-md px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all ${
+              className={`whitespace-nowrap rounded-md px-3.5 py-2 text-xs font-semibold uppercase tracking-wider transition-all ${
                 activeTab === "learn"
                   ? "bg-red-900 text-red-100 shadow"
                   : "text-red-500 hover:text-red-300"
@@ -131,8 +134,9 @@ export default function App() {
               Learn & Tracks
             </button>
             <button
+              aria-current={activeTab === "translate" ? "page" : undefined}
               onClick={() => setActiveTab("translate")}
-              className={`rounded-md px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all ${
+              className={`whitespace-nowrap rounded-md px-3.5 py-2 text-xs font-semibold uppercase tracking-wider transition-all ${
                 activeTab === "translate"
                   ? "bg-red-900 text-red-100 shadow"
                   : "text-red-500 hover:text-red-300"
@@ -150,10 +154,11 @@ export default function App() {
               /* REAL LOGGED IN USER PILL */
               <div className="flex items-center gap-2 rounded-xl border border-red-900/50 bg-neutral-950 p-1.5 text-xs shadow-md">
                 {/* User Avatar & Profile Click */}
-                <div
+                <button
                   onClick={() => setSelectedProfileUserId(currentUser.id)}
-                  className="flex items-center gap-2.5 cursor-pointer group pr-1"
+                  className="flex items-center gap-2.5 cursor-pointer group pr-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500"
                   title="View / Edit your profile"
+                  aria-label={`View profile for ${currentUser.display_name}`}
                 >
                   <img
                     src={
@@ -176,7 +181,7 @@ export default function App() {
                     </div>
                     <p className="text-[10px] text-red-500">@{currentUser.username}</p>
                   </div>
-                </div>
+                </button>
 
                 {/* Friends & Connections Button (with incoming requests badge) */}
                 <button
