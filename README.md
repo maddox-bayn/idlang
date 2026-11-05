@@ -183,7 +183,8 @@ Select from pre-built lessons or generate new ones with the `/api/generate-lesso
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/health` | GET | Health check |
-| `/api/translate` | POST | Translate text (dictionary first, then the model) |
+| `/api/translation/access` | GET | Establish/check the guest trial cookie |
+| `/api/translate` | POST | Translate text (session or unused guest trial required) |
 | `/api/transcribe` | POST | Proxy multipart audio to the Python service |
 | `/api/pipeline` | POST | Proxy multipart audio through STT → NMT → TTS |
 | `/api/generate-lesson` | POST | Generate quiz questions |
@@ -436,7 +437,8 @@ docker run -p 7860:7860 -e NMT_MODEL_ID=<user>/nllb-eng-idoma idlang
 Verify any deployment with the test that actually matters:
 
 ```bash
-curl -s <host>/api/translate -H 'Content-Type: application/json' \
+curl -s -c /tmp/idlang-cookies.txt <host>/api/translation/access
+curl -s -b /tmp/idlang-cookies.txt <host>/api/translate -H 'Content-Type: application/json' \
   -d '{"text":"water","source_lang":"English","target_lang":"Idoma"}'
 # expect Ennkpo (central) or Enyi (western) — NOT "water"
 ```
@@ -456,3 +458,10 @@ MIT
 ### Authentication and social deployment
 
 See [Authentication and social deployment](docs/AUTHENTICATION.md) for the request flow, password/session handling, deployment variables, and regression checks.
+
+### Turso and administrator setup
+
+The public landing page is Translate, with one successful guest translation before
+sign-in is required. See [Turso and admin setup](docs/TURSO_AND_ADMIN.md) to connect
+the Go backend to Turso, preserve existing SQLite accounts, and promote your own
+account for the separate `/admin` URL.

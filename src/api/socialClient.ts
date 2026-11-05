@@ -382,3 +382,18 @@ export async function completeLearningTrack(
 export async function fetchUsers(): Promise<User[]> {
   return searchRealUsers("");
 }
+
+export interface AdminOverview { users: number; posts: number; drafts: number; database: string }
+export interface AdminAccount { id: string; username: string; display_name: string; role: string; status: string; created_at: string }
+export function fetchAdminOverview(): Promise<AdminOverview> { return requestJSON("/api/admin/overview"); }
+export function fetchAdminUsers(page = 1): Promise<{ users: AdminAccount[]; total: number; page: number; limit: number }> {
+  return requestJSON(`/api/admin/users?page=${page}`);
+}
+export function fetchAdminLibrary(page = 1): Promise<{ items: Book[]; total: number; page: number; limit: number }> {
+  return requestJSON(`/api/admin/library?page=${page}`);
+}
+export function reviewLibraryItem(id: string, status: "published" | "rejected"): Promise<unknown> {
+  return requestJSON(`/api/library/${encodeURIComponent(id)}/status`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
+  });
+}

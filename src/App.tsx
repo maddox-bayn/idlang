@@ -16,7 +16,7 @@ import {
 type Tab = "feed" | "library" | "learn" | "translate";
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<Tab>("feed");
+  const [activeTab, setActiveTab] = useState<Tab>("translate");
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
 
@@ -59,6 +59,9 @@ export default function App() {
       await logoutUser();
       setCurrentUser(null);
       setPendingRequestsCount(0);
+      setActiveTab("translate");
+      setSelectedProfileUserId(null);
+      setShowConnectionsModal(false);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Could not sign out. Please try again.");
     }
@@ -103,7 +106,7 @@ export default function App() {
           </div>
 
           {/* Navigation Tabs */}
-          <nav className="flex flex-wrap justify-center gap-1 rounded-lg border border-red-900/30 bg-neutral-950 p-1">
+          {currentUser && <nav className="flex flex-wrap justify-center gap-1 rounded-lg border border-red-900/30 bg-neutral-950 p-1">
             <button
               onClick={() => setActiveTab("feed")}
               className={`rounded-md px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all ${
@@ -144,7 +147,7 @@ export default function App() {
             >
               Translate
             </button>
-          </nav>
+          </nav>}
 
           {/* Authentication & User Identity Bar */}
           <div className="flex items-center gap-2">
@@ -242,10 +245,10 @@ export default function App() {
 
       {/* Main Content */}
       <main className="flex-1 py-8">
-        {activeTab === "feed" && <FeedView currentUser={effectiveUser} />}
-        {activeTab === "library" && <LibraryView currentUser={effectiveUser} />}
-        {activeTab === "learn" && <LearnView currentUser={effectiveUser} />}
-        {activeTab === "translate" && <TranslateView />}
+        {currentUser && activeTab === "feed" && <FeedView currentUser={effectiveUser} />}
+        {currentUser && activeTab === "library" && <LibraryView currentUser={effectiveUser} />}
+        {currentUser && activeTab === "learn" && <LearnView currentUser={effectiveUser} />}
+        {(!currentUser || activeTab === "translate") && <TranslateView isAuthenticated={!!currentUser} authLoading={loadingAuth} onRequireAuth={() => openAuth("login")} />}
       </main>
 
       {/* Footer */}
@@ -259,15 +262,16 @@ export default function App() {
       </footer>
 
       {/* AUTH MODAL (Login & Signup with auto-route on missing account) */}
-      <AuthModal
-        isOpen={showAuthModal}
+      {showAuthModal && <AuthModal
+        key={authInitialMode}
+        isOpen={true}
         initialMode={authInitialMode}
         onClose={() => setShowAuthModal(false)}
         onSuccess={(user) => {
           setCurrentUser(user);
           refreshConnectionsCount();
         }}
-      />
+      />}
 
       {/* FRIENDS & CONNECTIONS MODAL (Incoming requests, accepted mutual friends, discover) */}
       {showConnectionsModal && currentUser && (

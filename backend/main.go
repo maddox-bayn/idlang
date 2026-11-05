@@ -130,6 +130,9 @@ var dictSource string
 var dictionaryFirst = true
 
 func main() {
+	if runAdminCommand() {
+		return
+	}
 	var err error
 	dictPath := os.Getenv("DICTIONARY_PATH")
 	if dictPath == "" {
@@ -182,19 +185,27 @@ func main() {
 	if dbPath == "" {
 		dbPath = "idlang.db"
 	}
-	db, err = initDB(dbPath)
+	db, err = openConfiguredDB()
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer db.Close()
-	log.Printf("Connected to database at %s", dbPath)
+	if os.Getenv("TURSO_DATABASE_URL") != "" {
+		log.Print("Connected to Turso libSQL")
+	} else {
+		log.Printf("Connected to SQLite at %s", dbPath)
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleRoot)
-	mux.HandleFunc("/api/translate", handleTranslate)
+	mux.HandleFunc("/api/translate", translationAccess(true, handleTranslate))
+	mux.HandleFunc("/api/translation/access", handleTranslationAccess)
+	mux.HandleFunc("/api/admin/overview", requireRole("admin", handleAdminOverview))
+	mux.HandleFunc("/api/admin/users", requireRole("admin", handleAdminUsers))
+	mux.HandleFunc("/api/admin/library", requireRole("admin", handleAdminLibrary))
 	mux.HandleFunc("/api/generate-lesson", handleGenerateLesson)
-	mux.HandleFunc("/api/transcribe", proxyAudioToTranslator("/transcribe"))
-	mux.HandleFunc("/api/pipeline", proxyAudioToTranslator("/pipeline"))
+	mux.HandleFunc("/api/transcribe", translationAccess(false, proxyAudioToTranslator("/transcribe")))
+	mux.HandleFunc("/api/pipeline", translationAccess(true, proxyAudioToTranslator("/pipeline")))
 	mux.HandleFunc("/health", handleHealth)
 
 	// --- Auth. Identity is established here and nowhere else. ---
@@ -302,13 +313,14 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 			"hit in the curated Idoma dictionary is served directly, and only what the " +
 			"dictionary misses is routed to the neural model.",
 		"endpoints": map[string]string{
-			"GET /health":               "readiness, dictionary source and entry counts",
-			"POST /api/translate":       `{"text","source_lang","target_lang"}`,
-			"POST /api/transcribe":      "multipart audio -> text",
-			"POST /api/pipeline":        "multipart audio -> text -> translation -> speech",
-			"POST /api/generate-lesson": `{"ancestorId"}`,
+			"GET /health":                 "readiness, dictionary source and entry counts",
+			"GET /api/translation/access": "establish/check a guest translation trial",
+			"POST /api/translate":         `{"text","source_lang","target_lang"}`,
+			"POST /api/transcribe":        "multipart audio -> text",
+			"POST /api/pipeline":          "multipart audio -> text -> translation -> speech",
+			"POST /api/generate-lesson":   `{"ancestorId"}`,
 		},
-		"example": `curl -X POST $URL/api/translate -H 'Content-Type: application/json' ` +
+		"example": `curl -c cookies.txt $URL/api/translation/access && curl -b cookies.txt -X POST $URL/api/translate -H 'Content-Type: application/json' ` +
 			`-d '{"text":"house","source_lang":"English","target_lang":"Idoma"}'`,
 	})
 }
