@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -67,5 +68,19 @@ func TestTursoUsesTLSBearerAuthAndSanitizesErrors(t *testing.T) {
 	}
 	if strings.Contains(err.Error(), "test-only-secret") {
 		t.Fatal("Remote error exposed the token")
+	}
+}
+
+func TestTursoSchemaDiagnosticsDoNotExposeRemoteResponses(t *testing.T) {
+	for _, tc := range []struct{ input, stage string }{
+		{"failed to run migrations: read user_version: secret-token SQL_PARSE_ERROR remote-url", "read schema version"},
+		{"failed to run migrations: migration 2: secret-token SQLITE_AUTH", "migration 2"},
+		{"failed to run migrations: set user_version 3: secret-token", "record migration 3"},
+		{"failed to seed database: secret-token", "seed baseline data"},
+	} {
+		got := tursoSchemaError(errors.New(tc.input)).Error()
+		if !strings.Contains(got, tc.stage) || strings.Contains(got, "secret-token") || strings.Contains(got, "remote-url") {
+			t.Fatalf("unsafe or missing diagnostic: %s", got)
+		}
 	}
 }

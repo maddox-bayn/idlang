@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"strings"
@@ -39,7 +40,7 @@ func openConfiguredDB() (*sql.DB, error) {
 	if err := initializeSchema(database); err != nil {
 		database.Close()
 		// Driver errors may contain remote responses. Keep credentials out of logs.
-		return nil, errors.New("Turso schema initialization failed; check write permissions and database compatibility")
+		return nil, tursoSchemaError(err)
 	}
 	return database, nil
 }
@@ -53,4 +54,33 @@ func validateTursoConfig(rawURL, token string) error {
 		return errors.New("TURSO_DATABASE_URL must be a libsql:// or https:// host without credentials, query, or path")
 	}
 	return nil
+}
+
+// Report only application-controlled stages and known error categories. Never
+// forward SQL, server responses, database URLs, or credentials into startup logs.
+func tursoSchemaError(err error) error {
+	message := err.Error()
+	stage := "schema setup"
+	if strings.HasPrefix(message, "failed to run migrations: read user_version:") {
+		stage = "read schema version"
+	} else if strings.HasPrefix(message, "failed to seed database:") {
+		stage = "seed baseline data"
+	} else {
+		for i := 1; i <= len(migrations); i++ {
+			if strings.HasPrefix(message, fmt.Sprintf("failed to run migrations: migration %d:", i)) {
+				stage = fmt.Sprintf("migration %d", i)
+			}
+			if strings.HasPrefix(message, fmt.Sprintf("failed to run migrations: set user_version %d:", i)) {
+				stage = fmt.Sprintf("record migration %d", i)
+			}
+		}
+	}
+	category := "unclassified database error"
+	for _, code := range []string{"SQLITE_AUTH", "SQLITE_READONLY", "SQLITE_CONSTRAINT", "SQLITE_BUSY", "SQL_PARSE_ERROR", "SQLITE_ERROR", "HRANA_PROTO_ERROR"} {
+		if strings.Contains(message, code) {
+			category = code
+			break
+		}
+	}
+	return fmt.Errorf("Turso schema initialization failed at %s (%s); check write permissions and database compatibility", stage, category)
 }
