@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -82,5 +83,51 @@ func TestTursoSchemaDiagnosticsDoNotExposeRemoteResponses(t *testing.T) {
 		if !strings.Contains(got, tc.stage) || strings.Contains(got, "secret-token") || strings.Contains(got, "remote-url") {
 			t.Fatalf("unsafe or missing diagnostic: %s", got)
 		}
+	}
+}
+
+func TestRemoteMigrationLedgerAndRetry(t *testing.T) {
+	database, err := sql.Open("sqlite", filepath.Join(t.TempDir(), "remote.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	database.SetMaxOpenConns(1)
+	for i := 0; i < 2; i++ {
+		if err := initializeSchemaWithLedger(database, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var legacy, version, count int
+	if err := database.QueryRow("PRAGMA user_version").Scan(&legacy); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.QueryRow("SELECT MAX(version), COUNT(*) FROM idlang_schema_migrations").Scan(&version, &count); err != nil {
+		t.Fatal(err)
+	}
+	if legacy != 0 || version != len(migrations) || count != len(migrations) {
+		t.Fatalf("legacy=%d version=%d count=%d", legacy, version, count)
+	}
+}
+
+func TestRemoteLedgerImportsExistingSQLiteVersion(t *testing.T) {
+	database, err := initDB(filepath.Join(t.TempDir(), "import.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	// Simulate an imported database on v5 with v6 still to apply.
+	if _, err := database.Exec("DROP TABLE guest_translation_trials; PRAGMA user_version = 5"); err != nil {
+		t.Fatal(err)
+	}
+	if err := initializeSchemaWithLedger(database, true); err != nil {
+		t.Fatal(err)
+	}
+	var version, count int
+	if err := database.QueryRow("SELECT MAX(version), COUNT(*) FROM idlang_schema_migrations").Scan(&version, &count); err != nil {
+		t.Fatal(err)
+	}
+	if version != 6 || count != 1 {
+		t.Fatalf("version=%d count=%d", version, count)
 	}
 }

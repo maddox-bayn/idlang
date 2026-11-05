@@ -213,7 +213,11 @@ func initDB(dbPath string) (*sql.DB, error) {
 }
 
 func initializeSchema(database *sql.DB) error {
-	if err := runMigrations(database); err != nil {
+	return initializeSchemaWithLedger(database, false)
+}
+
+func initializeSchemaWithLedger(database *sql.DB, remote bool) error {
+	if err := runMigrationsWithLedger(database, remote); err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
 	if err := seedBaselineData(database); err != nil {
@@ -234,16 +238,43 @@ var migrations = []migrationFunc{
 }
 
 func runMigrations(database *sql.DB) error {
+	return runMigrationsWithLedger(database, false)
+}
+
+// Track remote upgrades without writing PRAGMA user_version. Read the legacy value
+// for imported databases, then record remote upgrades in an ordinary SQL table.
+func runMigrationsWithLedger(database *sql.DB, remote bool) error {
 	var version int
 	if err := database.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		return fmt.Errorf("read user_version: %w", err)
 	}
 
+	if remote {
+		if _, err := database.Exec("CREATE TABLE IF NOT EXISTS idlang_schema_migrations (version INTEGER PRIMARY KEY)"); err != nil {
+			return fmt.Errorf("create migration ledger: %w", err)
+		}
+		var ledgerVersion int
+		if err := database.QueryRow("SELECT COALESCE(MAX(version), 0) FROM idlang_schema_migrations").Scan(&ledgerVersion); err != nil {
+			return fmt.Errorf("read migration ledger: %w", err)
+		}
+		if ledgerVersion > version {
+			version = ledgerVersion
+		}
+	}
+	if version > len(migrations) {
+		return fmt.Errorf("database schema is newer than this application")
+	}
 	for i := version; i < len(migrations); i++ {
 		if err := migrations[i](database); err != nil {
 			return fmt.Errorf("migration %d: %w", i+1, err)
 		}
-		if _, err := database.Exec(fmt.Sprintf("PRAGMA user_version = %d", i+1)); err != nil {
+		var err error
+		if remote {
+			_, err = database.Exec("INSERT INTO idlang_schema_migrations (version) VALUES (?) ON CONFLICT(version) DO NOTHING", i+1)
+		} else {
+			_, err = database.Exec(fmt.Sprintf("PRAGMA user_version = %d", i+1))
+		}
+		if err != nil {
 			return fmt.Errorf("set user_version %d: %w", i+1, err)
 		}
 		log.Printf("Applied migration %d", i+1)

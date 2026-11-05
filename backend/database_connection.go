@@ -37,7 +37,7 @@ func openConfiguredDB() (*sql.DB, error) {
 		database.Close()
 		return nil, errors.New("cannot connect to Turso; check database URL, token, and network access")
 	}
-	if err := initializeSchema(database); err != nil {
+	if err := initializeSchemaWithLedger(database, true); err != nil {
 		database.Close()
 		// Driver errors may contain remote responses. Keep credentials out of logs.
 		return nil, tursoSchemaError(err)

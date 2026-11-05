@@ -76,7 +76,8 @@ For same-origin routing, keep it `false`. The HTTPS proxy must forward
 sessions/trials; same-origin API routing avoids that dependency.
 
 Redeploy the Go backend. Startup checks connectivity, applies the versioned
-schema migrations, and stores users, password hashes, sessions, and guest trial
+schema migrations (tracked in `idlang_schema_migrations` for Turso), and stores
+users, password hashes, sessions, and guest trial
 records in Turso. It logs `Connected to Turso libSQL` after success. A partial or
 invalid Turso configuration fails startup instead of silently creating a second
 set of users in a local SQLite file.
