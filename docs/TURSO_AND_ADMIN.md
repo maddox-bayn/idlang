@@ -88,7 +88,17 @@ use your environment loader. Leave both Turso variables unset to use SQLite.
 
 ## 3. Configure and deploy the frontend
 
-Set this build-time environment variable on the frontend host:
+The repository's Vercel deployment proxies `/api/*` and `/uploads/*` to
+`https://idlang-backend.onrender.com`. Its build command clears `VITE_API_URL`
+so requests use the frontend origin and cookies work even when third-party
+cookies are blocked. API responses are not cached. The production frontend is
+`https://idlang-two.vercel.app`; use that exact value for `ALLOWED_ORIGINS` on
+Render. The admin URL is `https://idlang-two.vercel.app/admin`.
+
+For this same-origin setup, use `CROSS_SITE_COOKIES=false` on Render. If you
+change the backend host, update the two destinations in `vercel.json`.
+
+For other frontend hosts without this proxy, set the build-time variable:
 
 ```dotenv
 VITE_API_URL=https://YOUR-GO-BACKEND-HOST
