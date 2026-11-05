@@ -205,16 +205,21 @@ func initDB(dbPath string) (*sql.DB, error) {
 		log.Printf("Warning: failed to apply SQLite pragmas: %v", err)
 	}
 
-	if err := runMigrations(database); err != nil {
+	if err := initializeSchema(database); err != nil {
 		database.Close()
-		return nil, fmt.Errorf("failed to run migrations: %w", err)
+		return nil, err
 	}
-
-	if err := seedBaselineData(database); err != nil {
-		log.Printf("Warning: baseline data seeding error: %v", err)
-	}
-
 	return database, nil
+}
+
+func initializeSchema(database *sql.DB) error {
+	if err := runMigrations(database); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+	if err := seedBaselineData(database); err != nil {
+		return fmt.Errorf("failed to seed database: %w", err)
+	}
+	return nil
 }
 
 type migrationFunc func(*sql.DB) error
@@ -225,6 +230,7 @@ var migrations = []migrationFunc{
 	migrateLibrary,     // v3 — books -> library_items with provenance
 	migrateConnections, // v4 — canonical pair key, one row per pair
 	migrateNativeName,  // v5 — native name for user cultural identity
+	migrateGuestTrials, // v6 — shared guest translation allowance
 }
 
 func runMigrations(database *sql.DB) error {
@@ -1002,4 +1008,12 @@ func envBool(key string, fallback bool) bool {
 		return false
 	}
 	return fallback
+}
+
+func migrateGuestTrials(database *sql.DB) error {
+	_, err := database.Exec(`CREATE TABLE IF NOT EXISTS guest_translation_trials (
+ token_hash TEXT PRIMARY KEY,
+ used_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+ )`)
+	return err
 }

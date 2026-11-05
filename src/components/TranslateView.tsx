@@ -1,12 +1,53 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTranslationStore } from "../store/useTranslationStore";
 import AudioRecorder from "./AudioRecorder";
 import AudioPlayer from "./AudioPlayer";
-import { translationClient } from "../api/translationClient";
+import { translationClient, TranslationAPIError } from "../api/translationClient";
 
 type TranslationMode = "text" | "speech" | "full";
 
-export default function TranslateView() {
+interface TranslateViewProps {
+  isAuthenticated: boolean;
+  authLoading: boolean;
+  onRequireAuth: () => void;
+}
+
+export default function TranslateView({ isAuthenticated, authLoading, onRequireAuth }: TranslateViewProps) {
+  const [trialRemaining, setTrialRemaining] = useState<boolean | null>(null);
+  const [accessError, setAccessError] = useState<string | null>(null);
+  const [accessAttempt, setAccessAttempt] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    if (authLoading || isAuthenticated) return;
+    setTrialRemaining(null);
+    setAccessError(null);
+    translationClient.access().then(data => {
+      if (!cancelled) setTrialRemaining(data.authenticated || data.trial_remaining);
+    }).catch(error => {
+      if (!cancelled) setAccessError(error instanceof Error ? error.message : "Could not check translation access.");
+    });
+    return () => { cancelled = true; };
+  }, [isAuthenticated, authLoading, accessAttempt]);
+
+  function checkAccess(): boolean {
+    if (authLoading || isBusy) return false;
+    if (isAuthenticated) return true;
+    if (trialRemaining === false) { onRequireAuth(); return false; }
+    return trialRemaining === true;
+  }
+
+  function trialCompleted() {
+    if (!isAuthenticated) { setTrialRemaining(false); onRequireAuth(); }
+  }
+
+  function translationFailed(error: unknown) {
+    if (error instanceof TranslationAPIError && error.status === 401) {
+      setTrialRemaining(false);
+      onRequireAuth();
+    }
+    setError(error instanceof Error ? error.message : "Translation failed");
+  }
+
   const {
     mode,
     direction,
@@ -52,7 +93,7 @@ export default function TranslateView() {
 
   async function handleTranslate() {
     const text = inputText.trim();
-    if (!text) return;
+    if (!text || !checkAccess()) return;
 
     setIsTranslating(true);
     setError(null);
@@ -62,15 +103,16 @@ export default function TranslateView() {
       const data = await translationClient.translateText(text, sourceLang, targetLang);
       setTranslation(data);
       addToHistory(data, text);
+      trialCompleted();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Translation failed");
+      translationFailed(err);
     } finally {
       setIsTranslating(false);
     }
   }
 
   async function handleTranscribeAndTranslate() {
-    if (!audioBlob) return;
+    if (!audioBlob || !checkAccess()) return;
 
     setIsTranscribing(true);
     setError(null);
@@ -90,15 +132,16 @@ export default function TranslateView() {
       );
       setTranslation(translateData);
       addToHistory(translateData, transcribeData.transcription);
+      trialCompleted();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Translation failed");
+      translationFailed(err);
     } finally {
       setIsTranscribing(false);
     }
   }
 
   async function handleFullPipeline() {
-    if (!audioBlob) return;
+    if (!audioBlob || !checkAccess()) return;
 
     setIsSynthesizing(true);
     setError(null);
@@ -112,8 +155,9 @@ export default function TranslateView() {
       setTranslation(data.translation);
       setSynthesizedAudio(data.audio ? `data:audio/wav;base64,${data.audio}` : null);
       addToHistory(data.translation, data.transcription.transcription);
+      trialCompleted();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Translation failed");
+      translationFailed(err);
     } finally {
       setIsSynthesizing(false);
     }
@@ -131,6 +175,16 @@ export default function TranslateView() {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4">
+      <div className="text-center space-y-3 pb-2">
+        <p className="text-xs uppercase tracking-[0.25em] text-red-400">English ↔ Idoma</p>
+        <h2 className="font-heading text-3xl sm:text-4xl font-bold text-red-50">Keep the language close.</h2>
+        <p className="text-sm text-neutral-400">Translate words and ideas between English and Idoma.</p>
+        {!isAuthenticated && <p className="text-sm text-red-300">
+          {trialRemaining === false ? "Your free translation is complete. Sign in or create an account to keep translating." : "Try one translation free. Sign in to continue and explore the community."}
+        </p>}
+        {!isAuthenticated && trialRemaining === false && <button onClick={onRequireAuth} className="rounded-lg border border-red-700 px-4 py-2 text-sm text-red-200 hover:bg-red-950">Sign in / Create account</button>}
+        {accessError && <div role="alert" className="text-sm text-red-300">{accessError} <button onClick={() => setAccessAttempt(value => value + 1)} className="underline">Retry</button></div>}
+      </div>
       {/* Mode Selection */}
       <div className="flex gap-2 rounded-lg border border-red-900/30 bg-neutral-950 p-1">
         {[
@@ -246,7 +300,7 @@ export default function TranslateView() {
         disabled={
           (mode === "text" && !inputText.trim()) ||
           (mode !== "text" && !audioBlob) ||
-          isBusy
+          isBusy || authLoading || (!isAuthenticated && trialRemaining === null)
         }
         className="flex items-center justify-center gap-2 rounded-lg bg-red-900 px-6 py-3 text-sm font-semibold text-red-100 transition-all hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-40"
       >

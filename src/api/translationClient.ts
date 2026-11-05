@@ -1,22 +1,8 @@
 import type { TranslateResponse, TranscriptionResponse, FullPipelineResponse } from "../types";
 
-/**
- * Base URL for the API.
- *
- * - `VITE_API_URL` set (e.g. the Vercel deployment pointing at a hosted backend)
- *   wins, with any trailing slash stripped so `${base}/api/...` cannot become
- *   `//api/...`.
- * - Set it to an empty string for same-origin deploys — the single-container
- *   image serves the built frontend and the API from one host. A plain `||`
- *   default treats "" as unset and would wrongly send the browser to
- *   localhost:8080.
- * - Otherwise: same-origin in a production build, localhost:8080 in `vite dev`
- *   (where vite.config.ts proxies /api to the Go backend anyway).
- */
-const configured = import.meta.env.VITE_API_URL;
-const API_BASE_URL = (
-  typeof configured === "string" ? configured : import.meta.env.PROD ? "" : "http://localhost:8080"
-).replace(/\/+$/, "");
+// Use the same backend origin as authentication. Vite proxies /api locally.
+// VITE_API_URL is only needed for a separately hosted Go API.
+const API_BASE_URL = (import.meta.env.VITE_API_URL ?? "").replace(/\/+$/, "");
 
 /**
  * Pull a human-readable message off an error response.
@@ -25,12 +11,17 @@ const API_BASE_URL = (
  * replies with `{"detail": ...}`. Reading only `error` swallowed every upstream
  * message from /api/transcribe and /api/pipeline.
  */
-async function errorMessage(response: Response, fallback: string): Promise<string> {
-  const data = await response.json().catch(() => ({}) as Record<string, unknown>);
+export class TranslationAPIError extends Error {
+  constructor(message: string, public status: number, public code?: string) {
+    super(message);
+    this.name = "TranslationAPIError";
+  }
+}
+
+async function responseError(response: Response, fallback: string): Promise<TranslationAPIError> {
+  const data = await response.json().catch(() => ({}));
   const raw = data.error ?? data.detail;
-  if (typeof raw === "string" && raw) return raw;
-  if (raw) return JSON.stringify(raw);
-  return `${fallback} (HTTP ${response.status})`;
+  return new TranslationAPIError(typeof raw === "string" ? raw : `${fallback} (HTTP ${response.status})`, response.status, data.code);
 }
 
 /**
@@ -43,6 +34,12 @@ export class TranslationClient {
     this.baseUrl = baseUrl;
   }
 
+  async access(): Promise<{ authenticated: boolean; trial_remaining: boolean }> {
+    const response = await fetch(`${this.baseUrl}/api/translation/access`, { credentials: "include", cache: "no-store" });
+    if (!response.ok) throw await responseError(response, "Could not check translation access");
+    return response.json();
+  }
+
   /**
    * Translate text between English and Idoma
    */
@@ -53,6 +50,7 @@ export class TranslationClient {
   ): Promise<TranslateResponse> {
     const response = await fetch(`${this.baseUrl}/api/translate`, {
       method: "POST",
+      credentials: "include",
       headers: {
         "Content-Type": "application/json",
       },
@@ -64,7 +62,7 @@ export class TranslationClient {
     });
 
     if (!response.ok) {
-      throw new Error(await errorMessage(response, "Translation request failed"));
+      throw await responseError(response, "Translation request failed");
     }
 
     const data = await response.json();
@@ -90,11 +88,12 @@ export class TranslationClient {
 
     const response = await fetch(`${this.baseUrl}/api/transcribe`, {
       method: "POST",
+      credentials: "include",
       body: formData,
     });
 
     if (!response.ok) {
-      throw new Error(await errorMessage(response, "Transcription request failed"));
+      throw await responseError(response, "Transcription request failed");
     }
 
     const data = await response.json();
@@ -120,11 +119,12 @@ export class TranslationClient {
 
     const response = await fetch(`${this.baseUrl}/api/pipeline`, {
       method: "POST",
+      credentials: "include",
       body: formData,
     });
 
     if (!response.ok) {
-      throw new Error(await errorMessage(response, "Pipeline request failed"));
+      throw await responseError(response, "Pipeline request failed");
     }
 
     const data = await response.json();
