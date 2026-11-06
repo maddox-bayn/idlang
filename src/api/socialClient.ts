@@ -1,3 +1,4 @@
+import { fetchResponse } from "./request";
 import type {
   Post,
   User,
@@ -44,7 +45,7 @@ async function readJSON(res: Response) {
 }
 
 async function requestJSON<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { ...init, credentials: "include" });
+  const res = await fetchResponse(`${API_BASE}${path}`, { ...init, credentials: "include" });
   const data = await readJSON(res).catch(() => {
     if (res.ok) throw new Error("The service returned an invalid response. Please try again.");
     return {};
@@ -76,7 +77,7 @@ export async function loginUser(identifier: string, password: string): Promise<U
   const trimmed = identifier.trim();
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}/api/auth/login`, {
+    res = await fetchResponse(`${API_BASE}/api/auth/login`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -123,7 +124,7 @@ export async function signupUser(userData: {
 }): Promise<User> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}/api/auth/signup`, {
+    res = await fetchResponse(`${API_BASE}/api/auth/signup`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -154,7 +155,7 @@ export async function logoutUser(): Promise<void> {
 
 export async function fetchCurrentUser(): Promise<User | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/auth/me`, {
+    const res = await fetchResponse(`${API_BASE}/api/auth/me`, {
       credentials: "include",
     });
     if (res.ok) {
@@ -209,7 +210,7 @@ export async function updateConnection(
   targetId: string,
   action: "connect" | "accept" | "reject" | "disconnect" | "block" | "unblock"
 ): Promise<{ status: string; message: string }> {
-  const res = await fetch(`${API_BASE}/api/connections`, {
+  const res = await fetchResponse(`${API_BASE}/api/connections`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -229,7 +230,7 @@ export async function searchRealUsers(query: string): Promise<User[]> {
 
 export async function fetchPosts(page = 1, limit = 10): Promise<{ posts: Post[]; total: number }> {
   try {
-    const res = await fetch(`${API_BASE}/api/posts?page=${page}&limit=${limit}`, {
+    const res = await fetchResponse(`${API_BASE}/api/posts?page=${page}&limit=${limit}`, {
       credentials: "include",
     });
     if (res.ok) {
@@ -280,7 +281,7 @@ export async function sendMessage(_senderId: string, receiverId: string, body: s
 
 export async function fetchBooks(): Promise<Book[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/library`, { credentials: "include" });
+    const res = await fetchResponse(`${API_BASE}/api/library`, { credentials: "include" });
     if (res.ok) {
       const data = await readJSON(res);
       if (Array.isArray(data)) return data;
@@ -320,7 +321,7 @@ export async function createBook(book: {
   if (book.consent_note) form.append("consent_note", book.consent_note);
   form.append("file", book.book_file);
 
-  const res = await fetch(`${API_BASE}/api/library`, {
+  const res = await fetchResponse(`${API_BASE}/api/library`, {
     method: "POST",
     credentials: "include",
     body: form,
@@ -333,7 +334,7 @@ export async function createBook(book: {
 }
 
 export async function fetchLibraryItem(id: string): Promise<Book> {
-  const res = await fetch(`${API_BASE}/api/library/${encodeURIComponent(id)}`, {
+  const res = await fetchResponse(`${API_BASE}/api/library/${encodeURIComponent(id)}`, {
     credentials: "include",
   });
   const data = await readJSON(res).catch(() => ({}));
@@ -364,7 +365,7 @@ export async function fetchLearningTracks(userId: string): Promise<{ profile: Le
 export async function completeLearningTrack(
   trackId: string
 ): Promise<{ success: boolean; message: string; learning_profile: LearningProfile; tracks: LearningTrack[] }> {
-  const res = await fetch(`${API_BASE}/api/learning/complete-track`, {
+  const res = await fetchResponse(`${API_BASE}/api/learning/complete-track`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },

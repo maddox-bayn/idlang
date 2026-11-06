@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { lazy, Suspense, useState, useEffect } from "react";
 import TranslateView from "./components/TranslateView";
-import LearnView from "./components/LearnView";
-import FeedView from "./components/FeedView";
-import LibraryView from "./components/LibraryView";
-import ProfileModal from "./components/ProfileModal";
+const LearnView = lazy(() => import("./components/LearnView"));
+const FeedView = lazy(() => import("./components/FeedView"));
+const LibraryView = lazy(() => import("./components/LibraryView"));
+const ProfileModal = lazy(() => import("./components/ProfileModal"));
 import AuthModal from "./components/AuthModal";
-import ConnectionsModal from "./components/ConnectionsModal";
+const ConnectionsModal = lazy(() => import("./components/ConnectionsModal"));
 import type { User } from "./types";
 import {
   fetchCurrentUser,
@@ -15,8 +15,25 @@ import {
 
 type Tab = "feed" | "library" | "learn" | "translate";
 
+function requestedTab(): Tab {
+  const view = new URLSearchParams(window.location.search).get("view");
+  return view === "feed" || view === "library" || view === "learn" ? view : "translate";
+}
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState<Tab>("translate");
+  const [activeTab, setActiveTab] = useState<Tab>(requestedTab);
+  function selectTab(view: Tab) {
+    const url = new URL(window.location.href);
+    if (view === "translate") url.searchParams.delete("view");
+    else url.searchParams.set("view", view);
+    if (url.href !== window.location.href) window.history.pushState(null, "", url);
+    setActiveTab(view);
+  }
+  useEffect(() => {
+    const onBack = () => setActiveTab(requestedTab());
+    window.addEventListener("popstate", onBack);
+    return () => window.removeEventListener("popstate", onBack);
+  }, []);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
 
@@ -59,7 +76,7 @@ export default function App() {
       await logoutUser();
       setCurrentUser(null);
       setPendingRequestsCount(0);
-      setActiveTab("translate");
+      selectTab("translate");
       setSelectedProfileUserId(null);
       setShowConnectionsModal(false);
     } catch (error) {
@@ -84,6 +101,7 @@ export default function App() {
 
   return (
     <div className="flex min-h-screen flex-col bg-black text-red-100">
+      <a href="#main-content" className="skip-link">Skip to content</a>
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-red-900/30 bg-black/95 backdrop-blur-md px-4 sm:px-6 py-3.5">
         <div className="mx-auto flex max-w-6xl flex-col md:flex-row items-center justify-between gap-3">
@@ -106,9 +124,10 @@ export default function App() {
           </div>
 
           {/* Navigation Tabs */}
-          {currentUser && <nav className="flex flex-wrap justify-center gap-1 rounded-lg border border-red-900/30 bg-neutral-950 p-1">
+          {currentUser && <nav aria-label="Community" className="flex flex-wrap justify-center gap-1 rounded-lg border border-red-900/30 bg-neutral-950 p-1">
             <button
-              onClick={() => setActiveTab("feed")}
+              aria-pressed={activeTab === "feed"}
+              onClick={() => selectTab("feed")}
               className={`rounded-md px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all ${
                 activeTab === "feed"
                   ? "bg-red-900 text-red-100 shadow"
@@ -118,7 +137,8 @@ export default function App() {
               Feed
             </button>
             <button
-              onClick={() => setActiveTab("library")}
+              aria-pressed={activeTab === "library"}
+              onClick={() => selectTab("library")}
               className={`rounded-md px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all ${
                 activeTab === "library"
                   ? "bg-red-900 text-red-100 shadow"
@@ -128,7 +148,8 @@ export default function App() {
               E-Library
             </button>
             <button
-              onClick={() => setActiveTab("learn")}
+              aria-pressed={activeTab === "learn"}
+              onClick={() => selectTab("learn")}
               className={`rounded-md px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all ${
                 activeTab === "learn"
                   ? "bg-red-900 text-red-100 shadow"
@@ -138,7 +159,8 @@ export default function App() {
               Learn & Tracks
             </button>
             <button
-              onClick={() => setActiveTab("translate")}
+              aria-pressed={activeTab === "translate"}
+              onClick={() => selectTab("translate")}
               className={`rounded-md px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all ${
                 activeTab === "translate"
                   ? "bg-red-900 text-red-100 shadow"
@@ -244,19 +266,21 @@ export default function App() {
       <div className="mx-auto h-px w-32 bg-gradient-to-r from-transparent via-red-800 to-transparent" />
 
       {/* Main Content */}
-      <main className="flex-1 py-8">
+      <main id="main-content" tabIndex={-1} className="flex-1 py-8">
+        <Suspense fallback={<p role="status" className="p-6 text-center text-neutral-300">Loading section…</p>}>
         {currentUser && activeTab === "feed" && <FeedView currentUser={effectiveUser} />}
         {currentUser && activeTab === "library" && <LibraryView currentUser={effectiveUser} />}
         {currentUser && activeTab === "learn" && <LearnView currentUser={effectiveUser} />}
         {(!currentUser || activeTab === "translate") && <TranslateView isAuthenticated={!!currentUser} authLoading={loadingAuth} onRequireAuth={() => openAuth("login")} />}
+        </Suspense>
       </main>
 
       {/* Footer */}
       <footer className="border-t border-red-900/20 bg-neutral-950/80 px-6 py-5 text-center">
-        <p className="text-xs text-red-600 font-medium">
+        <p className="text-xs text-neutral-300 font-medium">
           Preserving Idoma — the sacred language and oral history of our ancestors
         </p>
-        <p className="text-[10px] text-neutral-600 mt-1">
+        <p className="text-[10px] text-neutral-400 mt-1">
           Idlang Heritage Preservation System • Benue Valley
         </p>
       </footer>
@@ -273,6 +297,7 @@ export default function App() {
         }}
       />}
 
+      <Suspense fallback={<p role="status" className="p-4 text-neutral-300">Loading profile…</p>}>
       {/* FRIENDS & CONNECTIONS MODAL (Incoming requests, accepted mutual friends, discover) */}
       {showConnectionsModal && currentUser && (
         <ConnectionsModal
@@ -296,6 +321,7 @@ export default function App() {
           onProfileUpdated={refreshCurrentUser}
         />
       )}
+      </Suspense>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { User } from "../types";
 import { loginUser, signupUser, type ApiError } from "../api/socialClient";
 
@@ -32,18 +32,26 @@ export default function AuthModal({
   const [signupDialect, setSignupDialect] = useState("Central Otukpo");
   const [signupNativeSpeaker, setSignupNativeSpeaker] = useState(false);
 
-  // Popup Modal Alert State for "Account not created before -> Popup -> Route to Signup"
-  const [popupAlert, setPopupAlert] = useState<{
-    show: boolean;
-    title: string;
-    message: string;
-    targetIdentifier?: string;
-  } | null>(null);
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    if (!isOpen) return;
+    const previous = document.activeElement as HTMLElement | null;
+    const element = dialog.current;
+    element?.showModal();
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      element?.close();
+      document.body.style.overflow = overflow;
+      previous?.focus();
+    };
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     if (!loginIdentifier.trim() || !loginPassword) {
       setError("Please enter your username/email and password.");
       return;
@@ -58,35 +66,7 @@ export default function AuthModal({
       onClose();
     } catch (err: unknown) {
       const apiErr = err as ApiError;
-      // Requirement 1: If account has not been created before, show error popup and route to signup
-      if (
-        apiErr.code === "USER_NOT_FOUND" ||
-        apiErr.status === 404 ||
-        (apiErr.message && /not exist|create an account|not found/i.test(apiErr.message))
-      ) {
-        const idVal = loginIdentifier.trim();
-        setPopupAlert({
-          show: true,
-          title: "Account Not Found",
-          message: `No account exists with username or email "${idVal}". You need to create an account first. We are routing you to the Sign Up page now!`,
-          targetIdentifier: idVal,
-        });
-
-        // Pre-fill signup fields from login attempt
-        if (idVal.includes("@")) {
-          setSignupEmail(idVal);
-          setSignupUsername(idVal.split("@")[0].replace(/[^a-zA-Z0-9_]/g, "_"));
-        } else {
-          setSignupUsername(idVal);
-        }
-
-        // Switch to signup tab
-        setMode("signup");
-      } else if (apiErr.code === "INVALID_PASSWORD" || (apiErr.message && /password/i.test(apiErr.message))) {
-        setError(apiErr.message || "Incorrect password. Please verify your credentials and try again.");
-      } else {
-        setError(apiErr.message || "Failed to log in. Please try again.");
-      }
+      setError(apiErr.message || "Sign-in failed. Check your details and try again.");
     } finally {
       setLoading(false);
     }
@@ -94,11 +74,17 @@ export default function AuthModal({
 
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     if (!signupUsername.trim() || !signupEmail.trim() || !signupPassword) {
       setError("Please fill in username, email, and password.");
       return;
     }
-    if (signupPassword.length < 6) {
+    if (!/^[a-zA-Z0-9_]{3,24}$/.test(signupUsername.trim())) {
+      setError("Username must be 3–24 letters, numbers or underscores."); return;
+    }
+    const passwordBytes = new TextEncoder().encode(signupPassword).length;
+    if (passwordBytes > 72) { setError("Password must be 72 bytes or fewer."); return; }
+    if (passwordBytes < 6) {
       setError("Password must be at least 6 characters long.");
       return;
     }
@@ -126,54 +112,31 @@ export default function AuthModal({
     }
   };
 
-  const dismissPopup = () => {
-    setPopupAlert(null);
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-      {/* Account Not Found Popup Dialog */}
-      {popupAlert && popupAlert.show && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/90 p-4 animate-in fade-in zoom-in-95">
-          <div className="w-full max-w-md rounded-xl border-2 border-red-600 bg-neutral-950 p-6 shadow-2xl text-red-100 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-950 border border-red-700 text-2xl">
-                ⚠️
-              </div>
-              <div>
-                <h3 className="font-heading text-lg font-bold text-red-400">
-                  {popupAlert.title}
-                </h3>
-                <p className="text-xs text-neutral-400">
-                  Authentication & Registration Notice
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-lg border border-red-900/60 bg-red-950/40 p-3.5 text-xs text-red-200 leading-relaxed">
-              {popupAlert.message}
-            </div>
-
-            <p className="text-[11px] text-neutral-400 italic">
-              Your details have been pre-filled in the Sign Up form below. Complete the form to establish your ancestral Idoma identity.
-            </p>
-
-            <button
-              onClick={dismissPopup}
-              className="w-full rounded-lg bg-red-800 py-2.5 text-xs font-bold uppercase tracking-wider text-red-100 hover:bg-red-700 shadow transition-all"
-            >
-              Proceed to Sign Up →
-            </button>
-          </div>
-        </div>
-      )}
-
+    <dialog ref={dialog} onKeyDown={event => {
+      if (event.key !== "Tab") return;
+      const elements = [...event.currentTarget.querySelectorAll<HTMLElement>(
+        'button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex="0"]'
+      )].filter(element => element.getClientRects().length > 0);
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (!first) { event.preventDefault(); return; }
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault(); last?.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault(); first.focus();
+      }
+    }} aria-labelledby="auth-title" aria-describedby="auth-description"
+      onCancel={event => { event.preventDefault(); if (!loading) onClose(); }}
+      className="m-auto w-[calc(100%_-_2rem)] max-w-lg max-h-[92dvh] rounded-2xl border border-red-900 bg-neutral-950 p-0 text-red-100 backdrop:bg-black/80">
       {/* Main Authentication Box */}
-      <div className="relative w-full max-w-lg rounded-2xl border border-red-900/60 bg-neutral-950 p-6 sm:p-8 text-red-100 shadow-2xl max-h-[92vh] overflow-y-auto card-glow">
+      <div className="relative w-full p-6 sm:p-8">
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 rounded-lg p-1 text-red-400 hover:bg-red-900/30 hover:text-red-200 transition-colors"
+          disabled={loading}
+          aria-label="Close sign-in dialog"
+          className="absolute top-4 right-4 rounded-lg p-3 text-red-300 hover:bg-red-900/30 hover:text-red-200 transition-colors"
           title="Close modal"
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -182,23 +145,25 @@ export default function AuthModal({
         </button>
 
         {/* Modal Header */}
-        <div className="text-center pb-5 border-b border-red-900/40">
+        <div className="text-center pt-9 pb-5 border-b border-red-900/40">
           <span className="text-[10px] font-bold uppercase tracking-widest text-red-500">
             Idlang Identity & Heritage Network
           </span>
-          <h2 className="font-heading text-2xl font-bold tracking-wide text-red-100 mt-1">
+          <h2 id="auth-title" className="font-heading text-2xl font-bold tracking-wide text-red-100 mt-1">
             {mode === "login" ? "Welcome Back, Custodian" : "Join the Guardians of History"}
           </h2>
-          <p className="text-xs text-neutral-400 mt-1">
+          <p id="auth-description" className="text-sm text-neutral-300 mt-1">
             {mode === "login"
-              ? "Sign in with your verified Idlang account credentials"
-              : "Create your real ancestral profile to connect with peers and access the archives"}
+              ? "Sign in to continue translating and access the community."
+              : "Create an account to translate and explore Idoma heritage."}
           </p>
 
           {/* Mode Tabs */}
           <div className="mt-5 flex rounded-lg border border-red-900/40 bg-neutral-900/80 p-1">
             <button
               type="button"
+              disabled={loading}
+              aria-pressed={mode === "login"}
               onClick={() => {
                 setMode("login");
                 setError(null);
@@ -213,6 +178,8 @@ export default function AuthModal({
             </button>
             <button
               type="button"
+              disabled={loading}
+              aria-pressed={mode === "signup"}
               onClick={() => {
                 setMode("signup");
                 setError(null);
@@ -230,7 +197,7 @@ export default function AuthModal({
 
         {/* Error Alert Banner */}
         {error && (
-          <div className="mt-4 rounded-lg border border-red-600 bg-red-950/60 p-3 text-xs text-red-200 flex items-start gap-2">
+          <div role="alert" className="mt-4 rounded-lg border border-red-600 bg-red-950/60 p-3 text-xs text-red-200 flex items-start gap-2">
             <span className="font-bold text-red-400 shrink-0">⚠️ Error:</span>
             <span>{error}</span>
           </div>
@@ -240,10 +207,10 @@ export default function AuthModal({
         {mode === "login" && (
           <form onSubmit={handleLoginSubmit} className="mt-6 space-y-4">
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-red-300 mb-1">
+              <label htmlFor="login-identifier" className="block text-xs font-semibold uppercase tracking-wider text-red-300 mb-1">
                 Username or Email Address
               </label>
-              <input
+              <input id="login-identifier" name="login-identifier" autoComplete="username" disabled={loading}
                 type="text"
                 value={loginIdentifier}
                 onChange={(e) => setLoginIdentifier(e.target.value)}
@@ -255,10 +222,10 @@ export default function AuthModal({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-red-300 mb-1">
+              <label htmlFor="login-password" className="block text-xs font-semibold uppercase tracking-wider text-red-300 mb-1">
                 Password
               </label>
-              <input
+              <input id="login-password" name="login-password" autoComplete="current-password" disabled={loading}
                 type="password"
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
@@ -280,6 +247,7 @@ export default function AuthModal({
               Don't have an account yet?{" "}
               <button
                 type="button"
+                disabled={loading}
                 onClick={() => {
                   setMode("signup");
                   setError(null);
@@ -297,36 +265,37 @@ export default function AuthModal({
           <form onSubmit={handleSignupSubmit} className="mt-6 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-red-300 mb-1">
+                <label htmlFor="signup-username" className="block text-xs font-semibold uppercase tracking-wider text-red-300 mb-1">
                   Username *
                 </label>
-                <input
+                <input id="signup-username" name="signup-username" autoComplete="username" disabled={loading}
                   type="text"
+                  minLength={3} maxLength={24} pattern="[a-zA-Z0-9_]{3,24}"
                   value={signupUsername}
                   onChange={(e) => setSignupUsername(e.target.value)}
                   placeholder="e.g. oche_odeh"
-                  className="w-full rounded-lg border border-red-900/50 bg-neutral-900 px-3 py-2 text-xs text-red-100 placeholder-neutral-500 focus:border-red-500 focus:outline-none"
+                  className="w-full rounded-lg border border-red-900/50 bg-neutral-900 px-3 py-2 text-sm text-red-100 placeholder-neutral-400 focus:border-red-500 focus:outline-none"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-red-300 mb-1">
+                <label htmlFor="signup-display-name" className="block text-xs font-semibold uppercase tracking-wider text-red-300 mb-1">
                   Display Name
                 </label>
-                <input
+                <input id="signup-display-name" name="signup-display-name" autoComplete="name" disabled={loading}
                   type="text"
                   value={signupDisplayName}
                   onChange={(e) => setSignupDisplayName(e.target.value)}
                   placeholder="e.g. Oche Odeh"
-                  className="w-full rounded-lg border border-red-900/50 bg-neutral-900 px-3 py-2 text-xs text-red-100 placeholder-neutral-500 focus:border-red-500 focus:outline-none"
+                  className="w-full rounded-lg border border-red-900/50 bg-neutral-900 px-3 py-2 text-sm text-red-100 placeholder-neutral-400 focus:border-red-500 focus:outline-none"
                 />
               </div>
             </div>
 
             {/* Native Name Requirement Field */}
             <div className="rounded-lg border border-red-900/60 bg-red-950/20 p-3">
-              <label className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-red-300 mb-1">
+              <label htmlFor="signup-native-name" className="flex items-center justify-between text-xs font-bold uppercase tracking-wider text-red-300 mb-1">
                 <span className="flex items-center gap-1.5">
                   <span>🪘</span>
                   <span>Native Idoma Name</span>
@@ -335,12 +304,12 @@ export default function AuthModal({
                   ancestral identity
                 </span>
               </label>
-              <input
+              <input id="signup-native-name" name="signup-native-name" autoComplete="nickname" disabled={loading}
                 type="text"
                 value={signupNativeName}
                 onChange={(e) => setSignupNativeName(e.target.value)}
                 placeholder="e.g. Onyilo, Onyeche, Agbo, Ochanya, Alechenu..."
-                className="w-full rounded-lg border border-red-900/50 bg-neutral-900 px-3 py-2 text-xs text-red-100 placeholder-neutral-500 focus:border-red-500 focus:outline-none"
+                className="w-full rounded-lg border border-red-900/50 bg-neutral-900 px-3 py-2 text-sm text-red-100 placeholder-neutral-400 focus:border-red-500 focus:outline-none"
               />
               <p className="mt-1 text-[10px] text-neutral-400">
                 Your traditional or indigenous ancestral name. Displayed with honor on your profile badge.
@@ -348,39 +317,40 @@ export default function AuthModal({
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-red-300 mb-1">
+              <label htmlFor="signup-email" className="block text-xs font-semibold uppercase tracking-wider text-red-300 mb-1">
                 Email Address *
               </label>
-              <input
+              <input id="signup-email" name="signup-email" autoComplete="email" disabled={loading}
                 type="email"
                 value={signupEmail}
                 onChange={(e) => setSignupEmail(e.target.value)}
                 placeholder="name@example.com"
-                className="w-full rounded-lg border border-red-900/50 bg-neutral-900 px-3 py-2 text-xs text-red-100 placeholder-neutral-500 focus:border-red-500 focus:outline-none"
+                className="w-full rounded-lg border border-red-900/50 bg-neutral-900 px-3 py-2 text-sm text-red-100 placeholder-neutral-400 focus:border-red-500 focus:outline-none"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-red-300 mb-1">
+              <label htmlFor="signup-password" className="block text-xs font-semibold uppercase tracking-wider text-red-300 mb-1">
                 Password * (min. 6 chars)
               </label>
-              <input
+              <input id="signup-password" name="signup-password" autoComplete="new-password" disabled={loading}
                 type="password"
+                minLength={6}
                 value={signupPassword}
                 onChange={(e) => setSignupPassword(e.target.value)}
                 placeholder="Choose a secure password"
-                className="w-full rounded-lg border border-red-900/50 bg-neutral-900 px-3 py-2 text-xs text-red-100 placeholder-neutral-500 focus:border-red-500 focus:outline-none"
+                className="w-full rounded-lg border border-red-900/50 bg-neutral-900 px-3 py-2 text-sm text-red-100 placeholder-neutral-400 focus:border-red-500 focus:outline-none"
                 required
               />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-red-300 mb-1">
+                <label htmlFor="signup-dialect" className="block text-xs font-semibold uppercase tracking-wider text-red-300 mb-1">
                   Dialect Region
                 </label>
-                <select
+                <select id="signup-dialect" name="signup-dialect" autoComplete="off" disabled={loading}
                   value={signupDialect}
                   onChange={(e) => setSignupDialect(e.target.value)}
                   className="w-full rounded-lg border border-red-900/50 bg-neutral-900 px-3 py-2 text-xs text-red-100 focus:border-red-500 focus:outline-none"
@@ -419,6 +389,7 @@ export default function AuthModal({
               Already have an account?{" "}
               <button
                 type="button"
+                disabled={loading}
                 onClick={() => {
                   setMode("login");
                   setError(null);
@@ -431,6 +402,6 @@ export default function AuthModal({
           </form>
         )}
       </div>
-    </div>
+    </dialog>
   );
 }
