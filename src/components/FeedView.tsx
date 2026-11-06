@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { Post, User } from "../types";
-import { fetchPosts, createPost, updateConnection } from "../api/socialClient";
+import { fetchPosts, createPost, deletePost, updateConnection } from "../api/socialClient";
 import NativeAudioPlayer from "./NativeAudioPlayer";
 import ProfileModal from "./ProfileModal";
 
@@ -11,6 +11,11 @@ interface FeedViewProps {
 export default function FeedView({ currentUser }: FeedViewProps) {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [feedError, setFeedError] = useState<string | null>(null);
+  const [totalPosts, setTotalPosts] = useState(0);
+  const [nextPage, setNextPage] = useState(2);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
   const [selectedAuthorId, setSelectedAuthorId] = useState<string | null>(null);
 
   // New post modal state
@@ -18,19 +23,45 @@ export default function FeedView({ currentUser }: FeedViewProps) {
   const [newContent, setNewContent] = useState("");
   const [mediaType, setMediaType] = useState<"text" | "image" | "audio" | "video">("text");
   const [mediaUrl, setMediaUrl] = useState("");
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [creating, setCreating] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const createButtonRef = useRef<HTMLButtonElement>(null);
 
-  const loadFeed = async () => {
-    setLoading(true);
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (showCreateModal && dialog && !dialog.open) {
+      const previous = document.activeElement as HTMLElement | null;
+      dialog.showModal();
+      const overflow = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        dialog.close();
+        document.body.style.overflow = overflow;
+        (previous || createButtonRef.current)?.focus();
+      };
+    }
+  }, [showCreateModal]);
+
+  const loadFeed = async (page = 1, append = false) => {
+    setFeedError(null);
+    if (append) setLoadingMore(true);
+    else {
+      setLoading(true);
+    }
     try {
-      const data = await fetchPosts(1, 20);
-      setPosts(data.posts);
+      const data = await fetchPosts(page, 20);
+      setPosts((prev) => append ? [...prev, ...data.posts] : data.posts);
+      setTotalPosts(data.total);
+      setNextPage(page + 1);
     } catch (err) {
-      console.error("Feed loading error:", err);
+      setFeedError(err instanceof Error ? err.message : "Could not load the feed.");
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
 
@@ -50,16 +81,34 @@ export default function FeedView({ currentUser }: FeedViewProps) {
         content: newContent.trim(),
         media_type: mediaType,
         media_url: mediaUrl.trim() || undefined,
+        media_file: mediaFile || undefined,
       });
-      setPosts((prev) => [created, ...prev]);
+      setPosts((prev) => [created, ...prev].slice(0, 20));
+      setTotalPosts((count) => count + 1);
       setNewContent("");
       setMediaUrl("");
+      setMediaFile(null);
       setMediaType("text");
       setShowCreateModal(false);
     } catch (err: unknown) {
       setPostError(err instanceof Error ? err.message : "Failed to submit post");
     } finally {
       setCreating(false);
+    }
+  };
+
+  const handleDeletePost = async (post: Post) => {
+    if (!window.confirm("Delete this post? This action cannot be undone.")) return;
+    setActionError(null);
+    setDeletingPostId(post.id);
+    try {
+      await deletePost(post.id);
+      setPosts((prev) => prev.filter((item) => item.id !== post.id));
+      setTotalPosts((count) => Math.max(0, count - 1));
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : "Could not delete this post.");
+    } finally {
+      setDeletingPostId(null);
     }
   };
 
@@ -86,6 +135,7 @@ export default function FeedView({ currentUser }: FeedViewProps) {
           </p>
         </div>
         <button
+          ref={createButtonRef}
           onClick={() => setShowCreateModal(true)}
           className="flex items-center gap-2 rounded-lg bg-red-800 px-4 py-2 text-xs font-semibold uppercase tracking-wider text-red-100 shadow transition-all hover:bg-red-700 active:scale-95"
         >
@@ -101,6 +151,7 @@ export default function FeedView({ currentUser }: FeedViewProps) {
           {connectError}
         </div>
       )}
+      {actionError && <div role="alert" className="rounded-lg border border-red-700 bg-red-950/50 px-3 py-2 text-xs text-red-200">{actionError}</div>}
 
       {/* Posts Stream */}
       {loading ? (
@@ -108,12 +159,18 @@ export default function FeedView({ currentUser }: FeedViewProps) {
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-red-600 border-t-transparent" />
           <p className="mt-3 text-xs text-red-400">Loading ancestral feed...</p>
         </div>
+      ) : feedError && posts.length === 0 ? (
+        <div role="alert" className="rounded-xl border border-red-700 bg-red-950/40 p-6 text-center">
+          <p className="text-sm text-red-200">{feedError}</p>
+          <button onClick={() => void loadFeed()} className="mt-3 rounded-lg border border-red-700 px-4 py-2 text-xs font-semibold text-red-100 hover:bg-red-900/50">Retry</button>
+        </div>
       ) : posts.length === 0 ? (
         <div className="rounded-xl border border-red-900/30 bg-neutral-950 p-8 text-center text-red-400">
           <p className="text-sm">No cultural posts yet. Be the first to share an ancestral story!</p>
         </div>
       ) : (
         <div className="space-y-6">
+          {feedError && <div role="alert" className="rounded-xl border border-red-700 bg-red-950/40 p-4 text-center text-sm text-red-200">{feedError}<button onClick={() => void loadFeed(nextPage, true)} className="ml-3 underline">Retry</button></div>}
           {posts.map((post) => {
             const author = post.author || {
               id: post.user_id,
@@ -129,10 +186,7 @@ export default function FeedView({ currentUser }: FeedViewProps) {
               >
                 {/* Author Card Header */}
                 <div className="flex items-center justify-between border-b border-red-900/20 pb-3">
-                  <div
-                    onClick={() => setSelectedAuthorId(author.id)}
-                    className="flex items-center gap-3 cursor-pointer group"
-                  >
+                  <button type="button" onClick={() => setSelectedAuthorId(author.id)} aria-label={`View ${author.display_name}'s profile`} className="flex items-center gap-3 cursor-pointer group text-left">
                     <img
                       src={
                         author.avatar_url ||
@@ -154,7 +208,7 @@ export default function FeedView({ currentUser }: FeedViewProps) {
                       </div>
                       <p className="text-[11px] text-red-500">@{author.username}</p>
                     </div>
-                  </div>
+                  </button>
 
                   {/* Actions / View Profile */}
                   <div className="flex items-center gap-2">
@@ -171,6 +225,15 @@ export default function FeedView({ currentUser }: FeedViewProps) {
                         title="Connect or message this author"
                       >
                         ✉ Connect / DM
+                      </button>
+                    )}
+                    {isSelf && (
+                      <button
+                        onClick={() => void handleDeletePost(post)}
+                        disabled={deletingPostId === post.id}
+                        className="rounded border border-red-900/60 px-2.5 py-1 text-xs text-red-400 hover:bg-red-950 disabled:opacity-50"
+                      >
+                        {deletingPostId === post.id ? "Deleting…" : "Delete"}
                       </button>
                     )}
                   </div>
@@ -228,22 +291,38 @@ export default function FeedView({ currentUser }: FeedViewProps) {
                     })}
                   </span>
                 </div>
-              </article>
+            </article>
             );
           })}
+          {posts.length < totalPosts && (
+            <div className="text-center">
+              <button onClick={() => void loadFeed(nextPage, true)} disabled={loadingMore} className="rounded-lg border border-red-800 px-4 py-2 text-xs font-semibold text-red-200 hover:bg-red-950 disabled:opacity-50">
+                {loadingMore ? "Loading…" : "Load more posts"}
+              </button>
+            </div>
+          )}
         </div>
       )}
 
       {/* Create Post Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
-          <div className="card-glow w-full max-w-lg rounded-xl border border-red-900/60 bg-neutral-950 p-6 text-red-100 shadow-2xl">
+        <dialog ref={dialogRef} aria-labelledby="create-post-title" onCancel={(event) => { event.preventDefault(); if (!creating) setShowCreateModal(false); }} onKeyDown={(event) => {
+          if (event.key !== "Tab") return;
+          const elements = [...event.currentTarget.querySelectorAll<HTMLElement>('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled)')].filter((el) => el.getClientRects().length > 0);
+          const first = elements[0]; const last = elements[elements.length - 1];
+          if (!first) { event.preventDefault(); return; }
+          if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+          else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        }} className="m-auto w-[calc(100%_-_2rem)] max-w-lg max-h-[92dvh] overflow-y-auto rounded-xl border border-red-900/60 bg-neutral-950 p-0 text-red-100 backdrop:bg-black/80">
+          <div className="card-glow p-6 shadow-2xl">
             <div className="flex items-center justify-between border-b border-red-900/40 pb-3">
-              <h3 className="font-heading text-lg font-bold text-red-100">
+                <h3 id="create-post-title" className="font-heading text-lg font-bold text-red-100">
                 Share Cultural Lore
               </h3>
               <button
                 onClick={() => setShowCreateModal(false)}
+                disabled={creating}
+                aria-label="Close create post dialog"
                 className="text-neutral-400 hover:text-red-300"
               >
                 ✕
@@ -258,13 +337,15 @@ export default function FeedView({ currentUser }: FeedViewProps) {
               )}
 
               <div>
-                <label className="block text-xs font-semibold uppercase tracking-wider text-red-400 mb-1">
-                  Text / Oral Context (Markdown Supported)
+                <label htmlFor="post-content" className="block text-xs font-semibold uppercase tracking-wider text-red-400 mb-1">
+                  Text / Oral Context (plain text)
                 </label>
                 <textarea
+                  id="post-content"
                   rows={4}
                   required
                   value={newContent}
+                  autoFocus
                   onChange={(e) => setNewContent(e.target.value)}
                   placeholder="Record ancestral idioms, traditional wedding salutations, or pronunciation notes..."
                   className="w-full rounded-lg border border-red-900/50 bg-neutral-900 p-3 text-xs text-red-100 placeholder-neutral-500 focus:border-red-500 focus:outline-none"
@@ -273,12 +354,13 @@ export default function FeedView({ currentUser }: FeedViewProps) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-red-400 mb-1">
+                    <label htmlFor="post-media-type" className="block text-xs font-semibold uppercase tracking-wider text-red-400 mb-1">
                     Resource Type
                   </label>
                   <select
+                    id="post-media-type"
                     value={mediaType}
-                    onChange={(e) => setMediaType(e.target.value as "text" | "image" | "audio" | "video")}
+                    onChange={(e) => { setMediaType(e.target.value as "text" | "image" | "audio" | "video"); setMediaFile(null); setMediaUrl(""); }}
                     className="w-full rounded-lg border border-red-900/50 bg-neutral-900 px-3 py-2 text-xs text-red-200 focus:border-red-500 focus:outline-none"
                   >
                     <option value="text">Text / Quote</option>
@@ -288,13 +370,13 @@ export default function FeedView({ currentUser }: FeedViewProps) {
                   </select>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-red-400 mb-1">
-                    Media Resource URL (Optional)
-                  </label>
+                {mediaType !== "text" && <div>
+                  <label htmlFor="post-media-url" className="block text-xs font-semibold uppercase tracking-wider text-red-400 mb-1">Media URL (optional)</label>
                   <input
+                    id="post-media-url"
                     type="url"
                     value={mediaUrl}
+                    disabled={!!mediaFile}
                     onChange={(e) => setMediaUrl(e.target.value)}
                     placeholder={
                       mediaType === "audio"
@@ -305,19 +387,20 @@ export default function FeedView({ currentUser }: FeedViewProps) {
                     }
                     className="w-full rounded-lg border border-red-900/50 bg-neutral-900 px-3 py-2 text-xs text-red-100 placeholder-neutral-500 focus:border-red-500 focus:outline-none"
                   />
-                </div>
+                </div>}
               </div>
 
-              {mediaType === "audio" && !mediaUrl && (
-                <div className="rounded border border-red-900/30 bg-neutral-900/60 p-2.5 text-[11px] text-red-400">
-                  💡 Tip: Leave empty to attach the default native greeting sample, or paste an MP3/OGG URL.
-                </div>
-              )}
+              {mediaType !== "text" && <div>
+                <label htmlFor="post-media-file" className="block text-xs font-semibold uppercase tracking-wider text-red-400 mb-1">Upload a {mediaType} file (optional, max 25 MB)</label>
+                <input id="post-media-file" type="file" accept={mediaType === "image" ? "image/jpeg,image/png,image/webp" : mediaType === "audio" ? "audio/mpeg,audio/ogg,audio/wav,audio/mp4" : "video/mp4,video/webm"} onChange={(e) => { setMediaFile(e.target.files?.[0] || null); if (e.target.files?.[0]) setMediaUrl(""); }} className="block w-full text-xs text-neutral-300 file:mr-3 file:rounded file:border-0 file:bg-red-900 file:px-3 file:py-2 file:text-red-100" />
+                {mediaFile && <p className="mt-1 text-xs text-neutral-400">Selected: {mediaFile.name}</p>}
+              </div>}
 
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
+                  disabled={creating}
                   className="rounded-lg border border-red-900/60 px-4 py-2 text-xs text-red-400 hover:bg-neutral-900"
                 >
                   Cancel
@@ -332,7 +415,8 @@ export default function FeedView({ currentUser }: FeedViewProps) {
               </div>
             </form>
           </div>
-        </div>
+          </div>
+        </dialog>
       )}
 
       {/* Dynamic User Card Explorer Modal */}

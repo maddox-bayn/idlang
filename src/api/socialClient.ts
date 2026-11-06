@@ -10,7 +10,6 @@ import type {
   ConnectionsResponse,
 } from "../types";
 import {
-  mockPosts,
   mockBooks,
   mockCurriculumTracks,
 } from "../data/mockData";
@@ -59,7 +58,6 @@ async function requestJSON<T>(path: string, init: RequestInit = {}): Promise<T> 
   return data;
 }
 
-const fallbackPosts = [...mockPosts];
 const fallbackBooks = [...mockBooks];
 const fallbackTracks = [...mockCurriculumTracks];
 
@@ -229,18 +227,23 @@ export async function searchRealUsers(query: string): Promise<User[]> {
 }
 
 export async function fetchPosts(page = 1, limit = 10): Promise<{ posts: Post[]; total: number }> {
-  try {
-    const res = await fetchResponse(`${API_BASE}/api/posts?page=${page}&limit=${limit}`, {
-      credentials: "include",
-    });
-    if (res.ok) {
-      const data = await readJSON(res);
-      return { posts: data.posts || [], total: data.total || 0 };
-    }
-  } catch (err) {
-    console.warn("Backend unavailable, using mock posts:", err);
+  const res = await fetchResponse(`${API_BASE}/api/posts?page=${page}&limit=${limit}`, {
+    credentials: "include",
+  });
+  const data = await readJSON(res).catch(() => {
+    if (res.ok) throw new Error("The feed returned an invalid response. Please try again.");
+    return {};
+  });
+  if (!res.ok) {
+    const error: ApiError = new Error(data.error || `Could not load the feed (HTTP ${res.status}). Please try again.`);
+    error.status = res.status;
+    error.code = data.code;
+    throw error;
   }
-  return { posts: fallbackPosts, total: fallbackPosts.length };
+  if (!Array.isArray(data.posts) || typeof data.total !== "number") {
+    throw new Error("The feed returned an invalid response. Please try again.");
+  }
+  return { posts: resolveMediaURLs(data.posts), total: data.total };
 }
 
 export async function createPost(post: {
@@ -262,6 +265,10 @@ export async function createPost(post: {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ content: post.content, media_type: post.media_type, media_url: post.media_url }),
   });
+}
+
+export async function deletePost(postId: string): Promise<void> {
+  await requestJSON(`/api/posts/${encodeURIComponent(postId)}`, { method: "DELETE" });
 }
 
 export async function fetchProfile(targetId: string, _viewerId: string): Promise<ProfileResponse> {
