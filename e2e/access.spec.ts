@@ -87,3 +87,110 @@ test('anonymous admin visit prompts for administrator sign-in', async ({ page })
   await page.goto('/admin');
   await expect(page.getByRole('heading', { name: 'Administrator sign-in' })).toBeVisible();
 });
+
+test('text input has a label, preserves Enter, and caps pasted input', async ({ page }) => {
+  const api = await mockAPI(page);
+  await page.goto('/');
+  const input = page.getByLabel('Input Text');
+  await input.fill('first');
+  await input.press('End');
+  await input.press('Enter');
+  await input.press('a');
+  await expect(input).toHaveValue('first\na');
+  expect(api.translations()).toBe(0);
+  await input.fill('x'.repeat(4100));
+  expect((await input.inputValue()).length).toBe(4000);
+});
+
+test('dialog traps focus, Escape closes it, and restores the trigger', async ({ page }) => {
+  await mockAPI(page);
+  await page.goto('/');
+  const trigger = page.getByRole('button', { name: 'Create Account', exact: true });
+  await trigger.click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await expect(page.getByLabel('Email Address *')).toBeVisible();
+  for (let i = 0; i < 18; i++) {
+    await page.keyboard.press('Tab');
+    expect(await page.evaluate(() => document.querySelector('dialog')?.contains(document.activeElement))).toBe(true);
+  }
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+
+test('pending translation locks direction and prevents duplicate submits', async ({ page }) => {
+  await mockAPI(page);
+  let release!: () => void;
+  const hold = new Promise<void>(resolve => { release = resolve; });
+  let calls = 0;
+  await page.route('**/api/translate', async route => { calls++; await hold; await route.fulfill({ json: { translation: 'Olé' } }); });
+  await page.goto('/');
+  await page.getByLabel('Input Text').fill('house');
+  await page.getByRole('button', { name: 'Translate to Idoma', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Switch direction/ })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Speech', exact: true })).toBeDisabled();
+  await expect(page.getByRole('status')).toContainText('Translating');
+  expect(calls).toBe(1);
+  release();
+  await expect(page.getByText('Olé', { exact: true })).toBeVisible();
+});
+
+test('missing guest cookie rechecks access without claiming the trial was consumed', async ({ page }) => {
+  await mockAPI(page);
+  await page.route('**/api/translate', route => route.fulfill({ status: 401, json: { code: 'TRIAL_SESSION_REQUIRED', error: 'Reload the page to start your free translation, or sign in.' } }));
+  await page.goto('/');
+  await page.getByLabel('Input Text').fill('house');
+  await page.getByRole('button', { name: 'Translate to Idoma', exact: true }).click();
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await expect(page.getByText('Your free translation is complete.', { exact: false })).toHaveCount(0);
+});
+
+test('member navigation supports deep links and browser back', async ({ page }) => {
+  await mockAPI(page, 'member');
+  await page.goto('/?view=library');
+  await expect(page.getByRole('button', { name: 'E-Library', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Translate', exact: true }).click();
+  await expect(page).not.toHaveURL(/view=library/);
+  await page.goBack();
+  await expect(page.getByRole('button', { name: 'E-Library', exact: true })).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('narrow screen and long text do not create horizontal scrolling', async ({ page }) => {
+  await mockAPI(page);
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto('/');
+  await page.getByLabel('Input Text').fill('word'.repeat(1000));
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole('button', { name: 'Create Account', exact: true }).click();
+  expect(await page.getByRole('dialog').evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+});
+
+test('recording auto-stops and cancelled recordings never become input', async ({ page }) => {
+  await mockAPI(page);
+  await page.clock.install();
+  await page.addInitScript(() => {
+    const track = { stop() {} };
+    Object.defineProperty(navigator, 'mediaDevices', { value: { getUserMedia: async () => ({ getTracks: () => [track] }) } });
+    class FakeRecorder {
+      state = 'inactive'; mimeType = 'audio/webm';
+      ondataavailable?: (event: {data: Blob}) => void; onstop?: () => void;
+      static isTypeSupported() { return true; }
+      start() { this.state = 'recording'; }
+      stop() { this.state = 'inactive'; this.ondataavailable?.({ data: new Blob(['audio'], { type: this.mimeType }) }); this.onstop?.(); }
+    }
+    Object.defineProperty(window, 'MediaRecorder', { value: FakeRecorder });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Speech', exact: true }).click();
+  await page.getByRole('button', { name: 'Record audio', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Stop recording', exact: true })).toBeVisible();
+  await page.clock.fastForward(31_000);
+  await expect(page.getByRole('button', { name: 'Record audio', exact: true })).toBeVisible();
+  await expect(page.getByText('Recorded Audio', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Clear', exact: true }).click();
+  await page.getByRole('button', { name: 'Record audio', exact: true }).click();
+  await page.getByRole('button', { name: 'Cancel recording', exact: true }).click();
+  await expect(page.getByText('Recorded Audio', { exact: true })).toHaveCount(0);
+});

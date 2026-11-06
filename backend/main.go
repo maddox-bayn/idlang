@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -12,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 const omniRouteURL = "http://localhost:20128/v1/chat/completions"
@@ -262,7 +265,8 @@ func main() {
 	}
 
 	log.Printf("Idlang backend listening on :%s", port)
-	log.Fatal(http.ListenAndServe(":"+port, handler))
+	server := &http.Server{Addr: ":" + port, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 150 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
+	log.Fatal(server.ListenAndServe())
 }
 
 func translatorBaseURL() string {
@@ -366,6 +370,13 @@ func proxyAudioToTranslator(upstreamPath string) http.HandlerFunc {
 			return
 		}
 
+		const maxAudioBytes = 10 << 20
+		if r.ContentLength > maxAudioBytes {
+			writeError(w, http.StatusRequestEntityTooLarge, "Audio must be 10 MiB or smaller.")
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, maxAudioBytes)
+
 		// Audio + model inference is slow; allow well beyond the text timeout.
 		client := &http.Client{Timeout: 120 * time.Second}
 		upstream := translatorBaseURL() + upstreamPath
@@ -379,6 +390,11 @@ func proxyAudioToTranslator(upstreamPath string) http.HandlerFunc {
 
 		resp, err := client.Do(req)
 		if err != nil {
+			var tooLarge *http.MaxBytesError
+			if errors.As(err, &tooLarge) {
+				writeError(w, http.StatusRequestEntityTooLarge, "Audio must be 10 MiB or smaller.")
+				return
+			}
 			log.Printf("translator %s unavailable: %v", upstreamPath, err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusServiceUnavailable)
@@ -645,11 +661,21 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req TranslateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(w, r, &req, 32<<10); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			writeError(w, http.StatusRequestEntityTooLarge, "Request body exceeds 32 KiB.")
+			return
+		}
 		http.Error(w, `{"error":"Invalid request body"}`, http.StatusBadRequest)
 		return
 	}
 
+	req.Text = strings.TrimSpace(req.Text)
+	if utf8.RuneCountInString(req.Text) > 4000 {
+		writeError(w, http.StatusRequestEntityTooLarge, "Text must be 4,000 characters or fewer.")
+		return
+	}
 	if req.Text == "" {
 		http.Error(w, `{"error":"Text is required"}`, http.StatusBadRequest)
 		return
@@ -667,6 +693,11 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if (req.SourceLang != "English" && req.SourceLang != "Idoma") || (req.TargetLang != "English" && req.TargetLang != "Idoma") || req.SourceLang == req.TargetLang {
+		writeError(w, http.StatusBadRequest, "Choose English to Idoma or Idoma to English.")
+		return
+	}
+
 	// 1. First, try case-insensitive dictionary lookup
 	if dictionaryFirst {
 		if resp := lookupDictionary(req.Text, req.SourceLang, req.TargetLang); resp != nil {
@@ -677,37 +708,18 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Not in dictionary — try Python NMT service
-	resp, err := callPythonNMT(req.Text, req.SourceLang, req.TargetLang)
-	if err == nil && resp.Translation != "" {
+	resp, err := callPythonNMT(r.Context(), req.Text, req.SourceLang, req.TargetLang)
+	if err == nil && resp != nil && strings.TrimSpace(resp.Translation) != "" {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 		return
 	}
 	log.Printf("Python NMT failed: %v", err)
 
-	// 3. AI gateway fallback with deferred recovery
-	(func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("OmniRoute panic recovered: %v", r)
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(&TranslateResponse{
-				Translation: "Missing from Idlang archives.",
-				Explanation: "This word or phrase is not yet documented in the Idlang Idoma dictionary archives.",
-			})
-		}()
-
-		resourceContext := buildResourceContext()
-		resp, err := callOmniRouteTranslate(req.Text, resourceContext)
-		if err != nil {
-			log.Printf("OmniRoute translate failed: %v", err)
-		}
-		if resp != nil {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(resp)
-		}
-	})()
+	// Failed inference must remain an error so guest quota can be refunded.
+	// The former gateway fallback ignored translation direction and could emit
+	// two JSON documents, including an archive placeholder with HTTP 200.
+	writeError(w, http.StatusServiceUnavailable, "Translation service is unavailable. Please try again.")
 }
 
 // idomaPlaceholder is the filler that filled half of the deleted
@@ -773,7 +785,7 @@ func lookupDictionary(text, sourceLang, targetLang string) *TranslateResponse {
 	return nil
 }
 
-func callPythonNMT(text, sourceLang, targetLang string) (*TranslateResponse, error) {
+func callPythonNMT(ctx context.Context, text, sourceLang, targetLang string) (*TranslateResponse, error) {
 	translatorURL := translatorBaseURL()
 
 	type PythonRequest struct {
@@ -795,7 +807,12 @@ func callPythonNMT(text, sourceLang, targetLang string) (*TranslateResponse, err
 	// "translator service unavailable", which reads as an outage rather than a
 	// cold start.
 	client := &http.Client{Timeout: 90 * time.Second}
-	resp, err := client.Post(fmt.Sprintf("%s/translate", translatorURL), "application/json", bytes.NewBuffer(b))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s/translate", translatorURL), bytes.NewBuffer(b))
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("translator service unavailable: %w", err)
 	}

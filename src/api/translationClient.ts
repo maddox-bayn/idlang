@@ -1,3 +1,4 @@
+import { fetchResponse } from "./request";
 import type { TranslateResponse, TranscriptionResponse, FullPipelineResponse } from "../types";
 
 // Use the same backend origin as authentication. Vite proxies /api locally.
@@ -34,8 +35,8 @@ export class TranslationClient {
     this.baseUrl = baseUrl;
   }
 
-  async access(): Promise<{ authenticated: boolean; trial_remaining: boolean }> {
-    const response = await fetch(`${this.baseUrl}/api/translation/access`, { credentials: "include", cache: "no-store" });
+  async access(signal?: AbortSignal): Promise<{ authenticated: boolean; trial_remaining: boolean }> {
+    const response = await fetchResponse(`${this.baseUrl}/api/translation/access`, { credentials: "include", cache: "no-store", signal });
     if (!response.ok) throw await responseError(response, "Could not check translation access");
     return response.json();
   }
@@ -46,10 +47,12 @@ export class TranslationClient {
   async translateText(
     text: string,
     sourceLang: "English" | "Idoma" = "English",
-    targetLang: "English" | "Idoma" = "Idoma"
+    targetLang: "English" | "Idoma" = "Idoma",
+    signal?: AbortSignal
   ): Promise<TranslateResponse> {
-    const response = await fetch(`${this.baseUrl}/api/translate`, {
+    const response = await fetchResponse(`${this.baseUrl}/api/translate`, {
       method: "POST",
+      signal,
       credentials: "include",
       headers: {
         "Content-Type": "application/json",
@@ -59,15 +62,16 @@ export class TranslationClient {
         source_lang: sourceLang,
         target_lang: targetLang,
       }),
-    });
+    }, 100_000);
 
     if (!response.ok) {
       throw await responseError(response, "Translation request failed");
     }
 
     const data = await response.json();
+    if (typeof data.translation !== "string" || !data.translation.trim()) throw new Error("The service returned an empty translation. Please try again.");
     return {
-      translation: data.translation || "Missing from Idlang archives.",
+      translation: data.translation,
       explanation: data.explanation,
       model: data.model,
       confidence: data.confidence,
@@ -80,17 +84,19 @@ export class TranslationClient {
    */
   async transcribeAudio(
     audioBlob: Blob,
-    sourceLang: "English" | "Idoma"
+    sourceLang: "English" | "Idoma",
+    signal?: AbortSignal
   ): Promise<TranscriptionResponse> {
     const formData = new FormData();
-    formData.append("audio", audioBlob, "recording.wav");
+    formData.append("audio", audioBlob, audioFilename(audioBlob));
     formData.append("source_lang", sourceLang);
 
-    const response = await fetch(`${this.baseUrl}/api/transcribe`, {
+    const response = await fetchResponse(`${this.baseUrl}/api/transcribe`, {
       method: "POST",
+      signal,
       credentials: "include",
       body: formData,
-    });
+    }, 125_000);
 
     if (!response.ok) {
       throw await responseError(response, "Transcription request failed");
@@ -111,23 +117,26 @@ export class TranslationClient {
    */
   async fullPipeline(
     audioBlob: Blob,
-    sourceLang: "English" | "Idoma"
+    sourceLang: "English" | "Idoma",
+    signal?: AbortSignal
   ): Promise<FullPipelineResponse> {
     const formData = new FormData();
-    formData.append("audio", audioBlob, "recording.wav");
+    formData.append("audio", audioBlob, audioFilename(audioBlob));
     formData.append("source_lang", sourceLang);
 
-    const response = await fetch(`${this.baseUrl}/api/pipeline`, {
+    const response = await fetchResponse(`${this.baseUrl}/api/pipeline`, {
       method: "POST",
+      signal,
       credentials: "include",
       body: formData,
-    });
+    }, 125_000);
 
     if (!response.ok) {
       throw await responseError(response, "Pipeline request failed");
     }
 
     const data = await response.json();
+    if (typeof data.translation?.translation !== "string" || !data.translation.translation.trim()) throw new Error("The service returned an empty translation. Please try again.");
     return {
       transcription: {
         transcription: data.transcription?.transcription || "",
@@ -157,7 +166,8 @@ export class TranslationClient {
   getHistory(): TranslateResponse[] {
     try {
       const history = localStorage.getItem("idlang_history");
-      return history ? JSON.parse(history) : [];
+      const parsed = history ? JSON.parse(history) : [];
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
       return [];
     }
@@ -180,3 +190,9 @@ export class TranslationClient {
 
 // Create singleton instance
 export const translationClient = new TranslationClient();
+
+export function audioFilename(blob: Blob): string {
+  const type = blob.type.toLowerCase();
+  const extension = type.includes("webm") ? "webm" : type.includes("ogg") ? "ogg" : type.includes("mp4") ? "m4a" : "wav";
+  return `recording.${extension}`;
+}

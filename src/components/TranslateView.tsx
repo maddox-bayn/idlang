@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslationStore } from "../store/useTranslationStore";
 import AudioRecorder from "./AudioRecorder";
 import AudioPlayer from "./AudioPlayer";
@@ -13,20 +13,23 @@ interface TranslateViewProps {
 }
 
 export default function TranslateView({ isAuthenticated, authLoading, onRequireAuth }: TranslateViewProps) {
+  const operation = useRef<AbortController | null>(null);
+  const [recordedAudioURL, setRecordedAudioURL] = useState<string | null>(null);
   const [trialRemaining, setTrialRemaining] = useState<boolean | null>(null);
   const [accessError, setAccessError] = useState<string | null>(null);
   const [accessAttempt, setAccessAttempt] = useState(0);
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     if (authLoading || isAuthenticated) return;
     setTrialRemaining(null);
     setAccessError(null);
-    translationClient.access().then(data => {
+    translationClient.access(controller.signal).then(data => {
       if (!cancelled) setTrialRemaining(data.authenticated || data.trial_remaining);
     }).catch(error => {
       if (!cancelled) setAccessError(error instanceof Error ? error.message : "Could not check translation access.");
     });
-    return () => { cancelled = true; };
+    return () => { cancelled = true; controller.abort(); };
   }, [isAuthenticated, authLoading, accessAttempt]);
 
   function checkAccess(): boolean {
@@ -41,9 +44,13 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
   }
 
   function translationFailed(error: unknown) {
-    if (error instanceof TranslationAPIError && error.status === 401) {
+    if (error instanceof TranslationAPIError && error.status === 401 && error.code !== "TRIAL_SESSION_REQUIRED") {
       setTrialRemaining(false);
       onRequireAuth();
+    }
+    if (error instanceof TranslationAPIError && error.code === "TRIAL_SESSION_REQUIRED") {
+      setTrialRemaining(null);
+      setAccessAttempt(value => value + 1);
     }
     setError(error instanceof Error ? error.message : "Translation failed");
   }
@@ -62,6 +69,7 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
     isTranscribing,
     isTranslating,
     isSynthesizing,
+    isRecording,
     setMode,
     setDirection,
     setInputText,
@@ -79,6 +87,25 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
 
   const isBusy = isTranslating || isTranscribing || isSynthesizing;
 
+  useEffect(() => () => {
+    operation.current?.abort();
+    useTranslationStore.setState({ isTranscribing: false, isTranslating: false, isSynthesizing: false });
+  }, []);
+
+  useEffect(() => {
+    if (!audioBlob) { setRecordedAudioURL(null); return; }
+    const url = URL.createObjectURL(audioBlob);
+    setRecordedAudioURL(url);
+    return () => URL.revokeObjectURL(url);
+  }, [audioBlob]);
+
+  function beginOperation() {
+    if (operation.current) return null;
+    const controller = new AbortController();
+    operation.current = controller;
+    return controller;
+  }
+
   // Cleanup audio URL on unmount
   useEffect(() => {
     return () => {
@@ -93,26 +120,32 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
 
   async function handleTranslate() {
     const text = inputText.trim();
-    if (!text || !checkAccess()) return;
+    if (!text || !checkAccess() || text.length > 4000) return;
+    const controller = beginOperation();
+    if (!controller) return;
 
     setIsTranslating(true);
     setError(null);
     setTranslation(null);
 
     try {
-      const data = await translationClient.translateText(text, sourceLang, targetLang);
+      const data = await translationClient.translateText(text, sourceLang, targetLang, controller.signal);
+      if (controller.signal.aborted) return;
       setTranslation(data);
       addToHistory(data, text);
       trialCompleted();
     } catch (err) {
-      translationFailed(err);
+      if (!controller.signal.aborted) translationFailed(err);
     } finally {
-      setIsTranslating(false);
+      operation.current = null;
+      if (!controller.signal.aborted) setIsTranslating(false);
     }
   }
 
   async function handleTranscribeAndTranslate() {
-    if (!audioBlob || !checkAccess()) return;
+    if (!audioBlob || !checkAccess() || isRecording) return;
+    const controller = beginOperation();
+    if (!controller) return;
 
     setIsTranscribing(true);
     setError(null);
@@ -121,27 +154,33 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
 
     try {
       // Step 1: Transcribe audio
-      const transcribeData = await translationClient.transcribeAudio(audioBlob, sourceLang);
+      const transcribeData = await translationClient.transcribeAudio(audioBlob, sourceLang, controller.signal);
+      if (controller.signal.aborted) return;
       setTranscription(transcribeData.transcription);
 
       // Step 2: Translate transcription
       const translateData = await translationClient.translateText(
         transcribeData.transcription,
         sourceLang,
-        targetLang
+        targetLang,
+        controller.signal
       );
+      if (controller.signal.aborted) return;
       setTranslation(translateData);
       addToHistory(translateData, transcribeData.transcription);
       trialCompleted();
     } catch (err) {
-      translationFailed(err);
+      if (!controller.signal.aborted) translationFailed(err);
     } finally {
-      setIsTranscribing(false);
+      operation.current = null;
+      if (!controller.signal.aborted) setIsTranscribing(false);
     }
   }
 
   async function handleFullPipeline() {
-    if (!audioBlob || !checkAccess()) return;
+    if (!audioBlob || !checkAccess() || isRecording) return;
+    const controller = beginOperation();
+    if (!controller) return;
 
     setIsSynthesizing(true);
     setError(null);
@@ -150,31 +189,28 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
     setSynthesizedAudio(null);
 
     try {
-      const data = await translationClient.fullPipeline(audioBlob, sourceLang);
+      const data = await translationClient.fullPipeline(audioBlob, sourceLang, controller.signal);
+      if (controller.signal.aborted) return;
       setTranscription(data.transcription.transcription);
       setTranslation(data.translation);
       setSynthesizedAudio(data.audio ? `data:audio/wav;base64,${data.audio}` : null);
       addToHistory(data.translation, data.transcription.transcription);
       trialCompleted();
     } catch (err) {
-      translationFailed(err);
+      if (!controller.signal.aborted) translationFailed(err);
     } finally {
-      setIsSynthesizing(false);
+      operation.current = null;
+      if (!controller.signal.aborted) setIsSynthesizing(false);
     }
   }
 
   function handleAudioRecorded(blob: Blob) {
     setAudioBlob(blob);
-    // Create a temporary URL for immediate playback
-    if (synthesizedAudio) {
-      URL.revokeObjectURL(synthesizedAudio);
-    }
-    const url = URL.createObjectURL(blob);
-    setSynthesizedAudio(url);
+
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4">
+    <div aria-busy={isBusy} className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4">
       <div className="text-center space-y-3 pb-2">
         <p className="text-xs uppercase tracking-[0.25em] text-red-400">English ↔ Idoma</p>
         <h2 className="font-heading text-3xl sm:text-4xl font-bold text-red-50">Keep the language close.</h2>
@@ -185,15 +221,20 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
         {!isAuthenticated && trialRemaining === false && <button onClick={onRequireAuth} className="rounded-lg border border-red-700 px-4 py-2 text-sm text-red-200 hover:bg-red-950">Sign in / Create account</button>}
         {accessError && <div role="alert" className="text-sm text-red-300">{accessError} <button onClick={() => setAccessAttempt(value => value + 1)} className="underline">Retry</button></div>}
       </div>
+      {(authLoading || (!isAuthenticated && trialRemaining === null && !accessError)) &&
+        <p role="status" className="text-sm text-neutral-300">Connecting to Idlang… The server may take a moment to wake up.</p>}
+      {isBusy && <p role="status" className="text-sm text-neutral-300">{isTranscribing ? "Transcribing and translating your recording…" : isSynthesizing ? "Preparing your spoken translation…" : "Translating your text…"}</p>}
       {/* Mode Selection */}
       <div className="flex gap-2 rounded-lg border border-red-900/30 bg-neutral-950 p-1">
         {[
           { id: "text" as TranslationMode, label: "Text" },
           { id: "speech" as TranslationMode, label: "Speech" },
-          { id: "full" as TranslationMode, label: "Full Pipeline" },
+          { id: "full" as TranslationMode, label: "Voice translation" },
         ].map((m) => (
           <button
             key={m.id}
+            aria-pressed={mode === m.id}
+            disabled={isBusy || isRecording}
             onClick={() => {
               setMode(m.id);
               clearAudio();
@@ -201,7 +242,7 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
             className={`flex-1 rounded-md py-2 text-xs font-semibold uppercase tracking-wider transition-all ${
               mode === m.id
                 ? "bg-red-900 text-red-100 shadow"
-                : "text-red-600 hover:text-red-400"
+                : "text-neutral-300 hover:text-red-400"
             }`}
           >
             {m.label}
@@ -210,15 +251,17 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
       </div>
 
       {/* Direction Toggle */}
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium uppercase tracking-widest text-red-600">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className="text-xs font-medium uppercase tracking-widest text-neutral-300">
           Translation Direction
         </span>
         <button
+          disabled={isBusy || isRecording}
+          aria-label={`Switch direction. Currently ${sourceLang} to ${targetLang}`}
           onClick={() => {
             setDirection(direction === "en-to-id" ? "id-to-en" : "en-to-id");
           }}
-          className="flex items-center gap-2 rounded-lg border border-red-900/30 bg-neutral-950 px-4 py-2 text-xs font-semibold text-red-600 transition-all hover:border-red-600 hover:text-red-400"
+          className="flex items-center gap-2 rounded-lg border border-red-900/30 bg-neutral-950 px-4 py-2 text-xs font-semibold text-neutral-300 transition-all hover:border-red-600 hover:text-red-400"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path
@@ -234,16 +277,20 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
 
       {/* Input Area */}
       <div className="flex flex-col gap-3">
-        <label className="text-xs font-medium uppercase tracking-widest text-red-600">
+        <label htmlFor={mode === "text" ? "translation-input" : undefined} className="text-xs font-medium uppercase tracking-widest text-neutral-300">
           {mode === "text" ? "Input Text" : "Record Audio"}
         </label>
 
         {mode === "text" ? (
           <textarea
+            id="translation-input"
+            aria-describedby="translation-input-help"
+            maxLength={4000}
+            disabled={isBusy}
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey) {
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 handleTranslate();
               }
@@ -254,21 +301,24 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
                 : "Type Idoma text to translate..."
             }
             rows={4}
-            className="w-full resize-none rounded-lg border border-red-900/40 bg-neutral-950 p-4 text-sm leading-relaxed text-red-100 placeholder-red-700/50 outline-none transition-colors focus:border-red-600"
+            className="w-full resize-none rounded-lg border border-red-900/40 bg-neutral-950 p-4 text-sm leading-relaxed text-red-100 placeholder-neutral-400 outline-none transition-colors focus:border-red-600"
           />
         ) : (
           <AudioRecorder
             onAudioRecorded={handleAudioRecorded}
             maxDuration={30}
+            disabled={isBusy}
             className="w-full"
           />
         )}
       </div>
 
+      {mode === "text" && <p id="translation-input-help" className="text-xs text-neutral-400">{inputText.length.toLocaleString()} / 4,000 characters · Enter adds a line; Ctrl/⌘ + Enter translates.</p>}
+
       {/* Record Button (for speech modes) */}
       {mode !== "text" && !audioBlob && (
         <div className="flex items-center justify-center py-2">
-          <p className="text-xs text-red-500/50">
+          <p className="text-xs text-neutral-400">
             Record audio to begin translation
           </p>
         </div>
@@ -278,17 +328,18 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
       {audioBlob && mode !== "text" && (
         <div className="rounded-lg border border-red-900/30 bg-neutral-950 p-4">
           <div className="mb-3 flex items-center justify-between">
-            <span className="text-xs font-medium uppercase tracking-widest text-red-600">
+            <span className="text-xs font-medium uppercase tracking-widest text-neutral-300">
               Recorded Audio
             </span>
             <button
               onClick={clearAudio}
+              disabled={isBusy || isRecording}
               className="text-xs font-semibold text-red-400 hover:text-red-300"
             >
               Clear
             </button>
           </div>
-          <AudioPlayer audioUrl={synthesizedAudio || ""} className="w-full" />
+          <AudioPlayer audioUrl={recordedAudioURL || ""} className="w-full" />
         </div>
       )}
 
@@ -300,7 +351,7 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
         disabled={
           (mode === "text" && !inputText.trim()) ||
           (mode !== "text" && !audioBlob) ||
-          isBusy || authLoading || (!isAuthenticated && trialRemaining === null)
+          isBusy || isRecording || authLoading || (!isAuthenticated && trialRemaining === null)
         }
         className="flex items-center justify-center gap-2 rounded-lg bg-red-900 px-6 py-3 text-sm font-semibold text-red-100 transition-all hover:bg-red-800 disabled:cursor-not-allowed disabled:opacity-40"
       >
@@ -316,14 +367,14 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
         ) : mode === "speech" ? (
           "Transcribe & Translate"
         ) : (
-          "Full Pipeline (STT → NMT → TTS)"
+          "Translate and play audio"
         )}
       </button>
 
       {/* Transcription Display (for speech modes) */}
       {transcription && mode !== "text" && (
         <div className="rounded-lg border border-red-700/30 bg-neutral-950 p-4">
-          <label className="text-xs font-medium uppercase tracking-widest text-red-600">
+          <label className="text-xs font-medium uppercase tracking-widest text-neutral-300">
             Transcription
           </label>
           <p className="mt-2 font-heading text-sm text-red-300">{transcription}</p>
@@ -332,15 +383,15 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
 
       {/* Error Message */}
       {error && (
-        <div className="rounded-lg border border-red-800/50 bg-red-900/20 px-4 py-3 text-sm text-red-300">
+        <div role="alert" className="rounded-lg border border-red-800/50 bg-red-900/20 px-4 py-3 text-sm text-red-300">
           {error}
         </div>
       )}
 
       {/* Result */}
       {translation && (
-        <div className="rounded-lg border border-red-700/30 bg-neutral-950 p-6">
-          <label className="text-xs font-medium uppercase tracking-widest text-red-600">
+        <section aria-label="Translation result" aria-live="polite" className="break-words rounded-lg border border-red-700/30 bg-neutral-950 p-6">
+          <label className="text-xs font-medium uppercase tracking-widest text-neutral-300">
             Translation
           </label>
           {translation.translation === "Missing from Idlang archives." ? (
@@ -348,7 +399,7 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
               <p className="font-heading text-lg font-bold text-red-400/60">
                 Missing from Idlang archives.
               </p>
-              <p className="mt-2 text-xs italic text-red-500/50">
+              <p className="mt-2 text-xs italic text-neutral-400">
                 This word has not yet been documented in the archives.
               </p>
             </div>
@@ -358,7 +409,7 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
             </p>
           )}
           {translation.explanation && !translation.translation.startsWith("Missing") && (
-            <p className="mt-3 border-t border-red-900/20 pt-3 text-xs italic text-red-400/70">
+            <p className="mt-3 border-t border-red-900/20 pt-3 text-xs italic text-neutral-300">
               {translation.explanation}
             </p>
           )}
@@ -379,13 +430,13 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
           {/* Synthesized Audio (for full pipeline) */}
           {synthesizedAudio && mode === "full" && (
             <div className="mt-4 rounded-lg border border-red-900/20 bg-neutral-900 p-4">
-              <label className="text-xs font-medium uppercase tracking-widest text-red-600">
+              <label className="text-xs font-medium uppercase tracking-widest text-neutral-300">
                 Synthesized Speech
               </label>
               <AudioPlayer audioUrl={synthesizedAudio} className="mt-2 w-full" />
             </div>
           )}
-        </div>
+        </section>
       )}
     </div>
   );
