@@ -11,9 +11,11 @@ import (
 )
 
 // Promotion is an operator-only command, never a public registration option.
+// Promotion is an operator-only command, never a public registration option.
 // First create the account normally; then run with the same database environment.
 func runAdminCommand() bool {
 	if len(os.Args) < 2 || os.Args[1] != "promote-admin" {
+
 		return false
 	}
 	if len(os.Args) != 3 {
