@@ -101,6 +101,7 @@ type LearningProfile struct {
 
 type LearningTrack struct {
 	ID          string `json:"id"`
+	LessonID    string `json:"lesson_id"`
 	Step        int    `json:"step"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
@@ -143,6 +144,7 @@ var CurriculumTracks = []LearningTrack{
 		Description: "Learn traditional morning, noon, and evening salutations in Idoma.",
 		XPReward:    200,
 		Category:    "Beginner Foundation",
+		LessonID:    "daily-greetings",
 	},
 	{
 		ID:          "track_2_numbers",
@@ -151,22 +153,25 @@ var CurriculumTracks = []LearningTrack{
 		Description: "Master counting, trade numbers, and cardinal quantities.",
 		XPReward:    250,
 		Category:    "Core Vocabulary",
+		LessonID:    "numbers-1-5",
 	},
 	{
 		ID:          "track_3_idioms",
 		Step:        3,
-		Title:       "3. Proverbial Idioms",
-		Description: "Explore classical Idoma proverbs, figurative sayings, and ancestral wisdom.",
+		Title:       "3. Culture & Heritage Words",
+		Description: "Learn documented Idoma words connected to cultural heritage.",
 		XPReward:    300,
 		Category:    "Intermediate Fluency",
+		LessonID:    "culture-heritage",
 	},
 	{
 		ID:          "track_4_folktales",
 		Step:        4,
-		Title:       "4. Cultural Folktales & Ancestry",
-		Description: "Immerse in ancient narrative lore and oral historical heritage of the Alekwu.",
+		Title:       "4. Everyday Phrases",
+		Description: "Practice useful phrases from the Idoma dictionary.",
 		XPReward:    350,
 		Category:    "Advanced Mastery",
+		LessonID:    "everyday-phrases",
 	},
 }
 
@@ -229,12 +234,13 @@ func initializeSchemaWithLedger(database *sql.DB, remote bool) error {
 type migrationFunc func(*sql.DB) error
 
 var migrations = []migrationFunc{
-	baselineSchema,     // v1 — original tables
-	migrateAuth,        // v2 — accounts, sessions, profile fields
-	migrateLibrary,     // v3 — books -> library_items with provenance
-	migrateConnections, // v4 — canonical pair key, one row per pair
-	migrateNativeName,  // v5 — native name for user cultural identity
-	migrateGuestTrials, // v6 — shared guest translation allowance
+	baselineSchema,         // v1 — original tables
+	migrateAuth,            // v2 — accounts, sessions, profile fields
+	migrateLibrary,         // v3 — books -> library_items with provenance
+	migrateConnections,     // v4 — canonical pair key, one row per pair
+	migrateNativeName,      // v5 — native name for user cultural identity
+	migrateGuestTrials,     // v6 — shared guest translation allowance
+	migrateLearningAndFeed, // v7 — earned practice, review, saves and feed engagement
 }
 
 func runMigrations(database *sql.DB) error {
@@ -1047,4 +1053,61 @@ func migrateGuestTrials(database *sql.DB) error {
  used_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
  )`)
 	return err
+}
+
+func migrateLearningAndFeed(database *sql.DB) error {
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS learning_activity (
+			user_id TEXT NOT NULL,
+			activity_date TEXT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY(user_id, activity_date),
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		)`,
+		`CREATE TABLE IF NOT EXISTS review_items (
+			user_id TEXT NOT NULL,
+			lesson_id TEXT NOT NULL,
+			question_id TEXT NOT NULL,
+			prompt TEXT NOT NULL,
+			answer TEXT NOT NULL,
+			example TEXT NOT NULL DEFAULT '',
+			added_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			reviewed_at DATETIME,
+			PRIMARY KEY(user_id, lesson_id, question_id),
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		)`,
+		`CREATE TABLE IF NOT EXISTS saved_items (
+			user_id TEXT NOT NULL,
+			item_type TEXT NOT NULL CHECK(item_type IN ('translation', 'post')),
+			item_id TEXT NOT NULL,
+			title TEXT NOT NULL DEFAULT '',
+			body TEXT NOT NULL DEFAULT '',
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY(user_id, item_type, item_id),
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		)`,
+		`CREATE TABLE IF NOT EXISTS post_likes (
+			post_id TEXT NOT NULL,
+			user_id TEXT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY(post_id, user_id),
+			FOREIGN KEY(post_id) REFERENCES posts(id) ON DELETE CASCADE,
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		)`,
+		`CREATE TABLE IF NOT EXISTS post_comments (
+			id TEXT PRIMARY KEY,
+			post_id TEXT NOT NULL,
+			user_id TEXT NOT NULL,
+			body TEXT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(post_id) REFERENCES posts(id) ON DELETE CASCADE,
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		)`,
+	}
+	for _, statement := range statements {
+		if _, err := database.Exec(statement); err != nil {
+			return err
+		}
+	}
+	return addColumnIfMissing(database, "posts", "tags", "ALTER TABLE posts ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
 }

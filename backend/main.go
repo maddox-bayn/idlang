@@ -236,7 +236,15 @@ func main() {
 			methodNotAllowed(w, "GET, POST")
 		}
 	}))
-	mux.HandleFunc("/api/posts/", requireAuth(handleDeletePost))
+	mux.HandleFunc("/api/posts/", requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/posts/"), "/"), "/") {
+			handlePostEngagement(w, r)
+			return
+		}
+		handleDeletePost(w, r)
+	}))
+	mux.HandleFunc("/api/feed/prompt", requireAuth(handleFeedPrompt))
+	mux.HandleFunc("/api/saved", requireAuth(handleSavedItems))
 	mux.HandleFunc("/api/connections", requireAuth(handleConnections))
 	mux.HandleFunc("/api/messages", withUser(handleMessages))
 	mux.HandleFunc("/api/messages/read", withUser(handleMarkMessagesRead))
@@ -244,6 +252,8 @@ func main() {
 	// --- Learning ---
 	mux.HandleFunc("/api/learning/tracks", requireAuth(handleGetLearningTracks))
 	mux.HandleFunc("/api/learning/complete-track", requireAuth(handleCompleteLearningTrack))
+	mux.HandleFunc("/api/learning/daily", requireAuth(handleGetDailyPractice))
+	mux.HandleFunc("/api/learning/practice", requireAuth(handleCompleteDailyPractice))
 
 	// --- E-Library. Files are streamed through a handler, never a static
 	// FileServer, so type, disposition and visibility are controlled. ---

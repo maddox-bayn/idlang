@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -20,12 +21,25 @@ import (
 // --- Timeline Engine ---
 
 type PostResponse struct {
+	ID           string    `json:"id"`
+	UserID       string    `json:"user_id"`
+	Author       *User     `json:"author"`
+	Content      string    `json:"content"`
+	MediaType    string    `json:"media_type"`
+	MediaURL     string    `json:"media_url"`
+	Tags         []string  `json:"tags"`
+	LikeCount    int       `json:"like_count"`
+	Liked        bool      `json:"liked"`
+	CommentCount int       `json:"comment_count"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+type PostComment struct {
 	ID        string    `json:"id"`
+	PostID    string    `json:"post_id"`
 	UserID    string    `json:"user_id"`
-	Author    *User     `json:"author"`
-	Content   string    `json:"content"`
-	MediaType string    `json:"media_type"`
-	MediaURL  string    `json:"media_url"`
+	Author    string    `json:"author"`
+	Body      string    `json:"body"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -52,21 +66,32 @@ func handleGetPosts(w http.ResponseWriter, r *http.Request) {
 	}
 	offset := (page - 1) * limit
 
+	viewer := currentUser(r)
+	viewerID := ""
+	if viewer != nil {
+		viewerID = viewer.ID
+	}
+	topic := normalizePostTopic(r.URL.Query().Get("topic"))
+	topicPattern := "%\"" + topic + "\"%"
 	var total int
-	if err := db.QueryRow("SELECT COUNT(*) FROM posts").Scan(&total); err != nil {
+	if err := db.QueryRow(`SELECT COUNT(*) FROM posts WHERE (? = '' OR tags LIKE ?)`, topic, topicPattern).Scan(&total); err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not load the feed.")
 		return
 	}
 
 	rows, err := db.Query(`
-		SELECT p.id, p.user_id, p.content, p.media_type, p.media_url, p.created_at,
+		SELECT p.id, p.user_id, p.content, p.media_type, p.media_url, p.created_at, COALESCE(p.tags, '[]'),
+		       (SELECT COUNT(*) FROM post_likes l WHERE l.post_id=p.id),
+	       EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.user_id=?),
+	       (SELECT COUNT(*) FROM post_comments c WHERE c.post_id=p.id),
 		       u.id, u.username, u.display_name, u.native_name, u.avatar_url, u.bio, u.dialect,
 		       u.native_speaker, u.role
 		FROM posts p
 		LEFT JOIN users u ON p.user_id = u.id
+		WHERE (? = '' OR p.tags LIKE ?)
 		ORDER BY p.created_at DESC
 		LIMIT ? OFFSET ?
-	`, limit, offset)
+	`, viewerID, topic, topicPattern, limit, offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not load the feed.")
 		return
@@ -80,14 +105,20 @@ func handleGetPosts(w http.ResponseWriter, r *http.Request) {
 			u          User
 			createdStr sql.NullString
 			authorID   sql.NullString
+			tagsJSON   string
 		)
 		err := rows.Scan(
-			&p.ID, &p.UserID, &p.Content, &p.MediaType, &p.MediaURL, &createdStr,
+			&p.ID, &p.UserID, &p.Content, &p.MediaType, &p.MediaURL, &createdStr, &tagsJSON,
+			&p.LikeCount, &p.Liked, &p.CommentCount,
 			&authorID, &u.Username, &u.DisplayName, &u.NativeName, &u.AvatarURL, &u.Bio, &u.Dialect,
 			&u.NativeSpeaker, &u.Role,
 		)
 		if err != nil {
 			continue
+		}
+		_ = json.Unmarshal([]byte(tagsJSON), &p.Tags)
+		if p.Tags == nil {
+			p.Tags = []string{}
 		}
 		if authorID.Valid {
 			u.ID = authorID.String
@@ -109,9 +140,10 @@ func handleCreatePost(w http.ResponseWriter, r *http.Request) {
 	author := currentUser(r)
 
 	var content, mediaType, mediaURL string
+	var tags []string
 
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
-		r.Body = http.MaxBytesReader(w, r.Body, 25<<20)
+		r.Body = http.MaxBytesReader(w, r.Body, maxLibraryUpload+(1<<20))
 		if err := r.ParseMultipartForm(4 << 20); err != nil {
 			writeError(w, http.StatusBadRequest, "Could not read that upload.")
 			return
@@ -119,6 +151,9 @@ func handleCreatePost(w http.ResponseWriter, r *http.Request) {
 		content = r.FormValue("content")
 		mediaType = r.FormValue("media_type")
 		mediaURL = r.FormValue("media_url")
+		if raw := r.FormValue("tags"); raw != "" {
+			_ = json.Unmarshal([]byte(raw), &tags)
+		}
 
 		file, header, err := r.FormFile("media_file")
 		if err == nil && file != nil {
@@ -132,9 +167,10 @@ func handleCreatePost(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		var req struct {
-			Content   string `json:"content"`
-			MediaType string `json:"media_type"`
-			MediaURL  string `json:"media_url"`
+			Content   string   `json:"content"`
+			MediaType string   `json:"media_type"`
+			MediaURL  string   `json:"media_url"`
+			Tags      []string `json:"tags"`
 		}
 		if err := decodeJSON(w, r, &req, 32<<10); err != nil {
 			writeError(w, http.StatusBadRequest, "Invalid JSON body.")
@@ -143,6 +179,7 @@ func handleCreatePost(w http.ResponseWriter, r *http.Request) {
 		content = req.Content
 		mediaType = req.MediaType
 		mediaURL = req.MediaURL
+		tags = req.Tags
 	}
 	if author == nil {
 		writeError(w, http.StatusUnauthorized, "Sign in to post.")
@@ -174,13 +211,15 @@ func handleCreatePost(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "media_url must be an http(s) URL or an uploaded file.")
 		return
 	}
+	tags = sanitizePostTags(tags)
+	tagsJSON, _ := json.Marshal(tags)
 
 	postID := uuid.New().String()
 	now := time.Now()
 	if _, err := db.Exec(`
-		INSERT INTO posts (id, user_id, content, media_type, media_url, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, postID, author.ID, content, mediaType, mediaURL, now); err != nil {
+		INSERT INTO posts (id, user_id, content, media_type, media_url, created_at, tags)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, postID, author.ID, content, mediaType, mediaURL, now, string(tagsJSON)); err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not save that post.")
 		return
 	}
@@ -192,6 +231,7 @@ func handleCreatePost(w http.ResponseWriter, r *http.Request) {
 		Content:   content,
 		MediaType: mediaType,
 		MediaURL:  mediaURL,
+		Tags:      tags,
 		CreatedAt: now,
 	})
 }
@@ -225,6 +265,224 @@ func handleDeletePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+var postTopics = map[string]bool{"greetings": true, "dialects": true, "proverbs": true, "music": true, "oral-history": true, "culture": true}
+
+func normalizePostTopic(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if postTopics[value] {
+		return value
+	}
+	return ""
+}
+
+func sanitizePostTags(values []string) []string {
+	seen := make(map[string]bool)
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		tag := normalizePostTopic(value)
+		if tag != "" && !seen[tag] {
+			seen[tag] = true
+			result = append(result, tag)
+		}
+	}
+	if len(result) > 3 {
+		result = result[:3]
+	}
+	return result
+}
+
+func handlePostEngagement(w http.ResponseWriter, r *http.Request) {
+	path := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/posts/"), "/")
+	parts := strings.Split(path, "/")
+	if len(parts) != 2 || parts[0] == "" {
+		writeError(w, http.StatusNotFound, "Not found.")
+		return
+	}
+	postID := parts[0]
+	switch parts[1] {
+	case "likes":
+		if r.Method != http.MethodPost {
+			methodNotAllowed(w, http.MethodPost)
+			return
+		}
+		var req struct {
+			Liked bool `json:"liked"`
+		}
+		if err := decodeJSON(w, r, &req, 4<<10); err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid like request.")
+			return
+		}
+		user := currentUser(r)
+		var postExists int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM posts WHERE id=?`, postID).Scan(&postExists); err != nil || postExists == 0 {
+			writeError(w, http.StatusNotFound, "Post not found.")
+			return
+		}
+		if req.Liked {
+			_, err := db.Exec(`INSERT INTO post_likes(post_id,user_id) SELECT id, ? FROM posts WHERE id=? ON CONFLICT(post_id,user_id) DO NOTHING`, user.ID, postID)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "Could not like this post.")
+				return
+			}
+		} else if _, err := db.Exec(`DELETE FROM post_likes WHERE post_id=? AND user_id=?`, postID, user.ID); err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not update your reaction.")
+			return
+		}
+		var count int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM post_likes WHERE post_id=?`, postID).Scan(&count); err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not load reactions.")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"liked": req.Liked, "like_count": count})
+	case "comments":
+		switch r.Method {
+		case http.MethodGet:
+			rows, err := db.Query(`SELECT c.id,c.post_id,c.user_id,u.display_name,c.body,c.created_at FROM post_comments c JOIN users u ON u.id=c.user_id WHERE c.post_id=? ORDER BY c.created_at ASC LIMIT 100`, postID)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "Could not load comments.")
+				return
+			}
+			defer rows.Close()
+			comments := make([]PostComment, 0)
+			for rows.Next() {
+				var c PostComment
+				var created string
+				if err := rows.Scan(&c.ID, &c.PostID, &c.UserID, &c.Author, &c.Body, &created); err != nil {
+					continue
+				}
+				c.CreatedAt = parseDBTime(created)
+				comments = append(comments, c)
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"comments": comments})
+		case http.MethodPost:
+			var req struct {
+				Body string `json:"body"`
+			}
+			if err := decodeJSON(w, r, &req, 8<<10); err != nil {
+				writeError(w, http.StatusBadRequest, "Invalid comment.")
+				return
+			}
+			body := strings.TrimSpace(req.Body)
+			if body == "" || len(body) > 1000 {
+				writeError(w, http.StatusBadRequest, "Comments must be between 1 and 1000 characters.")
+				return
+			}
+			user := currentUser(r)
+			if !allowRate(w, r, "comment:"+user.ID, 100, time.Hour) {
+				return
+			}
+			id := uuid.New().String()
+			result, err := db.Exec(`INSERT INTO post_comments(id,post_id,user_id,body) SELECT ?,id,?,? FROM posts WHERE id=?`, id, user.ID, body, postID)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "Could not add comment.")
+				return
+			}
+			if changed, _ := result.RowsAffected(); changed == 0 {
+				writeError(w, http.StatusNotFound, "Post not found.")
+				return
+			}
+			writeJSON(w, http.StatusCreated, map[string]any{"comment": PostComment{ID: id, PostID: postID, UserID: user.ID, Author: user.DisplayName, Body: body, CreatedAt: time.Now()}})
+		default:
+			methodNotAllowed(w, "GET, POST")
+		}
+	default:
+		writeError(w, http.StatusNotFound, "Not found.")
+	}
+}
+
+func handleFeedPrompt(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w, http.MethodGet)
+		return
+	}
+	prompts := []string{
+		"Share a greeting elders use in your community.",
+		"What Idoma word or phrase do you want the next generation to remember?",
+		"Share a song, proverb, or story and tell us where you learned it.",
+		"How does your family preserve an oral history?",
+	}
+	day := time.Now().UTC().YearDay()
+	writeJSON(w, http.StatusOK, map[string]string{"prompt": prompts[(day-1)%len(prompts)]})
+}
+
+type SavedItem struct {
+	Type      string    `json:"item_type"`
+	ID        string    `json:"item_id"`
+	Title     string    `json:"title"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func handleSavedItems(w http.ResponseWriter, r *http.Request) {
+	user := currentUser(r)
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "Sign in to manage saved items.")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		rows, err := db.Query(`SELECT item_type,item_id,title,body,created_at FROM saved_items WHERE user_id=? ORDER BY created_at DESC LIMIT 200`, user.ID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not load saved items.")
+			return
+		}
+		defer rows.Close()
+		items := make([]SavedItem, 0)
+		for rows.Next() {
+			var item SavedItem
+			var created string
+			if err := rows.Scan(&item.Type, &item.ID, &item.Title, &item.Body, &created); err != nil {
+				continue
+			}
+			item.CreatedAt = parseDBTime(created)
+			items = append(items, item)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	case http.MethodPost:
+		var item SavedItem
+		if err := decodeJSON(w, r, &item, 64<<10); err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid saved item.")
+			return
+		}
+		item.Type = strings.TrimSpace(item.Type)
+		item.ID = strings.TrimSpace(item.ID)
+		item.Title = strings.TrimSpace(item.Title)
+		item.Body = strings.TrimSpace(item.Body)
+		if (item.Type != "translation" && item.Type != "post") || item.ID == "" || len(item.ID) > 200 || len(item.Title) > 300 || len(item.Body) > 32<<10 {
+			writeError(w, http.StatusBadRequest, "Saved item is invalid or too large.")
+			return
+		}
+		if item.Type == "post" {
+			var exists int
+			if err := db.QueryRow(`SELECT COUNT(*) FROM posts WHERE id=?`, item.ID).Scan(&exists); err != nil || exists == 0 {
+				writeError(w, http.StatusNotFound, "Post not found.")
+				return
+			}
+		}
+		_, err := db.Exec(`INSERT INTO saved_items(user_id,item_type,item_id,title,body) VALUES (?,?,?,?,?) ON CONFLICT(user_id,item_type,item_id) DO UPDATE SET title=excluded.title,body=excluded.body`, user.ID, item.Type, item.ID, item.Title, item.Body)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not save this item.")
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"saved": true})
+	case http.MethodDelete:
+		kind := r.URL.Query().Get("item_type")
+		id := r.URL.Query().Get("item_id")
+		if kind != "translation" && kind != "post" {
+			writeError(w, http.StatusBadRequest, "Invalid saved item type.")
+			return
+		}
+		_, err := db.Exec(`DELETE FROM saved_items WHERE user_id=? AND item_type=? AND item_id=?`, user.ID, kind, id)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not remove saved item.")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"saved": false})
+	default:
+		methodNotAllowed(w, "GET, POST, DELETE")
+	}
 }
 
 // --- Profile Engine Routing ---
@@ -831,7 +1089,15 @@ func handleMarkMessagesRead(w http.ResponseWriter, r *http.Request) {
 // --- Gamified Learning Tracks API ---
 
 type CompleteTrackRequest struct {
-	TrackID string `json:"track_id"`
+	TrackID string            `json:"track_id"`
+	Answers map[string]string `json:"answers"`
+}
+
+var curriculumAnswerKeys = map[string]map[string]string{
+	"track_1_greetings": {"good-morning": "Nmaochi", "good-night": "Nmoo Gb'ochi", "goodbye": "Nmoo", "thank-you": "Ófé", "welcome": "Ainya Owa"},
+	"track_2_numbers":   {"one": "òyé", "two": "èpà", "three": "ɛ́mā", "four": "ɛ́lɛ̄", "five": "ɛ́hɔ̄"},
+	"track_3_idioms":    {"ancestors": "Alekwu", "tradition": "Ogwuchekwo", "masquerade": "Ekwu", "sacred": "Iho", "oracle": "Obochi"},
+	"track_4_folktales": {"please": "K'ocho", "hello": "Ówúrú", "yes": "Éhò", "no": "Kú", "sit-down": "Chíchẽ àjè"},
 }
 
 type CompleteTrackResponse struct {
@@ -913,7 +1179,6 @@ func handleCompleteLearningTrack(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "track_id is required.")
 		return
 	}
-
 	targetIndex := -1
 	for i := range CurriculumTracks {
 		if CurriculumTracks[i].ID == req.TrackID {
@@ -938,7 +1203,23 @@ func handleCompleteLearningTrack(w http.ResponseWriter, r *http.Request) {
 		completedMap[id] = true
 	}
 
-	// CORE RULE 3: Lazy Module Progression.
+	answerKey, hasAnswerKey := curriculumAnswerKeys[req.TrackID]
+	if !hasAnswerKey || len(req.Answers) != len(answerKey) {
+		writeError(w, http.StatusUnprocessableEntity, "Submit all answers for the linked lesson.")
+		return
+	}
+	correct := 0
+	for questionID, expected := range answerKey {
+		if strings.EqualFold(strings.TrimSpace(req.Answers[questionID]), expected) {
+			correct++
+		}
+	}
+	if correct*100/len(answerKey) < 80 {
+		writeError(w, http.StatusUnprocessableEntity, "Score at least 80% to pass this lesson and earn track XP.")
+		return
+	}
+
+	// CORE RULE 3: Linear progression is only advanced after the linked lesson passes.
 	for i := 0; i < targetIndex; i++ {
 		if !completedMap[CurriculumTracks[i].ID] {
 			writeJSON(w, http.StatusBadRequest, map[string]any{
@@ -982,6 +1263,151 @@ func handleCompleteLearningTrack(w http.ResponseWriter, r *http.Request) {
 		NewTier:         profile.FluencyTier,
 		Tracks:          tracksWithStatus(profile.CompletedTracks),
 	})
+}
+
+type DailyPracticeResponse struct {
+	Date      string `json:"date"`
+	Category  string `json:"category"`
+	Prompt    string `json:"prompt"`
+	Answer    string `json:"answer"`
+	Example   string `json:"example,omitempty"`
+	Completed bool   `json:"completed"`
+	Streak    int    `json:"streak"`
+}
+
+func handleGetDailyPractice(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w, http.MethodGet)
+		return
+	}
+	user := currentUser(r)
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "Sign in to practice.")
+		return
+	}
+	date := time.Now().UTC().Format("2006-01-02")
+	english, entry, ok := dailyPracticeEntry(date)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "Daily practice content is unavailable.")
+		return
+	}
+	completed, err := dailyPracticeDone(user.ID, date)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not load daily practice.")
+		return
+	}
+	streak, err := learningStreak(user.ID, date)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not load your practice streak.")
+		return
+	}
+	writeJSON(w, http.StatusOK, DailyPracticeResponse{Date: date, Category: "Greetings", Prompt: english, Answer: entry.Idoma, Example: entry.Example, Completed: completed, Streak: streak})
+}
+
+func handleCompleteDailyPractice(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w, http.MethodPost)
+		return
+	}
+	user := currentUser(r)
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "Sign in to record practice.")
+		return
+	}
+	var req struct {
+		Date   string `json:"date"`
+		Answer string `json:"answer"`
+	}
+	if err := decodeJSON(w, r, &req, 4<<10); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid practice request.")
+		return
+	}
+	date := time.Now().UTC().Format("2006-01-02")
+	if req.Date != date {
+		writeError(w, http.StatusConflict, "This daily practice has expired. Load today's practice and try again.")
+		return
+	}
+	_, expected, ok := dailyPracticeEntry(date)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "Daily practice content is unavailable.")
+		return
+	}
+	if !strings.EqualFold(strings.TrimSpace(req.Answer), strings.TrimSpace(expected.Idoma)) {
+		writeError(w, http.StatusUnprocessableEntity, "Answer today's prompt correctly before recording practice.")
+		return
+	}
+	_, err := db.Exec(`INSERT INTO learning_activity(user_id, activity_date) VALUES (?, ?) ON CONFLICT(user_id, activity_date) DO NOTHING`, user.ID, date)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not save your practice.")
+		return
+	}
+	streak, err := learningStreak(user.ID, date)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not update your streak.")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"completed": true, "streak": streak})
+}
+
+func dailyPracticeEntry(date string) (string, WordEntry, bool) {
+	entries := make([]string, 0, len(dict["greetings"]))
+	for english, entry := range dict["greetings"] {
+		if strings.TrimSpace(entry.Idoma) != "" {
+			entries = append(entries, english)
+		}
+	}
+	if len(entries) == 0 {
+		return "", WordEntry{}, false
+	}
+	sort.Strings(entries)
+	day, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return "", WordEntry{}, false
+	}
+	english := entries[(day.YearDay()-1)%len(entries)]
+	return english, dict["greetings"][english], true
+}
+
+func dailyPracticeDone(userID, date string) (bool, error) {
+	var count int
+	err := db.QueryRow(`SELECT COUNT(*) FROM learning_activity WHERE user_id=? AND activity_date=?`, userID, date).Scan(&count)
+	return count > 0, err
+}
+
+func learningStreak(userID, date string) (int, error) {
+	rows, err := db.Query(`SELECT activity_date FROM learning_activity WHERE user_id=? AND activity_date<=? ORDER BY activity_date DESC LIMIT 400`, userID, date)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	expected, _ := time.Parse("2006-01-02", date)
+	doneToday, err := dailyPracticeDone(userID, date)
+	if err != nil {
+		return 0, err
+	}
+	if !doneToday {
+		expected = expected.AddDate(0, 0, -1)
+	}
+	streak := 0
+	for rows.Next() {
+		var value string
+		if err := rows.Scan(&value); err != nil {
+			return 0, err
+		}
+		activity, err := time.Parse("2006-01-02", value)
+		if err != nil {
+			continue
+		}
+		if activity.Equal(expected) {
+			streak++
+			expected = expected.AddDate(0, 0, -1)
+			continue
+		}
+		if activity.Before(expected) {
+			break
+		}
+	}
+	return streak, rows.Err()
 }
 
 // --- Media helpers ----------------------------------------------------------

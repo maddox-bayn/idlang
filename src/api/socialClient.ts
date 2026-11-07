@@ -1,6 +1,8 @@
 import { fetchResponse } from "./request";
 import type {
   Post,
+  PostComment,
+  SavedItem,
   User,
   ProfileResponse,
   DirectMessage,
@@ -10,7 +12,6 @@ import type {
   ConnectionsResponse,
 } from "../types";
 import {
-  mockBooks,
   mockCurriculumTracks,
 } from "../data/mockData";
 
@@ -58,7 +59,6 @@ async function requestJSON<T>(path: string, init: RequestInit = {}): Promise<T> 
   return data;
 }
 
-const fallbackBooks = [...mockBooks];
 const fallbackTracks = [...mockCurriculumTracks];
 
 // Custom error for auth actions
@@ -226,8 +226,10 @@ export async function searchRealUsers(query: string): Promise<User[]> {
   return data.users || [];
 }
 
-export async function fetchPosts(page = 1, limit = 10): Promise<{ posts: Post[]; total: number }> {
-  const res = await fetchResponse(`${API_BASE}/api/posts?page=${page}&limit=${limit}`, {
+export async function fetchPosts(page = 1, limit = 10, topic = ""): Promise<{ posts: Post[]; total: number }> {
+  const query = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (topic) query.set("topic", topic);
+  const res = await fetchResponse(`${API_BASE}/api/posts?${query}`, {
     credentials: "include",
   });
   const data = await readJSON(res).catch(() => {
@@ -252,23 +254,62 @@ export async function createPost(post: {
   media_type: string;
   media_url?: string;
   media_file?: File;
+  tags?: string[];
 }): Promise<Post> {
   if (post.media_file) {
     const form = new FormData();
     form.append("content", post.content);
     form.append("media_type", post.media_type);
+    if (post.tags?.length) form.append("tags", JSON.stringify(post.tags));
     if (post.media_url) form.append("media_url", post.media_url);
     form.append("media_file", post.media_file);
     return requestJSON("/api/posts", { method: "POST", body: form });
   }
   return requestJSON("/api/posts", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content: post.content, media_type: post.media_type, media_url: post.media_url }),
+    body: JSON.stringify({ content: post.content, media_type: post.media_type, media_url: post.media_url, tags: post.tags || [] }),
   });
 }
 
 export async function deletePost(postId: string): Promise<void> {
   await requestJSON(`/api/posts/${encodeURIComponent(postId)}`, { method: "DELETE" });
+}
+
+export async function setPostLike(postId: string, liked: boolean): Promise<{ liked: boolean; like_count: number }> {
+  return requestJSON(`/api/posts/${encodeURIComponent(postId)}/likes`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ liked }),
+  });
+}
+
+export async function fetchPostComments(postId: string): Promise<PostComment[]> {
+  const data = await requestJSON<{ comments: PostComment[] }>(`/api/posts/${encodeURIComponent(postId)}/comments`);
+  return data.comments || [];
+}
+
+export async function addPostComment(postId: string, body: string): Promise<PostComment> {
+  const data = await requestJSON<{ comment: PostComment }>(`/api/posts/${encodeURIComponent(postId)}/comments`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body }),
+  });
+  return data.comment;
+}
+
+export async function fetchFeedPrompt(): Promise<string> {
+  const data = await requestJSON<{ prompt: string }>("/api/feed/prompt");
+  return data.prompt;
+}
+
+export async function fetchSavedItems(): Promise<SavedItem[]> {
+  const data = await requestJSON<{ items: SavedItem[] }>("/api/saved");
+  return data.items || [];
+}
+
+export async function saveItem(item: Omit<SavedItem, "created_at">): Promise<void> {
+  await requestJSON("/api/saved", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(item) });
+}
+
+export async function unsaveItem(type: SavedItem["item_type"], id: string): Promise<void> {
+  const query = new URLSearchParams({ item_type: type, item_id: id });
+  await requestJSON(`/api/saved?${query}`, { method: "DELETE" });
 }
 
 export async function fetchProfile(targetId: string, _viewerId: string): Promise<ProfileResponse> {
@@ -286,18 +327,13 @@ export async function sendMessage(_senderId: string, receiverId: string, body: s
   });
 }
 
-export async function fetchBooks(): Promise<Book[]> {
-  try {
-    const res = await fetchResponse(`${API_BASE}/api/library`, { credentials: "include" });
-    if (res.ok) {
-      const data = await readJSON(res);
-      if (Array.isArray(data)) return data;
-      if (Array.isArray(data.items)) return data.items;
-    }
-  } catch (err) {
-    console.warn("Backend library unavailable, using fallback:", err);
-  }
-  return fallbackBooks;
+export async function fetchBooks(query = "", kind = ""): Promise<Book[]> {
+  const params = new URLSearchParams();
+  if (query.trim()) params.set("q", query.trim());
+  if (kind) params.set("kind", kind);
+  const suffix = params.size ? `?${params}` : "";
+  const data = await requestJSON<{ items?: Book[] }>(`/api/library${suffix}`);
+  return data.items || [];
 }
 
 export async function createBook(book: {
@@ -370,13 +406,14 @@ export async function fetchLearningTracks(userId: string): Promise<{ profile: Le
 }
 
 export async function completeLearningTrack(
-  trackId: string
+  trackId: string,
+  answers: Record<string, string>,
 ): Promise<{ success: boolean; message: string; learning_profile: LearningProfile; tracks: LearningTrack[] }> {
   const res = await fetchResponse(`${API_BASE}/api/learning/complete-track`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ track_id: trackId }),
+    body: JSON.stringify({ track_id: trackId, answers }),
   });
 
   if (!res.ok) {
@@ -385,6 +422,27 @@ export async function completeLearningTrack(
   }
 
   return await readJSON(res);
+}
+
+export interface DailyPractice {
+  date: string;
+  category: string;
+  prompt: string;
+  answer: string;
+  example?: string;
+  completed: boolean;
+  streak: number;
+}
+
+export function fetchDailyPractice(): Promise<DailyPractice> {
+  return requestJSON("/api/learning/daily");
+}
+
+export function completeDailyPractice(date: string, answer: string): Promise<{ completed: boolean; streak: number }> {
+  return requestJSON("/api/learning/practice", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ date, answer }),
+  });
 }
 
 export async function fetchUsers(): Promise<User[]> {

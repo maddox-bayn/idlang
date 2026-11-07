@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import type { LearningTrack, LearningProfile, User } from "../types";
-import { fetchLearningTracks, completeLearningTrack } from "../api/socialClient";
+import { fetchLearningTracks } from "../api/socialClient";
 
 interface LearningDashboardProps {
   currentUser: User;
@@ -14,7 +14,6 @@ export default function LearningDashboard({
   const [profile, setProfile] = useState<LearningProfile | null>(null);
   const [tracks, setTracks] = useState<LearningTrack[]>([]);
   const [loading, setLoading] = useState(true);
-  const [completingId, setCompletingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<{ message: string; isError?: boolean } | null>(null);
 
   const loadData = async () => {
@@ -36,39 +35,6 @@ export default function LearningDashboard({
   useEffect(() => {
     loadData();
   }, [currentUser.id]);
-
-  const handleCompleteTrack = async (track: LearningTrack) => {
-    if (track.status === "completed") {
-      setFeedback({ message: `Track '${track.title}' is already mastered! Keep reviewing.` });
-      return;
-    }
-
-    if (track.status === "locked") {
-      setFeedback({
-        message: `Lazy Progression Locked: You must complete prior tracks before unlocking '${track.title}'.`,
-        isError: true,
-      });
-      return;
-    }
-
-    setCompletingId(track.id);
-    setFeedback(null);
-    try {
-      const res = await completeLearningTrack(track.id);
-      setProfile(res.learning_profile);
-      setTracks(res.tracks);
-      setFeedback({
-        message: res.message || `Mastered ${track.title}! (+${track.xp_reward} XP)`,
-      });
-    } catch (err: unknown) {
-      setFeedback({
-        message: err instanceof Error ? err.message : "Failed to complete track due to progression rules",
-        isError: true,
-      });
-    } finally {
-      setCompletingId(null);
-    }
-  };
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 space-y-6">
@@ -97,7 +63,7 @@ export default function LearningDashboard({
               Progress Tracker
             </span>
             <p className="font-mono text-xl font-bold text-red-300">
-              ({profile?.xp_points || 0} / 1000 XP)
+              {profile?.xp_points || 0} XP earned
             </p>
           </div>
         </div>
@@ -112,9 +78,7 @@ export default function LearningDashboard({
           <div className="h-3 w-full overflow-hidden rounded-full bg-neutral-900 border border-red-950">
             <div
               className="h-full bg-gradient-to-r from-red-800 via-red-600 to-red-500 transition-all duration-700 rounded-full"
-              style={{
-                width: `${Math.min(100, ((profile?.xp_points || 0) / 1000) * 100)}%`,
-              }}
+              style={{ width: `${Math.min(100, ((profile?.xp_points || 0) / 800) * 100)}%` }}
             />
           </div>
         </div>
@@ -146,7 +110,7 @@ export default function LearningDashboard({
             Completed Track Milestones
           </h3>
           <span className="text-[11px] text-neutral-500">
-            Strict Lazy Linear Progression
+            Pass each lesson to unlock the next topic
           </span>
         </div>
 
@@ -213,28 +177,15 @@ export default function LearningDashboard({
                       <div className="flex items-center gap-2">
                         {onLaunchLesson && (
                           <button
-                            onClick={() => onLaunchLesson("anatomy")}
+                            onClick={() => onLaunchLesson(track.lesson_id)}
                             className="rounded border border-red-800 bg-neutral-900 px-3 py-1.5 text-xs text-red-300 hover:bg-red-900/40"
                           >
-                            Quiz
+                            Start lesson
                           </button>
                         )}
-                        <button
-                          onClick={() => handleCompleteTrack(track)}
-                          disabled={completingId === track.id}
-                          className="rounded-lg bg-red-700 px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-white shadow hover:bg-red-600 active:scale-95 disabled:opacity-50"
-                        >
-                          {completingId === track.id ? "Validating..." : "Complete Milestone"}
-                        </button>
                       </div>
                     ) : (
-                      <button
-                        onClick={() => handleCompleteTrack(track)}
-                        className="rounded border border-neutral-800 bg-neutral-900/60 px-3 py-1.5 text-xs text-neutral-500 cursor-not-allowed"
-                        title="Complete previous track to unlock"
-                      >
-                        Prerequisite Locked
-                      </button>
+                      <span className="rounded border border-neutral-800 bg-neutral-900/60 px-3 py-1.5 text-xs text-neutral-500" title="Pass the previous lesson to unlock">Prerequisite Locked</span>
                     )}
                   </div>
 

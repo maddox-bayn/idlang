@@ -191,6 +191,7 @@ export const mockUsers: import("../types").User[] = [
 export const mockCurriculumTracks: import("../types").LearningTrack[] = [
   {
     id: "track_1_greetings",
+    lesson_id: "daily-greetings",
     step: 1,
     title: "1. Daily Greetings",
     description: "Learn traditional morning, noon, and evening salutations in Idoma.",
@@ -200,6 +201,7 @@ export const mockCurriculumTracks: import("../types").LearningTrack[] = [
   },
   {
     id: "track_2_numbers",
+    lesson_id: "numbers-1-5",
     step: 2,
     title: "2. Numerical Quantifiers",
     description: "Master counting, trade numbers, and cardinal quantities.",
@@ -210,17 +212,19 @@ export const mockCurriculumTracks: import("../types").LearningTrack[] = [
   {
     id: "track_3_idioms",
     step: 3,
-    title: "3. Proverbial Idioms",
-    description: "Explore classical Idoma proverbs, figurative sayings, and ancestral wisdom.",
+    lesson_id: "culture-heritage",
+    title: "3. Culture & Heritage Words",
+    description: "Learn documented Idoma words connected to cultural heritage.",
     xp_reward: 300,
     category: "Intermediate Fluency",
     status: "active",
   },
   {
     id: "track_4_folktales",
+    lesson_id: "everyday-phrases",
     step: 4,
-    title: "4. Cultural Folktales & Ancestry",
-    description: "Immerse in ancient narrative lore and oral historical heritage of the Alekwu.",
+    title: "4. Everyday Phrases",
+    description: "Practice useful phrases from the Idoma dictionary.",
     xp_reward: 350,
     category: "Advanced Mastery",
     status: "locked",

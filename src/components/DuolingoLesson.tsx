@@ -1,20 +1,27 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Lesson, Question } from "../types";
+import { removeReviewItem, saveLessonProgress, saveReviewItem } from "../data/learningProgress";
 
 interface DuolingoLessonProps {
   lesson: Lesson;
   onComplete: () => void;
+  currentUserId?: string;
+  initialIndex?: number;
+  onPass?: (answers: Record<string, string>) => Promise<void>;
 }
 
 type FeedbackState = "idle" | "correct" | "incorrect";
 
-export default function DuolingoLesson({ lesson, onComplete }: DuolingoLessonProps) {
-  const [currentIndex, setCurrentIndex] = useState(0);
+export default function DuolingoLesson({ lesson, onComplete, currentUserId, initialIndex = 0, onPass }: DuolingoLessonProps) {
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState>("idle");
   const [score, setScore] = useState(0);
   const [completed, setCompleted] = useState(false);
   const [shakeKey, setShakeKey] = useState(0);
+  const [awardError, setAwardError] = useState<string | null>(null);
+  const [awarding, setAwarding] = useState(false);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
 
   const currentQuestion: Question | undefined = lesson.questions[currentIndex];
   const progress =
@@ -22,16 +29,25 @@ export default function DuolingoLesson({ lesson, onComplete }: DuolingoLessonPro
       lesson.questions.length) *
     100;
 
+  useEffect(() => {
+    if (currentUserId && lesson.track_id && !completed) saveLessonProgress(currentUserId, { lessonId: lesson.id, questionIndex: currentIndex });
+  }, [currentUserId, lesson.id, lesson.track_id, currentIndex, completed]);
+
   function handleOptionSelect(option: string) {
     if (feedback !== "idle") return;
     setSelectedOption(option);
+    if (currentQuestion) setAnswers((current) => ({ ...current, [currentQuestion.id]: option }));
 
     if (option === currentQuestion?.correctAnswer) {
       setFeedback("correct");
       setScore((s) => s + 1);
+      if (currentUserId && currentQuestion) removeReviewItem(currentUserId, lesson.id, currentQuestion.id);
     } else {
       setFeedback("incorrect");
       setShakeKey((k) => k + 1);
+      if (currentUserId && currentQuestion) saveReviewItem(currentUserId, {
+        lessonId: lesson.id, lessonTitle: lesson.title, question: currentQuestion, missedAt: new Date().toISOString(),
+      });
     }
   }
 
@@ -43,6 +59,14 @@ export default function DuolingoLesson({ lesson, onComplete }: DuolingoLessonPro
     } else {
       setCompleted(true);
     }
+  }
+
+  async function handleClaimXP() {
+    if (!onPass || awarding) { if (!onPass) onComplete(); return; }
+    setAwarding(true); setAwardError(null);
+    try { await onPass(answers); }
+    catch (error) { setAwardError(error instanceof Error ? error.message : "Could not save lesson progress."); }
+    finally { setAwarding(false); }
   }
 
   const getOptionStyle = (option: string) => {
@@ -92,12 +116,21 @@ export default function DuolingoLesson({ lesson, onComplete }: DuolingoLessonPro
             ? "Good. Keep learning our language."
             : "Ekwu wa will guide you. Try again."}
         </p>
-        <button
-          onClick={onComplete}
-          className="mx-auto mt-6 rounded-lg border border-red-800 bg-red-900/30 px-8 py-3 font-semibold text-red-200 transition-colors hover:bg-red-900/60"
-        >
-          Choose another lesson
-        </button>
+        {percentage >= 80 ? (
+          <div className="mt-6 flex flex-col items-center gap-3">
+            {awardError && <p role="alert" className="text-sm text-red-300">{awardError}</p>}
+            <button onClick={() => void handleClaimXP()} disabled={awarding} className="rounded-lg bg-red-800 px-8 py-3 font-semibold text-red-100 hover:bg-red-700 disabled:opacity-50">
+              {awarding ? "Saving progress…" : onPass ? "Pass lesson & earn track XP" : "Finish lesson"}
+            </button>
+            <button onClick={onComplete} className="text-sm text-neutral-400 underline">Back to lessons</button>
+          </div>
+        ) : (
+          <div className="mt-6 flex flex-col items-center gap-3">
+            <p className="text-xs text-neutral-300">Score at least 80% to pass. Missed questions are saved for review.</p>
+          <button onClick={() => { setCurrentIndex(0); setSelectedOption(null); setFeedback("idle"); setScore(0); setAnswers({}); setCompleted(false); setAwardError(null); }} className="rounded-lg border border-red-800 bg-red-900/30 px-8 py-3 font-semibold text-red-200 hover:bg-red-900/60">Try again</button>
+            <button onClick={onComplete} className="text-sm text-neutral-400 underline">Back to lessons</button>
+          </div>
+        )}
       </div>
     );
   }
@@ -191,6 +224,7 @@ export default function DuolingoLesson({ lesson, onComplete }: DuolingoLessonPro
                     {currentQuestion.correctAnswer}
                   </span>
                 </p>
+              {currentQuestion.translation && <p className="mt-1 text-xs text-red-300/80">Example: {currentQuestion.translation}</p>}
               </div>
               <button
                 onClick={handleNext}

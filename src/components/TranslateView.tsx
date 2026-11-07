@@ -3,6 +3,7 @@ import { useTranslationStore } from "../store/useTranslationStore";
 import AudioRecorder from "./AudioRecorder";
 import AudioPlayer from "./AudioPlayer";
 import { translationClient, TranslationAPIError } from "../api/translationClient";
+import { fetchSavedItems, saveItem, unsaveItem } from "../api/socialClient";
 
 type TranslationMode = "text" | "speech" | "full";
 
@@ -18,6 +19,8 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
   const [trialRemaining, setTrialRemaining] = useState<boolean | null>(null);
   const [accessError, setAccessError] = useState<string | null>(null);
   const [accessAttempt, setAccessAttempt] = useState(0);
+  const [isSaved, setIsSaved] = useState(false);
+  const [saveFeedback, setSaveFeedback] = useState<string | null>(null);
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
@@ -86,6 +89,24 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
   } = useTranslationStore();
 
   const isBusy = isTranslating || isTranscribing || isSynthesizing;
+  const savedSourceText = mode === "text" ? inputText : transcription || inputText;
+  const savedTranslationId = translation ? stableTranslationId(savedSourceText, translation.translation) : "";
+
+  useEffect(() => {
+    if (!translation || !isAuthenticated) { setIsSaved(false); return; }
+    fetchSavedItems().then(items => setIsSaved(items.some(item => item.item_type === "translation" && item.item_id === savedTranslationId))).catch(() => setIsSaved(false));
+  }, [translation?.translation, savedTranslationId, isAuthenticated]);
+
+  async function toggleSaveTranslation() {
+    if (!translation || !savedTranslationId) return;
+    try {
+      if (isSaved) await unsaveItem("translation", savedTranslationId);
+      else await saveItem({ item_type: "translation", item_id: savedTranslationId, title: `${sourceLang} → ${targetLang}`, body: `${savedSourceText}\n\n${translation.translation}${translation.explanation ? `\n\n${translation.explanation}` : ""}` });
+      setIsSaved(!isSaved);
+      setSaveFeedback(isSaved ? "Removed from saved review." : "Saved for later review.");
+      window.setTimeout(() => setSaveFeedback(null), 2500);
+    } catch (error) { setSaveFeedback(error instanceof Error ? error.message : "Could not save this translation."); }
+  }
 
   useEffect(() => () => {
     operation.current?.abort();
@@ -391,9 +412,8 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
       {/* Result */}
       {translation && (
         <section aria-label="Translation result" aria-live="polite" className="break-words rounded-lg border border-red-700/30 bg-neutral-950 p-6">
-          <label className="text-xs font-medium uppercase tracking-widest text-neutral-300">
-            Translation
-          </label>
+          <div className="flex items-center justify-between gap-3"><label className="text-xs font-medium uppercase tracking-widest text-neutral-300">Translation</label>{isAuthenticated && <button onClick={() => void toggleSaveTranslation()} aria-pressed={isSaved} className="rounded border border-red-900 px-3 py-1.5 text-xs text-red-200 hover:bg-red-950">{isSaved ? "★ Saved" : "☆ Save for review"}</button>}</div>
+          {saveFeedback && <p role="status" className="mt-2 text-xs text-green-300">{saveFeedback}</p>}
           {translation.translation === "Missing from Idlang archives." ? (
             <div className="mt-2">
               <p className="font-heading text-lg font-bold text-red-400/60">
@@ -440,4 +460,11 @@ export default function TranslateView({ isAuthenticated, authLoading, onRequireA
       )}
     </div>
   );
+}
+
+function stableTranslationId(source: string, result: string): string {
+  const value = `${source.trim()}\u0000${result.trim()}`;
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) hash = Math.imul(hash ^ value.charCodeAt(index), 16777619);
+  return `translation-${(hash >>> 0).toString(16)}`;
 }

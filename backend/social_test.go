@@ -201,9 +201,9 @@ func TestLazyModuleProgression(t *testing.T) {
 	}
 
 	// Try to complete Track 3 (Proverbial Idioms) directly without completing Track 1 & 2
-	skipPayload := map[string]string{
-
+	skipPayload := map[string]any{
 		"track_id": "track_3_idioms",
+		"answers":  curriculumAnswerKeys["track_3_idioms"],
 	}
 	sBody, _ := json.Marshal(skipPayload)
 	sReq := httptest.NewRequest(http.MethodPost, "/api/learning/complete-track", bytes.NewReader(sBody))
@@ -218,9 +218,9 @@ func TestLazyModuleProgression(t *testing.T) {
 	}
 
 	// Now complete Track 1 (Daily Greetings)
-	t1Payload := map[string]string{
-
+	t1Payload := map[string]any{
 		"track_id": "track_1_greetings",
+		"answers":  curriculumAnswerKeys["track_1_greetings"],
 	}
 	t1Body, _ := json.Marshal(t1Payload)
 	t1Req := httptest.NewRequest(http.MethodPost, "/api/learning/complete-track", bytes.NewReader(t1Body))
@@ -251,9 +251,9 @@ func TestLazyModuleProgression(t *testing.T) {
 	}
 
 	// Complete Track 2 (Numerical Quantifiers)
-	t2Payload := map[string]string{
-
+	t2Payload := map[string]any{
 		"track_id": "track_2_numbers",
+		"answers":  curriculumAnswerKeys["track_2_numbers"],
 	}
 	t2Body, _ := json.Marshal(t2Payload)
 	t2Req := httptest.NewRequest(http.MethodPost, "/api/learning/complete-track", bytes.NewReader(t2Body))
