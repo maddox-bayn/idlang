@@ -3,6 +3,7 @@ import TranslateView from "./components/TranslateView";
 const LearnView = lazy(() => import("./components/LearnView"));
 const FeedView = lazy(() => import("./components/FeedView"));
 const LibraryView = lazy(() => import("./components/LibraryView"));
+const MessagesView = lazy(() => import("./components/MessagesView"));
 const ProfileModal = lazy(() => import("./components/ProfileModal"));
 import AuthModal from "./components/AuthModal";
 const ConnectionsModal = lazy(() => import("./components/ConnectionsModal"));
@@ -13,11 +14,11 @@ import {
   fetchConnectionsList,
 } from "./api/socialClient";
 
-type Tab = "feed" | "library" | "learn" | "translate";
+type Tab = "feed" | "library" | "learn" | "messages" | "translate";
 
 function requestedTab(): Tab {
   const view = new URLSearchParams(window.location.search).get("view");
-  return view === "feed" || view === "library" || view === "learn" ? view : "translate";
+  return view === "feed" || view === "library" || view === "learn" || view === "messages" ? view : "translate";
 }
 
 export default function App() {
@@ -159,6 +160,15 @@ export default function App() {
               Learn & Tracks
             </button>
             <button
+              aria-pressed={activeTab === "messages"}
+              onClick={() => selectTab("messages")}
+              className={`rounded-md px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all ${
+                activeTab === "messages" ? "bg-red-900 text-red-100 shadow" : "text-red-500 hover:text-red-300"
+              }`}
+            >
+              Messages
+            </button>
+            <button
               aria-pressed={activeTab === "translate"}
               onClick={() => selectTab("translate")}
               className={`rounded-md px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all ${
@@ -271,6 +281,7 @@ export default function App() {
         {currentUser && activeTab === "feed" && <FeedView currentUser={effectiveUser} />}
         {currentUser && activeTab === "library" && <LibraryView currentUser={effectiveUser} />}
         {currentUser && activeTab === "learn" && <LearnView currentUser={effectiveUser} />}
+        {currentUser && activeTab === "messages" && <MessagesView currentUser={effectiveUser} />}
         {(!currentUser || activeTab === "translate") && <TranslateView isAuthenticated={!!currentUser} authLoading={loadingAuth} onRequireAuth={() => openAuth("login")} />}
         </Suspense>
       </main>

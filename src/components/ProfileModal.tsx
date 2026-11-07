@@ -1,10 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import type { ProfileResponse, DirectMessage } from "../types";
+import type { ProfileResponse } from "../types";
 import {
   fetchProfile,
   updateConnection,
-  fetchMessages,
-  sendMessage,
   updateUserProfile,
   uploadUserAvatar,
 } from "../api/socialClient";
@@ -28,11 +26,6 @@ export default function ProfileModal({
   const [loading, setLoading] = useState(true);
   const [connectionLoading, setConnectionLoading] = useState(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
-  const [messages, setMessages] = useState<DirectMessage[]>([]);
-  const [newMessageText, setNewMessageText] = useState("");
-  const [sendingMessage, setSendingMessage] = useState(false);
-  const [chatError, setChatError] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   // Edit Profile mode state
   const [isEditing, setIsEditing] = useState(false);
@@ -48,16 +41,10 @@ export default function ProfileModal({
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
   const loadData = async () => {
     setLoading(true);
-    setChatError(null);
     setProfileError(null);
     setProfile(null);
-    setMessages([]);
     try {
       const p = await fetchProfile(targetUserId, viewerUserId);
       setProfile(p);
@@ -67,14 +54,6 @@ export default function ProfileModal({
       setEditDialect(p.user.dialect || "Central Otukpo");
       setEditNativeSpeaker(p.user.native_speaker ?? false);
 
-      if (p.connection_status === "connected") {
-        try {
-          const msgs = await fetchMessages(viewerUserId, targetUserId);
-          setMessages(msgs);
-        } catch (err: unknown) {
-          setChatError(err instanceof Error ? err.message : "Failed to load messages");
-        }
-      }
     } catch (err) {
       setProfileError(err instanceof Error ? err.message : "Could not load this profile.");
     } finally {
@@ -98,23 +77,6 @@ export default function ProfileModal({
       setConnectionError(err instanceof Error ? err.message : "Could not update this connection.");
     } finally {
       setConnectionLoading(false);
-    }
-  };
-
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newMessageText.trim() || sendingMessage) return;
-
-    setSendingMessage(true);
-    setChatError(null);
-    try {
-      const sent = await sendMessage(viewerUserId, targetUserId, newMessageText.trim());
-      setMessages((prev) => [...prev, sent]);
-      setNewMessageText("");
-    } catch (err: unknown) {
-      setChatError(err instanceof Error ? err.message : "Failed to send message");
-    } finally {
-      setSendingMessage(false);
     }
   };
 
@@ -551,122 +513,6 @@ export default function ProfileModal({
               </div>
             </div>
 
-            {/* Direct Messaging Pane (Unlocked when Connected Friends) */}
-            {!profile.is_owner && (
-              <div className="rounded-xl border border-red-900/40 bg-neutral-900/50 p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-red-300">
-                    <svg className="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                    </svg>
-                    Direct Messaging Channel
-                  </h4>
-                  {profile.connection_status === "connected" ? (
-                    <span className="rounded bg-green-950 px-2 py-0.5 text-[10px] font-semibold text-green-300 border border-green-800">
-                      ✓ Unlocked (Friends)
-                    </span>
-                  ) : (
-                    <span className="rounded bg-red-950 px-2 py-0.5 text-[10px] font-semibold text-red-400 border border-red-900">
-                      🔒 Connected Friends Only
-                    </span>
-                  )}
-                </div>
-
-                {chatError && (
-                  <div className="mb-3 rounded border border-red-600/60 bg-red-950/40 p-2.5 text-xs text-red-300 flex items-start gap-2">
-                    <span className="text-red-500 font-bold shrink-0">🛡️ Policy:</span>
-                    <span>{chatError}</span>
-                  </div>
-                )}
-
-                {profile.connection_status === "connected" ? (
-                  <div className="space-y-3">
-                    <div className="max-h-48 overflow-y-auto rounded-lg border border-red-950 bg-black/60 p-3 space-y-2">
-                      {messages.length === 0 ? (
-                        <p className="text-center text-xs italic text-neutral-500 py-4">
-                          No messages yet. Send an ancestral greeting to begin conversation!
-                        </p>
-                      ) : (
-                        messages.map((m) => {
-                          const isMe = m.sender_id === viewerUserId;
-                          return (
-                            <div
-                              key={m.id}
-                              className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
-                            >
-                              <div
-                                className={`max-w-[80%] rounded-lg px-3 py-2 text-xs ${
-                                  isMe
-                                    ? "bg-red-900 text-red-100"
-                                    : "bg-neutral-800 text-neutral-200"
-                                }`}
-                              >
-                                {m.body}
-                              </div>
-                              <span className="text-[10px] text-neutral-500 px-1 mt-0.5">
-                                {new Date(m.created_at).toLocaleTimeString([], {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </span>
-                            </div>
-                          );
-                        })
-                      )}
-                      <div ref={messagesEndRef} />
-                    </div>
-
-                    <form onSubmit={handleSendMessage} className="flex gap-2">
-                      <input
-                        type="text"
-                        value={newMessageText}
-                        onChange={(e) => setNewMessageText(e.target.value)}
-                        placeholder="Write a direct message..."
-                        className="flex-1 rounded-lg border border-red-900/50 bg-neutral-950 px-3 py-2 text-xs text-red-100 placeholder-neutral-500 focus:border-red-500 focus:outline-none"
-                      />
-                      <button
-                        type="submit"
-                        disabled={sendingMessage || !newMessageText.trim()}
-                        className="rounded-lg bg-red-800 px-4 py-2 text-xs font-semibold text-red-100 hover:bg-red-700 disabled:opacity-50"
-                      >
-                        {sendingMessage ? "..." : "Send"}
-                      </button>
-                    </form>
-                  </div>
-                ) : (
-                  <div className="rounded-lg border border-neutral-800 bg-neutral-950/70 p-4 text-center space-y-2">
-                    <p className="text-xs text-neutral-400">
-                      Direct messaging is locked. In Idlang, users can connect with each other only after accepting the friend request.
-                    </p>
-                    {profile.connection_status === "pending" ? (
-                      profile.connection_direction === "incoming" ? (
-                        <div className="pt-2">
-                          <button
-                            onClick={() => handleConnectionAction("accept")}
-                            className="rounded-lg bg-red-700 px-4 py-1.5 text-xs font-semibold text-white hover:bg-red-600 shadow"
-                          >
-                            Accept Friend Request to Unlock Chat
-                          </button>
-                        </div>
-                      ) : (
-                        <p className="text-[11px] text-amber-400 font-medium">
-                          ⏳ Your friend request has been sent and is awaiting acceptance by @{profile.user.username}.
-                        </p>
-                      )
-                    ) : (
-                      <div className="pt-2">
-                        <button
-                          onClick={() => handleConnectionAction("connect")}
-                          className="rounded-lg bg-red-900/60 border border-red-800 px-4 py-1.5 text-xs font-semibold text-red-200 hover:bg-red-800 shadow"
-                        >
-                          + Send Friend Request to Unlock Chat
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         ) : <p role="alert" className="py-6 text-red-300">{profileError || "Could not load this profile."}</p>}
       </div>
