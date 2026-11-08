@@ -911,6 +911,7 @@ type DirectMessageResponse struct {
 }
 
 func handleMessages(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	if currentUser(r) == nil {
 		writeError(w, http.StatusUnauthorized, "Sign in to continue.")
 		return
@@ -966,7 +967,12 @@ func sendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if blocked, _ := isBlocked(sender.ID, receiverID); blocked {
+	connected, blocked, err := messagePeerAccess(sender.ID, receiverID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not verify messaging access.")
+		return
+	}
+	if blocked {
 		writeError(w, http.StatusForbidden, "You cannot message this user.")
 		return
 	}
@@ -977,8 +983,7 @@ func sendMessage(w http.ResponseWriter, r *http.Request) {
 
 	// CORE RULE 1: The DM Gateway Policy. Direct messaging is restricted to
 	// active connected peers. Enforced here, before any mutation.
-	connected, err := areUsersConnected(sender.ID, receiverID)
-	if err != nil || !connected {
+	if !connected {
 		writeError(w, http.StatusForbidden,
 			"Direct messaging is restricted to active connected peers.")
 		return
@@ -1019,12 +1024,16 @@ func readMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if blocked, _ := isBlocked(viewer.ID, peerID); blocked {
+	connected, blocked, err := messagePeerAccess(viewer.ID, peerID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not verify messaging access.")
+		return
+	}
+	if blocked {
 		writeError(w, http.StatusForbidden, "Messaging history is unavailable.")
 		return
 	}
-	connected, err := areUsersConnected(viewer.ID, peerID)
-	if err != nil || !connected {
+	if !connected {
 		writeError(w, http.StatusForbidden, "Messaging history is restricted to connected peers.")
 		return
 	}
@@ -1096,6 +1105,7 @@ func readMessages(w http.ResponseWriter, r *http.Request) {
 // handleMarkMessagesRead is a mutation, so it is a POST rather than a side
 // effect of GET (which also let a reader flip the sender's unread flags).
 func handleMarkMessagesRead(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	if r.Method != http.MethodPost {
 		methodNotAllowed(w, http.MethodPost)
 		return
@@ -1116,6 +1126,15 @@ func handleMarkMessagesRead(w http.ResponseWriter, r *http.Request) {
 	peerID := strings.TrimSpace(req.PeerID)
 	if peerID == "" {
 		writeError(w, http.StatusBadRequest, "peer_id is required.")
+		return
+	}
+	connected, blocked, err := messagePeerAccess(viewer.ID, peerID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not verify messaging access.")
+		return
+	}
+	if blocked || !connected {
+		writeError(w, http.StatusForbidden, "Read receipts are restricted to connected peers.")
 		return
 	}
 

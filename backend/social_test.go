@@ -170,6 +170,9 @@ func TestDMGatewayPolicy(t *testing.T) {
 	if getRec.Code != http.StatusOK {
 		t.Fatalf("Expected 200 OK retrieving messages, got %d", getRec.Code)
 	}
+	if getRec.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("Expected private message response to disable caching, got %q", getRec.Header().Get("Cache-Control"))
+	}
 
 	var messages []DirectMessageResponse
 	if err := json.NewDecoder(getRec.Body).Decode(&messages); err != nil {
@@ -177,6 +180,35 @@ func TestDMGatewayPolicy(t *testing.T) {
 	}
 	if len(messages) == 0 {
 		t.Errorf("Expected message history, got 0 messages")
+	}
+
+	readReceiptBody, _ := json.Marshal(map[string]string{"peer_id": "user_oche"})
+	unconnectedReadReq := httptest.NewRequest(http.MethodPost, "/api/messages/read", bytes.NewReader(readReceiptBody))
+	unconnectedReadRec := httptest.NewRecorder()
+	authenticateTestRequest(t, unconnectedReadReq, "user_idoko")
+	handleMarkMessagesRead(unconnectedReadRec, unconnectedReadReq)
+	if unconnectedReadRec.Code != http.StatusForbidden {
+		t.Fatalf("Expected read receipt from unconnected peer to be rejected, got %d", unconnectedReadRec.Code)
+	}
+	if _, err := db.Exec(`INSERT INTO connections (id, requester_id, receiver_id, status, pair_key, created_at, updated_at)
+		VALUES ('blocked-read-test', 'user_idoko', 'user_ada', 'blocked', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, pairKey("user_idoko", "user_ada")); err != nil {
+		t.Fatalf("Insert blocked peer fixture: %v", err)
+	}
+	blockedReadBody, _ := json.Marshal(map[string]string{"peer_id": "user_ada"})
+	blockedReadReq := httptest.NewRequest(http.MethodPost, "/api/messages/read", bytes.NewReader(blockedReadBody))
+	blockedReadRec := httptest.NewRecorder()
+	authenticateTestRequest(t, blockedReadReq, "user_idoko")
+	handleMarkMessagesRead(blockedReadRec, blockedReadReq)
+	if blockedReadRec.Code != http.StatusForbidden {
+		t.Fatalf("Expected read receipt from blocked peer to be rejected, got %d", blockedReadRec.Code)
+	}
+
+	connectedReadReq := httptest.NewRequest(http.MethodPost, "/api/messages/read", bytes.NewReader(readReceiptBody))
+	connectedReadRec := httptest.NewRecorder()
+	authenticateTestRequest(t, connectedReadReq, "user_ada")
+	handleMarkMessagesRead(connectedReadRec, connectedReadReq)
+	if connectedReadRec.Code != http.StatusOK {
+		t.Fatalf("Expected connected peer read receipt to succeed, got %d: %s", connectedReadRec.Code, connectedReadRec.Body.String())
 	}
 
 	// Cursor reads return only newer/older messages and remain deterministic.

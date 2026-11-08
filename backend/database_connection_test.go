@@ -116,7 +116,7 @@ func TestRemoteLedgerImportsExistingSQLiteVersion(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer database.Close()
-	// Simulate an imported database on v5 with v6 still to apply.
+	// Simulate an imported database on v5 with all later migrations to apply.
 	if _, err := database.Exec("DROP TABLE guest_translation_trials; PRAGMA user_version = 5"); err != nil {
 		t.Fatal(err)
 	}
@@ -127,7 +127,8 @@ func TestRemoteLedgerImportsExistingSQLiteVersion(t *testing.T) {
 	if err := database.QueryRow("SELECT MAX(version), COUNT(*) FROM idlang_schema_migrations").Scan(&version, &count); err != nil {
 		t.Fatal(err)
 	}
-	if version != 6 || count != 1 {
-		t.Fatalf("version=%d count=%d", version, count)
+	expectedVersion, expectedCount := len(migrations), len(migrations)-5
+	if version != expectedVersion || count != expectedCount {
+		t.Fatalf("version=%d count=%d, want version=%d count=%d", version, count, expectedVersion, expectedCount)
 	}
 }

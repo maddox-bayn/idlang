@@ -319,12 +319,12 @@ export async function fetchProfile(targetId: string, _viewerId: string): Promise
 export async function fetchMessages(
   _userId: string,
   peerId: string,
-  cursor: { afterId?: string; beforeId?: string } = {},
+  cursor: { afterId?: string; beforeId?: string; signal?: AbortSignal } = {},
 ): Promise<DirectMessage[]> {
   const params = new URLSearchParams({ peer_id: peerId });
   if (cursor.afterId) params.set("after_id", cursor.afterId);
   if (cursor.beforeId) params.set("before_id", cursor.beforeId);
-  return requestJSON(`/api/messages?${params}`);
+  return requestJSON(`/api/messages?${params}`, { signal: cursor.signal });
 }
 
 export async function markMessagesRead(peerId: string): Promise<void> {

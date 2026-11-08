@@ -975,6 +975,24 @@ func areUsersConnected(userA, userB string) (bool, error) {
 	return count > 0, nil
 }
 
+// messagePeerAccess returns both messaging-policy facts in one database read.
+// Polling calls this frequently, so keeping the checks together avoids two
+// separate round trips for every active conversation refresh.
+func messagePeerAccess(userA, userB string) (connected, blocked bool, err error) {
+	if userA == "" || userB == "" || userA == userB {
+		return false, false, nil
+	}
+	var connectedCount, blockedCount int
+	err = db.QueryRow(`
+		SELECT
+			COALESCE(MAX(CASE WHEN status = 'connected' THEN 1 ELSE 0 END), 0),
+			COALESCE(MAX(CASE WHEN status = 'blocked' THEN 1 ELSE 0 END), 0)
+		FROM connections
+		WHERE (requester_id = ? AND receiver_id = ?) OR (requester_id = ? AND receiver_id = ?)
+	`, userA, userB, userB, userA).Scan(&connectedCount, &blockedCount)
+	return connectedCount > 0, blockedCount > 0, err
+}
+
 func isBlocked(viewerID, targetID string) (bool, error) {
 	if viewerID == "" || targetID == "" {
 		return false, nil
