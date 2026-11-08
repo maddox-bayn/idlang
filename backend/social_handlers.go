@@ -1012,6 +1012,12 @@ func readMessages(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "peer_id is required.")
 		return
 	}
+	afterID := strings.TrimSpace(r.URL.Query().Get("after_id"))
+	beforeID := strings.TrimSpace(r.URL.Query().Get("before_id"))
+	if afterID != "" && beforeID != "" {
+		writeError(w, http.StatusBadRequest, "Use only one message cursor at a time.")
+		return
+	}
 
 	if blocked, _ := isBlocked(viewer.ID, peerID); blocked {
 		writeError(w, http.StatusForbidden, "Messaging history is unavailable.")
@@ -1023,12 +1029,40 @@ func readMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := db.Query(`
-		SELECT id, sender_id, receiver_id, body, is_read, created_at
+	const pageSize = 100
+	query := `SELECT id, sender_id, receiver_id, body, is_read, created_at
 		FROM messages
-		WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
-		ORDER BY created_at ASC
-	`, viewer.ID, peerID, peerID, viewer.ID)
+		WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))`
+	args := []any{viewer.ID, peerID, peerID, viewer.ID}
+	descending := false
+	if afterID != "" || beforeID != "" {
+		cursorID := afterID
+		if beforeID != "" {
+			cursorID = beforeID
+			descending = true
+		}
+		var cursorTime string
+		err := db.QueryRow(`SELECT CAST(created_at AS TEXT) FROM messages WHERE id = ? AND
+			((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))`,
+			cursorID, viewer.ID, peerID, peerID, viewer.ID).Scan(&cursorTime)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "The message cursor is invalid for this conversation.")
+			return
+		}
+		operator := ">"
+		if descending {
+			operator = "<"
+		}
+		query += ` AND (created_at ` + operator + ` ? OR (created_at = ? AND id ` + operator + ` ?))`
+		args = append(args, cursorTime, cursorTime, cursorID)
+	}
+	if descending || afterID == "" {
+		query += ` ORDER BY created_at DESC, id DESC LIMIT ?`
+	} else {
+		query += ` ORDER BY created_at ASC, id ASC LIMIT ?`
+	}
+	args = append(args, pageSize)
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not load messages.")
 		return
@@ -1039,9 +1073,20 @@ func readMessages(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var m DirectMessageResponse
 		var cStr sql.NullString
-		if err := rows.Scan(&m.ID, &m.SenderID, &m.ReceiverID, &m.Body, &m.IsRead, &cStr); err == nil {
-			m.CreatedAt = parseDBTime(cStr.String)
-			messages = append(messages, m)
+		if err := rows.Scan(&m.ID, &m.SenderID, &m.ReceiverID, &m.Body, &m.IsRead, &cStr); err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not read messages.")
+			return
+		}
+		m.CreatedAt = parseDBTime(cStr.String)
+		messages = append(messages, m)
+	}
+	if err := rows.Err(); err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not read messages.")
+		return
+	}
+	if descending || afterID == "" {
+		for left, right := 0, len(messages)-1; left < right; left, right = left+1, right-1 {
+			messages[left], messages[right] = messages[right], messages[left]
 		}
 	}
 

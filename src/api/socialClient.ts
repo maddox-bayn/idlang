@@ -316,8 +316,22 @@ export async function fetchProfile(targetId: string, _viewerId: string): Promise
   return requestJSON(`/api/profile?id=${encodeURIComponent(targetId)}`);
 }
 
-export async function fetchMessages(_userId: string, peerId: string): Promise<DirectMessage[]> {
-  return requestJSON(`/api/messages?peer_id=${encodeURIComponent(peerId)}`);
+export async function fetchMessages(
+  _userId: string,
+  peerId: string,
+  cursor: { afterId?: string; beforeId?: string } = {},
+): Promise<DirectMessage[]> {
+  const params = new URLSearchParams({ peer_id: peerId });
+  if (cursor.afterId) params.set("after_id", cursor.afterId);
+  if (cursor.beforeId) params.set("before_id", cursor.beforeId);
+  return requestJSON(`/api/messages?${params}`);
+}
+
+export async function markMessagesRead(peerId: string): Promise<void> {
+  await requestJSON("/api/messages/read", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ peer_id: peerId }),
+  });
 }
 
 export async function sendMessage(_senderId: string, receiverId: string, body: string): Promise<DirectMessage> {

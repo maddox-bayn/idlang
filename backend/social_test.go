@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func setupTestDB(t *testing.T) {
@@ -176,6 +177,36 @@ func TestDMGatewayPolicy(t *testing.T) {
 	}
 	if len(messages) == 0 {
 		t.Errorf("Expected message history, got 0 messages")
+	}
+
+	// Cursor reads return only newer/older messages and remain deterministic.
+	baseTime := time.Now().Add(365 * 24 * time.Hour)
+	for i, id := range []string{"cursor-message-2", "cursor-message-3"} {
+		if _, err := db.Exec(`INSERT INTO messages (id, sender_id, receiver_id, body, is_read, created_at)
+			VALUES (?, ?, ?, ?, 0, ?)`, id, "user_oche", "user_ada", id, baseTime.Add(time.Duration(i)*time.Second)); err != nil {
+			t.Fatalf("Insert cursor fixture: %v", err)
+		}
+	}
+
+	firstID := messages[len(messages)-1].ID
+	afterReq := httptest.NewRequest(http.MethodGet, "/api/messages?peer_id=user_ada&after_id="+firstID, nil)
+	afterRec := httptest.NewRecorder()
+	authenticateTestRequest(t, afterReq, "user_oche")
+	handleMessages(afterRec, afterReq)
+	var newer []DirectMessageResponse
+	afterBody := afterRec.Body.Bytes()
+	if afterRec.Code != http.StatusOK || json.Unmarshal(afterBody, &newer) != nil || len(newer) != 2 {
+		t.Fatalf("Expected two newer messages after %s (initial %d), got status %d and body %s", firstID, len(messages), afterRec.Code, afterBody)
+	}
+
+	beforeReq := httptest.NewRequest(http.MethodGet, "/api/messages?peer_id=user_ada&before_id=cursor-message-3", nil)
+	beforeRec := httptest.NewRecorder()
+	authenticateTestRequest(t, beforeReq, "user_oche")
+	handleMessages(beforeRec, beforeReq)
+	var older []DirectMessageResponse
+	beforeBody := beforeRec.Body.Bytes()
+	if beforeRec.Code != http.StatusOK || json.Unmarshal(beforeBody, &older) != nil || len(older) != len(messages)+1 {
+		t.Fatalf("Expected %d older messages, got %d with status %d and body %s", len(messages)+1, len(older), beforeRec.Code, beforeBody)
 	}
 }
 
