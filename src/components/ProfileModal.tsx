@@ -39,6 +39,9 @@ export default function ProfileModal({
 
   // Avatar upload state
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
+  const [avatarDownloadError, setAvatarDownloadError] = useState<string | null>(null);
+  const [downloadingAvatar, setDownloadingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadData = async () => {
@@ -64,6 +67,47 @@ export default function ProfileModal({
   useEffect(() => {
     loadData();
   }, [targetUserId, viewerUserId]);
+
+  useEffect(() => {
+    if (!avatarPreviewUrl) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAvatarPreviewUrl(null);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [avatarPreviewUrl]);
+
+  const handleAvatarDownload = async () => {
+    if (!avatarPreviewUrl || downloadingAvatar) return;
+    setDownloadingAvatar(true);
+    setAvatarDownloadError(null);
+    let objectUrl: string | null = null;
+    try {
+      const response = await fetch(avatarPreviewUrl);
+      if (!response.ok) throw new Error("The picture could not be downloaded.");
+      const blob = await response.blob();
+      if (!blob.type.startsWith("image/")) throw new Error("The file is not a supported image.");
+      objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      const extension = ({
+        "image/jpeg": "jpg",
+        "image/png": "png",
+        "image/gif": "gif",
+        "image/webp": "webp",
+        "image/svg+xml": "svg",
+      } as Record<string, string>)[blob.type] || "img";
+      link.download = `idlang-${profile?.user.username ?? "profile"}-avatar.${extension}`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch {
+      setAvatarDownloadError("Could not download this picture. Try opening it in a new tab and saving it.");
+    } finally {
+      if (objectUrl) window.setTimeout(() => URL.revokeObjectURL(objectUrl!), 1000);
+      setDownloadingAvatar(false);
+    }
+  };
 
   const handleConnectionAction = async (action: "connect" | "accept" | "reject" | "block") => {
     if (!profile) return;
@@ -167,24 +211,31 @@ export default function ProfileModal({
               <div className="flex items-start sm:items-center gap-4">
                 {/* 1. Profile Picture Place with Interactive Upload */}
                 <div className="relative group">
-                  <img
-                    src={
-                      profile.user.avatar_url ||
-                      `https://api.dicebear.com/7.x/bottts/svg?seed=${profile.user.username}`
-                    }
-                    alt={profile.user.display_name}
-                    className="h-20 w-20 rounded-full border-2 border-red-600 object-cover shadow-lg bg-neutral-900"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setAvatarPreviewUrl(profile.user.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${profile.user.username}`)}
+                    className="block rounded-full focus:outline-none focus:ring-2 focus:ring-red-500"
+                    aria-label={`Open ${profile.user.display_name}'s profile picture`}
+                  >
+                    <img
+                      src={
+                        profile.user.avatar_url ||
+                        `https://api.dicebear.com/7.x/bottts/svg?seed=${profile.user.username}`
+                      }
+                      alt={profile.user.display_name}
+                      className="h-20 w-20 rounded-full border-2 border-red-600 object-cover shadow-lg bg-neutral-900"
+                    />
+                  </button>
                   {profile.is_owner && (
                     <>
                       <button
                         onClick={() => fileInputRef.current?.click()}
                         disabled={uploadingAvatar}
-                        className="absolute inset-0 flex flex-col items-center justify-center rounded-full bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-bold text-red-200"
+                        className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border border-red-300 bg-black/90 text-xs text-red-100 shadow transition-colors hover:bg-red-800 disabled:opacity-60"
                         title="Upload new profile picture"
+                        aria-label="Upload a new profile picture"
                       >
-                        <span>📷</span>
-                        <span>{uploadingAvatar ? "..." : "Change"}</span>
+                        {uploadingAvatar ? "…" : "📷"}
                       </button>
                       <input
                         ref={fileInputRef}
@@ -516,6 +567,37 @@ export default function ProfileModal({
           </div>
         ) : <p role="alert" className="py-6 text-red-300">{profileError || "Could not load this profile."}</p>}
       </div>
+      {avatarPreviewUrl && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${profile?.user.display_name ?? "User"}'s profile picture`}
+          onClick={() => setAvatarPreviewUrl(null)}
+        >
+          <div className="relative flex max-h-[90vh] max-w-[90vw] items-center justify-center" onClick={(event) => event.stopPropagation()}>
+            <img src={avatarPreviewUrl} alt={`${profile?.user.display_name ?? "User"}'s profile picture`} className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain shadow-2xl" />
+            <a
+              href={avatarPreviewUrl}
+              target="_blank"
+              rel="noreferrer"
+              onClick={(event) => { event.preventDefault(); void handleAvatarDownload(); }}
+              aria-label="Download profile picture"
+              title="Download picture"
+              aria-busy={downloadingAvatar}
+              className="absolute right-3 top-3 rounded-lg border border-white/20 bg-black/70 p-3 text-white hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-400"
+            >
+              {downloadingAvatar ? <span className="block h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V3" />
+              </svg>}
+            </a>
+            <button type="button" onClick={() => setAvatarPreviewUrl(null)} aria-label="Close picture" className="absolute right-3 top-16 rounded-lg border border-white/20 bg-black/70 p-3 text-white hover:bg-red-800 focus:outline-none focus:ring-2 focus:ring-red-400">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+            {avatarDownloadError && <p role="alert" className="absolute bottom-3 left-3 right-3 rounded-lg bg-black/80 px-3 py-2 text-center text-xs text-red-200">{avatarDownloadError} <a href={avatarPreviewUrl} target="_blank" rel="noreferrer" className="underline">Open picture</a></p>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
