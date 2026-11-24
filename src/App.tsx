@@ -1,5 +1,6 @@
 import { lazy, Suspense, useState, useEffect } from "react";
 import TranslateView from "./components/TranslateView";
+import { MenuIcon, MobileTabBar, SidebarNav, loadNavState, saveNavState, type Tab } from "./components/Navigation";
 const LearnView = lazy(() => import("./components/LearnView"));
 const FeedView = lazy(() => import("./components/FeedView"));
 const LibraryView = lazy(() => import("./components/LibraryView"));
@@ -13,8 +14,6 @@ import {
   logoutUser,
   fetchConnectionsList,
 } from "./api/socialClient";
-
-type Tab = "feed" | "library" | "learn" | "messages" | "translate";
 
 function requestedTab(): Tab {
   const view = new URLSearchParams(window.location.search).get("view");
@@ -35,6 +34,12 @@ export default function App() {
     window.addEventListener("popstate", onBack);
     return () => window.removeEventListener("popstate", onBack);
   }, []);
+
+  // Desktop sidebar layout (hidden / expanded / icon rail), persisted across visits
+  const [navState, setNavState] = useState(loadNavState);
+  useEffect(() => {
+    saveNavState(navState);
+  }, [navState]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
 
@@ -101,13 +106,31 @@ export default function App() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-black text-red-100">
+    <div
+      className={`flex min-h-screen flex-col bg-black text-red-100 ${
+        currentUser && navState.open ? (navState.collapsed ? "lg:pl-16" : "lg:pl-64") : ""
+      }`}
+    >
       <a href="#main-content" className="skip-link">Skip to content</a>
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-red-900/30 bg-black/95 backdrop-blur-md px-4 sm:px-6 py-3.5">
         <div className="mx-auto flex max-w-6xl flex-col md:flex-row items-center justify-between gap-3">
-          {/* Logo & Slogan */}
+          {/* Logo, menu toggle & slogan */}
           <div className="flex items-center gap-3">
+            {/* Menu Toggle (desktop only — mobile uses the bottom icon bar) */}
+            {currentUser && (
+              <button
+                type="button"
+                onClick={() => setNavState((state) => ({ ...state, open: !state.open }))}
+                aria-expanded={navState.open}
+                aria-controls="app-sidebar"
+                aria-label="Toggle navigation menu"
+                title="Toggle navigation menu"
+                className="hidden rounded-lg border border-red-900/50 bg-neutral-950 p-2 text-red-400 transition-all hover:bg-red-900/40 hover:text-red-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 lg:block"
+              >
+                <MenuIcon className="h-5 w-5" />
+              </button>
+            )}
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-900/80 border border-red-700 shadow-md">
               <span className="text-lg">🪘</span>
             </div>
@@ -124,62 +147,7 @@ export default function App() {
             </div>
           </div>
 
-          {/* Navigation Tabs */}
-          {currentUser && <nav aria-label="Community" className="flex flex-wrap justify-center gap-1 rounded-lg border border-red-900/30 bg-neutral-950 p-1">
-            <button
-              aria-pressed={activeTab === "feed"}
-              onClick={() => selectTab("feed")}
-              className={`rounded-md px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all ${
-                activeTab === "feed"
-                  ? "bg-red-900 text-red-100 shadow"
-                  : "text-red-500 hover:text-red-300"
-              }`}
-            >
-              Feed
-            </button>
-            <button
-              aria-pressed={activeTab === "library"}
-              onClick={() => selectTab("library")}
-              className={`rounded-md px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all ${
-                activeTab === "library"
-                  ? "bg-red-900 text-red-100 shadow"
-                  : "text-red-500 hover:text-red-300"
-              }`}
-            >
-              E-Library
-            </button>
-            <button
-              aria-pressed={activeTab === "learn"}
-              onClick={() => selectTab("learn")}
-              className={`rounded-md px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all ${
-                activeTab === "learn"
-                  ? "bg-red-900 text-red-100 shadow"
-                  : "text-red-500 hover:text-red-300"
-              }`}
-            >
-              Learn & Tracks
-            </button>
-            <button
-              aria-pressed={activeTab === "messages"}
-              onClick={() => selectTab("messages")}
-              className={`rounded-md px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all ${
-                activeTab === "messages" ? "bg-red-900 text-red-100 shadow" : "text-red-500 hover:text-red-300"
-              }`}
-            >
-              Messages
-            </button>
-            <button
-              aria-pressed={activeTab === "translate"}
-              onClick={() => selectTab("translate")}
-              className={`rounded-md px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider transition-all ${
-                activeTab === "translate"
-                  ? "bg-red-900 text-red-100 shadow"
-                  : "text-red-500 hover:text-red-300"
-              }`}
-            >
-              Translate
-            </button>
-          </nav>}
+          {/* Navigation lives in the desktop sidebar / mobile bottom bar */}
 
           {/* Authentication & User Identity Bar */}
           <div className="flex items-center gap-2">
@@ -272,11 +240,24 @@ export default function App() {
         </div>
       </header>
 
+      {/* Desktop: collapsible left sidebar */}
+      {currentUser && navState.open && (
+        <SidebarNav
+          activeTab={activeTab}
+          onSelect={selectTab}
+          collapsed={navState.collapsed}
+          onToggleCollapse={() => setNavState((state) => ({ ...state, collapsed: !state.collapsed }))}
+        />
+      )}
+
+      {/* Mobile: fixed bottom icon bar */}
+      {currentUser && <MobileTabBar activeTab={activeTab} onSelect={selectTab} />}
+
       {/* Decorative divider */}
       <div className="mx-auto h-px w-32 bg-gradient-to-r from-transparent via-red-800 to-transparent" />
 
       {/* Main Content */}
-      <main id="main-content" tabIndex={-1} className="flex-1 py-8">
+      <main id="main-content" tabIndex={-1} className="flex-1 pt-8 pb-28 lg:pb-8">
         <Suspense fallback={<p role="status" className="p-6 text-center text-neutral-300">Loading section…</p>}>
         {currentUser && activeTab === "feed" && <FeedView currentUser={effectiveUser} />}
         {currentUser && activeTab === "library" && <LibraryView currentUser={effectiveUser} />}
@@ -287,7 +268,7 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-red-900/20 bg-neutral-950/80 px-6 py-5 text-center">
+      <footer className="border-t border-red-900/20 bg-neutral-950/80 px-6 pt-5 pb-24 text-center lg:pb-5">
         <p className="text-xs text-neutral-300 font-medium">
           Preserving Idoma — the sacred language and oral history of our ancestors
         </p>
