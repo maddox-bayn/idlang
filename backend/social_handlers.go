@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -930,6 +931,7 @@ func sendMessage(w http.ResponseWriter, r *http.Request) {
 	sender := currentUser(r)
 
 	var req struct {
+		ClientID   string `json:"client_id"`
 		ReceiverID string `json:"receiver_id"`
 		Body       string `json:"body"`
 	}
@@ -989,16 +991,49 @@ func sendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var clientID any
+	if req.ClientID != "" {
+		key, err := uuid.Parse(req.ClientID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "client_id must be a UUID.")
+			return
+		}
+		clientID = key.String()
+	}
 	msgID := uuid.New().String()
-	now := time.Now()
-	if _, err := db.Exec(`
-		INSERT INTO messages (id, sender_id, receiver_id, body, is_read, created_at)
-		VALUES (?, ?, ?, ?, 0, ?)
-	`, msgID, sender.ID, receiverID, body, now); err != nil {
+	now := time.Now().UTC()
+	result, err := db.ExecContext(r.Context(), `
+		INSERT INTO messages (id, sender_id, receiver_id, body, is_read, created_at, client_id)
+		VALUES (?, ?, ?, ?, 0, ?, ?)
+		ON CONFLICT(sender_id, client_id) DO NOTHING
+	`, msgID, sender.ID, receiverID, body, now, clientID)
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not store that message.")
 		return
 	}
-
+	inserted, err := result.RowsAffected()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not verify message delivery.")
+		return
+	}
+	if inserted == 0 {
+		var saved DirectMessageResponse
+		var created string
+		err := db.QueryRowContext(r.Context(), `SELECT id, sender_id, receiver_id, body, is_read, created_at
+			FROM messages WHERE sender_id = ? AND client_id = ?`, sender.ID, clientID).
+			Scan(&saved.ID, &saved.SenderID, &saved.ReceiverID, &saved.Body, &saved.IsRead, &created)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not verify message delivery.")
+			return
+		}
+		if saved.ReceiverID != receiverID || saved.Body != body {
+			writeError(w, http.StatusConflict, "This send attempt already belongs to another message.")
+			return
+		}
+		saved.CreatedAt = parseDBTime(created)
+		writeJSON(w, http.StatusOK, saved)
+		return
+	}
 	writeJSON(w, http.StatusCreated, DirectMessageResponse{
 		ID: msgID, SenderID: sender.ID, ReceiverID: receiverID,
 		Body: body, IsRead: false, CreatedAt: now,
@@ -1304,18 +1339,46 @@ func handleCompleteLearningTrack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	previousXP := profile.XPPoints
 	profile.CompletedTracks = append(profile.CompletedTracks, targetTrack.ID)
 	profile.XPPoints += targetTrack.XPReward
 	profile.FluencyTier = calculateFluencyTier(profile.XPPoints)
 	profile.UpdatedAt = time.Now()
 
 	tracksJSON, _ := json.Marshal(profile.CompletedTracks)
-	if _, err := db.Exec(`
+	// XP only increases on track completion. Reject a write based on stale progress.
+	result, err := db.ExecContext(r.Context(), `
 		UPDATE learning_profiles
 		SET completed_tracks = ?, xp_points = ?, fluency_tier = ?, updated_at = ?
-		WHERE user_id = ?
-	`, string(tracksJSON), profile.XPPoints, string(profile.FluencyTier), profile.UpdatedAt, profile.UserID); err != nil {
+		WHERE user_id = ? AND xp_points = ?
+	`, string(tracksJSON), profile.XPPoints, string(profile.FluencyTier), profile.UpdatedAt, profile.UserID, previousXP)
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not save your progress.")
+		return
+	}
+
+	changed, err := result.RowsAffected()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not verify your progress.")
+		return
+	}
+	if changed == 0 {
+		current, err := getLearningProfile(user.ID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not reload your progress.")
+			return
+		}
+		for _, id := range current.CompletedTracks {
+			if id == targetTrack.ID {
+				writeJSON(w, http.StatusOK, CompleteTrackResponse{
+					Success: true, Message: "Track was already completed",
+					LearningProfile: current, NewTier: current.FluencyTier,
+					Tracks: tracksWithStatus(current.CompletedTracks),
+				})
+				return
+			}
+		}
+		writeError(w, http.StatusConflict, "Progress changed. Reload the track and try again.")
 		return
 	}
 
@@ -1355,12 +1418,7 @@ func handleGetDailyPractice(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusServiceUnavailable, "Daily practice content is unavailable.")
 		return
 	}
-	completed, err := dailyPracticeDone(user.ID, date)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Could not load daily practice.")
-		return
-	}
-	streak, err := learningStreak(user.ID, date)
+	completed, streak, err := practiceSummary(r.Context(), user.ID, date)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not load your practice streak.")
 		return
@@ -1400,12 +1458,12 @@ func handleCompleteDailyPractice(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusUnprocessableEntity, "Answer today's prompt correctly before recording practice.")
 		return
 	}
-	_, err := db.Exec(`INSERT INTO learning_activity(user_id, activity_date) VALUES (?, ?) ON CONFLICT(user_id, activity_date) DO NOTHING`, user.ID, date)
+	_, err := db.ExecContext(r.Context(), `INSERT INTO learning_activity(user_id, activity_date) VALUES (?, ?) ON CONFLICT(user_id, activity_date) DO NOTHING`, user.ID, date)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not save your practice.")
 		return
 	}
-	streak, err := learningStreak(user.ID, date)
+	_, streak, err := practiceSummary(r.Context(), user.ID, date)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not update your streak.")
 		return
@@ -1432,46 +1490,21 @@ func dailyPracticeEntry(date string) (string, WordEntry, bool) {
 	return english, dict["greetings"][english], true
 }
 
-func dailyPracticeDone(userID, date string) (bool, error) {
-	var count int
-	err := db.QueryRow(`SELECT COUNT(*) FROM learning_activity WHERE user_id=? AND activity_date=?`, userID, date).Scan(&count)
-	return count > 0, err
-}
-
-func learningStreak(userID, date string) (int, error) {
-	rows, err := db.Query(`SELECT activity_date FROM learning_activity WHERE user_id=? AND activity_date<=? ORDER BY activity_date DESC LIMIT 400`, userID, date)
-	if err != nil {
-		return 0, err
-	}
-	defer rows.Close()
-	expected, _ := time.Parse("2006-01-02", date)
-	doneToday, err := dailyPracticeDone(userID, date)
-	if err != nil {
-		return 0, err
-	}
-	if !doneToday {
-		expected = expected.AddDate(0, 0, -1)
-	}
-	streak := 0
-	for rows.Next() {
-		var value string
-		if err := rows.Scan(&value); err != nil {
-			return 0, err
-		}
-		activity, err := time.Parse("2006-01-02", value)
-		if err != nil {
-			continue
-		}
-		if activity.Equal(expected) {
-			streak++
-			expected = expected.AddDate(0, 0, -1)
-			continue
-		}
-		if activity.Before(expected) {
-			break
-		}
-	}
-	return streak, rows.Err()
+// Read both values in one snapshot. A nested query would wait forever while
+// the outer cursor owns the only connection in the configured pool.
+func practiceSummary(ctx context.Context, userID, date string) (bool, int, error) {
+	const query = `WITH RECURSIVE streak(day) AS (
+		SELECT MAX(activity_date) FROM learning_activity
+		WHERE user_id = ?1 AND activity_date BETWEEN date(?2, '-1 day') AND ?2
+		UNION ALL
+		SELECT a.activity_date FROM streak s JOIN learning_activity a
+		  ON a.user_id = ?1 AND a.activity_date = date(s.day, '-1 day')
+	)
+	SELECT COALESCE(MAX(day) = ?2, 0), COUNT(day) FROM streak`
+	var completed bool
+	var length int
+	err := db.QueryRowContext(ctx, query, userID, date).Scan(&completed, &length)
+	return completed, length, err
 }
 
 // --- Media helpers ----------------------------------------------------------
