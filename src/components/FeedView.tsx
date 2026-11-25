@@ -64,7 +64,11 @@ export default function FeedView({ currentUser }: FeedViewProps) {
     }
     try {
       const data = await fetchPosts(page, 20, selectedTopic);
-      setPosts((prev) => append ? [...prev, ...data.posts] : data.posts);
+      setPosts((prev) => {
+        if (!append) return data.posts;
+        const loaded = new Set(prev.map((post) => post.id));
+        return [...prev, ...data.posts.filter((post) => !loaded.has(post.id))];
+      });
       setTotalPosts(data.total);
       setNextPage(page + 1);
     } catch (err) {
@@ -100,7 +104,7 @@ export default function FeedView({ currentUser }: FeedViewProps) {
         tags: selectedTags,
       });
       if (!selectedTopic || selectedTags.includes(selectedTopic)) {
-        setPosts((prev) => [created, ...prev].slice(0, 20));
+        setPosts((prev) => [created, ...prev.filter((post) => post.id !== created.id)]);
         setTotalPosts((count) => count + 1);
       }
       setNewContent("");
