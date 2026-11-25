@@ -334,10 +334,10 @@ export async function markMessagesRead(peerId: string): Promise<void> {
   });
 }
 
-export async function sendMessage(_senderId: string, receiverId: string, body: string): Promise<DirectMessage> {
+export async function sendMessage(_senderId: string, receiverId: string, body: string, clientId?: string): Promise<DirectMessage> {
   return requestJSON("/api/messages", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ receiver_id: receiverId, body }),
+    body: JSON.stringify({ receiver_id: receiverId, body, client_id: clientId }),
   });
 }
 

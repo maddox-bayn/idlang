@@ -795,7 +795,18 @@ func lookupDictionary(text, sourceLang, targetLang string) *TranslateResponse {
 	return nil
 }
 
+// Keep cold inference requests from consuming unlimited gateway resources.
+// Each gateway replica has its own admission budget.
+var nmtSlots = make(chan struct{}, 8)
+
 func callPythonNMT(ctx context.Context, text, sourceLang, targetLang string) (*TranslateResponse, error) {
+	select {
+	case nmtSlots <- struct{}{}:
+		defer func() { <-nmtSlots }()
+	default:
+		return nil, errors.New("translator at capacity")
+	}
+
 	translatorURL := translatorBaseURL()
 
 	type PythonRequest struct {
@@ -829,9 +840,8 @@ func callPythonNMT(ctx context.Context, text, sourceLang, targetLang string) (*T
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		var msg map[string]interface{}
-		_ = json.NewDecoder(resp.Body).Decode(&msg)
-		return nil, fmt.Errorf("translator error: status %d: %v", resp.StatusCode, msg)
+		// Upstream error bodies can contain user text and must stay out of logs.
+		return nil, fmt.Errorf("translator error: status %d", resp.StatusCode)
 	}
 
 	type PythonResponse struct {
@@ -842,7 +852,15 @@ func callPythonNMT(ctx context.Context, text, sourceLang, targetLang string) (*T
 	}
 
 	var pr PythonResponse
-	if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
+	const maxResponse = 128 << 10
+	payload, err := io.ReadAll(io.LimitReader(resp.Body, maxResponse+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(payload) > maxResponse {
+		return nil, errors.New("translator response exceeds size limit")
+	}
+	if err := json.Unmarshal(payload, &pr); err != nil {
 		return nil, err
 	}
 

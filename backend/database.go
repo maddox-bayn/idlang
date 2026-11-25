@@ -241,6 +241,7 @@ var migrations = []migrationFunc{
 	migrateNativeName,      // v5 — native name for user cultural identity
 	migrateGuestTrials,     // v6 — shared guest translation allowance
 	migrateLearningAndFeed, // v7 — earned practice, review, saves and feed engagement
+	migrateMessageRetries,  // v8 — sender-scoped send attempts
 }
 
 func runMigrations(database *sql.DB) error {
@@ -1128,4 +1129,13 @@ func migrateLearningAndFeed(database *sql.DB) error {
 		}
 	}
 	return addColumnIfMissing(database, "posts", "tags", "ALTER TABLE posts ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
+}
+
+func migrateMessageRetries(database *sql.DB) error {
+	if err := addColumnIfMissing(database, "messages", "client_id", "ALTER TABLE messages ADD COLUMN client_id TEXT"); err != nil {
+		return err
+	}
+	// SQLite permits multiple NULLs here, preserving existing messages and older clients.
+	_, err := database.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_message_attempt ON messages(sender_id, client_id)`)
+	return err
 }

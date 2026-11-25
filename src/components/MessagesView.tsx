@@ -44,6 +44,7 @@ export default function MessagesView({ currentUser }: { currentUser: User }) {
   const selectedIdRef = useRef(selectedId);
   const prependScrollRef = useRef<{ peerId: string; messageId: string; offsetTop: number } | null>(null);
   const selectionGenerationRef = useRef(0);
+  const sendAttempts = useRef(new Map<string, { body: string; id: string }>());
   const loadGenerationRef = useRef(0);
   selectedIdRef.current = selectedId;
   const shouldAutoScrollRef = useRef(true);
@@ -53,6 +54,7 @@ export default function MessagesView({ currentUser }: { currentUser: User }) {
     selectionGenerationRef.current += 1;
     setConversations([]);
     setSelectedId(null);
+    sendAttempts.current.clear();
     setDrafts({});
     setSendingIds(new Set());
     setLoadingIds(new Set());
@@ -265,10 +267,17 @@ export default function MessagesView({ currentUser }: { currentUser: User }) {
     setSendingIds((ids) => new Set(ids).add(peerId));
     setSendErrors((errors) => ({ ...errors, [peerId]: "" }));
     try {
-      const message = await sendMessage(currentUser.id, peerId, body);
+      // Keep the same key if a response is lost and the user retries this draft.
+      let attempt = sendAttempts.current.get(peerId);
+      if (!attempt || attempt.body !== body) {
+        attempt = { body, id: crypto.randomUUID() };
+        sendAttempts.current.set(peerId, attempt);
+      }
+      const message = await sendMessage(currentUser.id, peerId, body, attempt.id);
       if (accountGeneration !== loadGenerationRef.current) return;
       setConversations((items) => orderByLatestMessage(items.map((item) => item.user.id === peerId
         ? { ...item, messages: mergeMessages(item.messages || [], [message]) } : item)));
+      sendAttempts.current.delete(peerId);
       setDrafts((current) => current[peerId]?.trim() === body ? { ...current, [peerId]: "" } : current);
     } catch (err) {
       if (accountGeneration !== loadGenerationRef.current) return;

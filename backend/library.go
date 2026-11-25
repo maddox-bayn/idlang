@@ -155,21 +155,9 @@ func listLibrary(w http.ResponseWriter, r *http.Request) {
 
 	q := strings.TrimSpace(r.URL.Query().Get("q"))
 	if q != "" && libraryFTSAvailable {
-		ids, err := searchLibraryFTS(q, limit*4)
-		if err != nil {
-			log.Printf("library FTS query failed: %v", err)
-		}
-		if len(ids) == 0 {
-			writeJSON(w, http.StatusOK, map[string]any{
-				"items": []LibraryItem{}, "total": 0, "page": page, "limit": limit,
-			})
-			return
-		}
-		placeholders := strings.TrimSuffix(strings.Repeat("?,", len(ids)), ",")
-		where = append(where, "id IN ("+placeholders+")")
-		for _, id := range ids {
-			args = append(args, id)
-		}
+		// Apply visibility and metadata filters to the full match set before paging.
+		where = append(where, "id IN (SELECT item_id FROM library_fts WHERE library_fts MATCH ?)")
+		args = append(args, libraryMatch(q))
 	} else if q != "" {
 		like := "%" + escapeLike(q) + "%"
 		where = append(where, `(title LIKE ? ESCAPE '\' COLLATE NOCASE
@@ -181,7 +169,7 @@ func listLibrary(w http.ResponseWriter, r *http.Request) {
 	whereSQL := "WHERE " + strings.Join(where, " AND ")
 
 	var total int
-	if err := db.QueryRow("SELECT COUNT(*) FROM library_items "+whereSQL, args...).Scan(&total); err != nil {
+	if err := db.QueryRowContext(r.Context(), "SELECT COUNT(*) FROM library_items "+whereSQL, args...).Scan(&total); err != nil {
 		log.Printf("library count failed: %v", err)
 		writeError(w, http.StatusInternalServerError, "Could not load the library.")
 		return
@@ -192,11 +180,11 @@ func listLibrary(w http.ResponseWriter, r *http.Request) {
 		       license, source_url, consent_note, mime, size_bytes, status,
 		       file_key != '', created_at, updated_at
 		FROM library_items ` + whereSQL + `
-		ORDER BY created_at DESC
+		ORDER BY created_at DESC, id DESC
 		LIMIT ? OFFSET ?`
 	args = append(args, limit, offset)
 
-	rows, err := db.Query(query, args...)
+	rows, err := db.QueryContext(r.Context(), query, args...)
 	if err != nil {
 		log.Printf("library list failed: %v", err)
 		writeError(w, http.StatusInternalServerError, "Could not load the library.")
@@ -209,9 +197,16 @@ func listLibrary(w http.ResponseWriter, r *http.Request) {
 		item, err := scanLibraryItem(rows)
 		if err != nil {
 			log.Printf("library row scan failed: %v", err)
-			continue
+			writeError(w, http.StatusInternalServerError, "Could not load the library.")
+			return
 		}
 		items = append(items, *item)
+	}
+
+	if err := rows.Err(); err != nil {
+		log.Printf("library iteration failed: %v", err)
+		writeError(w, http.StatusInternalServerError, "Could not load the library.")
+		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -219,33 +214,13 @@ func listLibrary(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func searchLibraryFTS(q string, limit int) ([]string, error) {
+func libraryMatch(q string) string {
 	// Quote each token so user input cannot inject FTS operators.
 	tokens := strings.Fields(q)
 	for i, t := range tokens {
 		tokens[i] = `"` + strings.ReplaceAll(t, `"`, `""`) + `"`
 	}
-	match := strings.Join(tokens, " ")
-
-	rows, err := db.Query(`
-		SELECT item_id FROM library_fts
-		WHERE library_fts MATCH ?
-		ORDER BY bm25(library_fts)
-		LIMIT ?
-	`, match, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	ids := make([]string, 0, limit)
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err == nil {
-			ids = append(ids, id)
-		}
-	}
-	return ids, rows.Err()
+	return strings.Join(tokens, " ")
 }
 
 func createLibraryItem(w http.ResponseWriter, r *http.Request) {
