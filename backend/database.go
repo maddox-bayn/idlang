@@ -101,6 +101,7 @@ type LearningProfile struct {
 
 type LearningTrack struct {
 	ID          string `json:"id"`
+	LessonID    string `json:"lesson_id"`
 	Step        int    `json:"step"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
@@ -143,6 +144,7 @@ var CurriculumTracks = []LearningTrack{
 		Description: "Learn traditional morning, noon, and evening salutations in Idoma.",
 		XPReward:    200,
 		Category:    "Beginner Foundation",
+		LessonID:    "daily-greetings",
 	},
 	{
 		ID:          "track_2_numbers",
@@ -151,22 +153,25 @@ var CurriculumTracks = []LearningTrack{
 		Description: "Master counting, trade numbers, and cardinal quantities.",
 		XPReward:    250,
 		Category:    "Core Vocabulary",
+		LessonID:    "numbers-1-5",
 	},
 	{
 		ID:          "track_3_idioms",
 		Step:        3,
-		Title:       "3. Proverbial Idioms",
-		Description: "Explore classical Idoma proverbs, figurative sayings, and ancestral wisdom.",
+		Title:       "3. Culture & Heritage Words",
+		Description: "Learn documented Idoma words connected to cultural heritage.",
 		XPReward:    300,
 		Category:    "Intermediate Fluency",
+		LessonID:    "culture-heritage",
 	},
 	{
 		ID:          "track_4_folktales",
 		Step:        4,
-		Title:       "4. Cultural Folktales & Ancestry",
-		Description: "Immerse in ancient narrative lore and oral historical heritage of the Alekwu.",
+		Title:       "4. Everyday Phrases",
+		Description: "Practice useful phrases from the Idoma dictionary.",
 		XPReward:    350,
 		Category:    "Advanced Mastery",
+		LessonID:    "everyday-phrases",
 	},
 }
 
@@ -205,39 +210,78 @@ func initDB(dbPath string) (*sql.DB, error) {
 		log.Printf("Warning: failed to apply SQLite pragmas: %v", err)
 	}
 
-	if err := runMigrations(database); err != nil {
+	if err := initializeSchema(database); err != nil {
 		database.Close()
-		return nil, fmt.Errorf("failed to run migrations: %w", err)
+		return nil, err
 	}
-
-	if err := seedBaselineData(database); err != nil {
-		log.Printf("Warning: baseline data seeding error: %v", err)
-	}
-
 	return database, nil
+}
+
+func initializeSchema(database *sql.DB) error {
+	return initializeSchemaWithLedger(database, false)
+}
+
+func initializeSchemaWithLedger(database *sql.DB, remote bool) error {
+	if err := runMigrationsWithLedger(database, remote); err != nil {
+		return fmt.Errorf("failed to run migrations: %w", err)
+	}
+	if err := seedBaselineData(database); err != nil {
+		return fmt.Errorf("failed to seed database: %w", err)
+	}
+	return nil
 }
 
 type migrationFunc func(*sql.DB) error
 
 var migrations = []migrationFunc{
-	baselineSchema,     // v1 — original tables
-	migrateAuth,        // v2 — accounts, sessions, profile fields
-	migrateLibrary,     // v3 — books -> library_items with provenance
-	migrateConnections, // v4 — canonical pair key, one row per pair
-	migrateNativeName,  // v5 — native name for user cultural identity
+	baselineSchema,         // v1 — original tables
+	migrateAuth,            // v2 — accounts, sessions, profile fields
+	migrateLibrary,         // v3 — books -> library_items with provenance
+	migrateConnections,     // v4 — canonical pair key, one row per pair
+	migrateNativeName,      // v5 — native name for user cultural identity
+	migrateGuestTrials,     // v6 — shared guest translation allowance
+	migrateLearningAndFeed, // v7 — earned practice, review, saves and feed engagement
+	migrateMessageRetries,  // v8 — sender-scoped send attempts
 }
 
 func runMigrations(database *sql.DB) error {
+	return runMigrationsWithLedger(database, false)
+}
+
+// Track remote upgrades without writing PRAGMA user_version. Read the legacy value
+// for imported databases, then record remote upgrades in an ordinary SQL table.
+func runMigrationsWithLedger(database *sql.DB, remote bool) error {
 	var version int
 	if err := database.QueryRow("PRAGMA user_version").Scan(&version); err != nil {
 		return fmt.Errorf("read user_version: %w", err)
 	}
 
+	if remote {
+		if _, err := database.Exec("CREATE TABLE IF NOT EXISTS idlang_schema_migrations (version INTEGER PRIMARY KEY)"); err != nil {
+			return fmt.Errorf("create migration ledger: %w", err)
+		}
+		var ledgerVersion int
+		if err := database.QueryRow("SELECT COALESCE(MAX(version), 0) FROM idlang_schema_migrations").Scan(&ledgerVersion); err != nil {
+			return fmt.Errorf("read migration ledger: %w", err)
+		}
+		if ledgerVersion > version {
+			version = ledgerVersion
+		}
+	}
+	if version > len(migrations) {
+		return fmt.Errorf("database schema is newer than this application")
+	}
 	for i := version; i < len(migrations); i++ {
 		if err := migrations[i](database); err != nil {
 			return fmt.Errorf("migration %d: %w", i+1, err)
 		}
-		if _, err := database.Exec(fmt.Sprintf("PRAGMA user_version = %d", i+1)); err != nil {
+		var err error
+		if remote {
+			_, err = database.Exec("INSERT INTO idlang_schema_migrations (version) VALUES (?) ON CONFLICT(version) DO NOTHING", i+1)
+		} else {
+			_, err = database.Exec(fmt.Sprintf("PRAGMA user_version = %d", i+1))
+		}
+		if err != nil {
 			return fmt.Errorf("set user_version %d: %w", i+1, err)
 		}
 		log.Printf("Applied migration %d", i+1)
@@ -932,6 +976,24 @@ func areUsersConnected(userA, userB string) (bool, error) {
 	return count > 0, nil
 }
 
+// messagePeerAccess returns both messaging-policy facts in one database read.
+// Polling calls this frequently, so keeping the checks together avoids two
+// separate round trips for every active conversation refresh.
+func messagePeerAccess(userA, userB string) (connected, blocked bool, err error) {
+	if userA == "" || userB == "" || userA == userB {
+		return false, false, nil
+	}
+	var connectedCount, blockedCount int
+	err = db.QueryRow(`
+		SELECT
+			COALESCE(MAX(CASE WHEN status = 'connected' THEN 1 ELSE 0 END), 0),
+			COALESCE(MAX(CASE WHEN status = 'blocked' THEN 1 ELSE 0 END), 0)
+		FROM connections
+		WHERE (requester_id = ? AND receiver_id = ?) OR (requester_id = ? AND receiver_id = ?)
+	`, userA, userB, userB, userA).Scan(&connectedCount, &blockedCount)
+	return connectedCount > 0, blockedCount > 0, err
+}
+
 func isBlocked(viewerID, targetID string) (bool, error) {
 	if viewerID == "" || targetID == "" {
 		return false, nil
@@ -1002,4 +1064,78 @@ func envBool(key string, fallback bool) bool {
 		return false
 	}
 	return fallback
+}
+
+func migrateGuestTrials(database *sql.DB) error {
+	_, err := database.Exec(`CREATE TABLE IF NOT EXISTS guest_translation_trials (
+ token_hash TEXT PRIMARY KEY,
+ used_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+ )`)
+	return err
+}
+
+func migrateLearningAndFeed(database *sql.DB) error {
+	statements := []string{
+		`CREATE TABLE IF NOT EXISTS learning_activity (
+			user_id TEXT NOT NULL,
+			activity_date TEXT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY(user_id, activity_date),
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		)`,
+		`CREATE TABLE IF NOT EXISTS review_items (
+			user_id TEXT NOT NULL,
+			lesson_id TEXT NOT NULL,
+			question_id TEXT NOT NULL,
+			prompt TEXT NOT NULL,
+			answer TEXT NOT NULL,
+			example TEXT NOT NULL DEFAULT '',
+			added_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			reviewed_at DATETIME,
+			PRIMARY KEY(user_id, lesson_id, question_id),
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		)`,
+		`CREATE TABLE IF NOT EXISTS saved_items (
+			user_id TEXT NOT NULL,
+			item_type TEXT NOT NULL CHECK(item_type IN ('translation', 'post')),
+			item_id TEXT NOT NULL,
+			title TEXT NOT NULL DEFAULT '',
+			body TEXT NOT NULL DEFAULT '',
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY(user_id, item_type, item_id),
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		)`,
+		`CREATE TABLE IF NOT EXISTS post_likes (
+			post_id TEXT NOT NULL,
+			user_id TEXT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			PRIMARY KEY(post_id, user_id),
+			FOREIGN KEY(post_id) REFERENCES posts(id) ON DELETE CASCADE,
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		)`,
+		`CREATE TABLE IF NOT EXISTS post_comments (
+			id TEXT PRIMARY KEY,
+			post_id TEXT NOT NULL,
+			user_id TEXT NOT NULL,
+			body TEXT NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY(post_id) REFERENCES posts(id) ON DELETE CASCADE,
+			FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+		)`,
+	}
+	for _, statement := range statements {
+		if _, err := database.Exec(statement); err != nil {
+			return err
+		}
+	}
+	return addColumnIfMissing(database, "posts", "tags", "ALTER TABLE posts ADD COLUMN tags TEXT NOT NULL DEFAULT '[]'")
+}
+
+func migrateMessageRetries(database *sql.DB) error {
+	if err := addColumnIfMissing(database, "messages", "client_id", "ALTER TABLE messages ADD COLUMN client_id TEXT"); err != nil {
+		return err
+	}
+	// SQLite permits multiple NULLs here, preserving existing messages and older clients.
+	_, err := database.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS idx_message_attempt ON messages(sender_id, client_id)`)
+	return err
 }

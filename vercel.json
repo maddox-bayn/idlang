@@ -1,15 +1,36 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run build",
+  "buildCommand": "VITE_API_URL= npm run build",
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
     {
-      "source": "/((?!api/).*)",
+      "source": "/api/:path*",
+      "destination": "https://idlang-backend.onrender.com/api/:path*"
+    },
+    {
+      "source": "/uploads/:path*",
+      "destination": "https://idlang-backend.onrender.com/uploads/:path*"
+    },
+    {
+      "source": "/((?!api/|uploads/).*)",
       "destination": "/index.html"
     }
   ],
   "headers": [
+    {
+      "source": "/api/:path*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "private, no-store"
+        },
+        {
+          "key": "Vercel-CDN-Cache-Control",
+          "value": "no-store"
+        }
+      ]
+    },
     {
       "source": "/assets/(.*)",
       "headers": [

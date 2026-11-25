@@ -4,11 +4,15 @@ export interface Question {
   options: string[];
   correctAnswer: string;
   translation?: string;
+  example?: string;
 }
 
 export interface Lesson {
   id: string;
   title: string;
+  track_id?: string;
+  level?: "Beginner" | "Intermediate" | "Advanced" | "Review";
+  topic?: string;
   questions: Question[];
 }
 
@@ -75,6 +79,27 @@ export interface Post {
   content: string;
   media_type: MediaType;
   media_url?: string;
+  tags?: string[];
+  like_count?: number;
+  liked?: boolean;
+  comment_count?: number;
+  created_at: string;
+}
+
+export interface PostComment {
+  id: string;
+  post_id: string;
+  user_id: string;
+  author: string;
+  body: string;
+  created_at: string;
+}
+
+export interface SavedItem {
+  item_type: "translation" | "post";
+  item_id: string;
+  title: string;
+  body: string;
   created_at: string;
 }
 
@@ -119,6 +144,7 @@ export interface LearningProfile {
 
 export interface LearningTrack {
   id: string;
+  lesson_id: string;
   step: number;
   title: string;
   description: string;

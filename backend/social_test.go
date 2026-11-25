@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func setupTestDB(t *testing.T) {
@@ -169,6 +170,9 @@ func TestDMGatewayPolicy(t *testing.T) {
 	if getRec.Code != http.StatusOK {
 		t.Fatalf("Expected 200 OK retrieving messages, got %d", getRec.Code)
 	}
+	if getRec.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("Expected private message response to disable caching, got %q", getRec.Header().Get("Cache-Control"))
+	}
 
 	var messages []DirectMessageResponse
 	if err := json.NewDecoder(getRec.Body).Decode(&messages); err != nil {
@@ -176,6 +180,65 @@ func TestDMGatewayPolicy(t *testing.T) {
 	}
 	if len(messages) == 0 {
 		t.Errorf("Expected message history, got 0 messages")
+	}
+
+	readReceiptBody, _ := json.Marshal(map[string]string{"peer_id": "user_oche"})
+	unconnectedReadReq := httptest.NewRequest(http.MethodPost, "/api/messages/read", bytes.NewReader(readReceiptBody))
+	unconnectedReadRec := httptest.NewRecorder()
+	authenticateTestRequest(t, unconnectedReadReq, "user_idoko")
+	handleMarkMessagesRead(unconnectedReadRec, unconnectedReadReq)
+	if unconnectedReadRec.Code != http.StatusForbidden {
+		t.Fatalf("Expected read receipt from unconnected peer to be rejected, got %d", unconnectedReadRec.Code)
+	}
+	if _, err := db.Exec(`INSERT INTO connections (id, requester_id, receiver_id, status, pair_key, created_at, updated_at)
+		VALUES ('blocked-read-test', 'user_idoko', 'user_ada', 'blocked', ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, pairKey("user_idoko", "user_ada")); err != nil {
+		t.Fatalf("Insert blocked peer fixture: %v", err)
+	}
+	blockedReadBody, _ := json.Marshal(map[string]string{"peer_id": "user_ada"})
+	blockedReadReq := httptest.NewRequest(http.MethodPost, "/api/messages/read", bytes.NewReader(blockedReadBody))
+	blockedReadRec := httptest.NewRecorder()
+	authenticateTestRequest(t, blockedReadReq, "user_idoko")
+	handleMarkMessagesRead(blockedReadRec, blockedReadReq)
+	if blockedReadRec.Code != http.StatusForbidden {
+		t.Fatalf("Expected read receipt from blocked peer to be rejected, got %d", blockedReadRec.Code)
+	}
+
+	connectedReadReq := httptest.NewRequest(http.MethodPost, "/api/messages/read", bytes.NewReader(readReceiptBody))
+	connectedReadRec := httptest.NewRecorder()
+	authenticateTestRequest(t, connectedReadReq, "user_ada")
+	handleMarkMessagesRead(connectedReadRec, connectedReadReq)
+	if connectedReadRec.Code != http.StatusOK {
+		t.Fatalf("Expected connected peer read receipt to succeed, got %d: %s", connectedReadRec.Code, connectedReadRec.Body.String())
+	}
+
+	// Cursor reads return only newer/older messages and remain deterministic.
+	baseTime := time.Now().Add(365 * 24 * time.Hour)
+	for i, id := range []string{"cursor-message-2", "cursor-message-3"} {
+		if _, err := db.Exec(`INSERT INTO messages (id, sender_id, receiver_id, body, is_read, created_at)
+			VALUES (?, ?, ?, ?, 0, ?)`, id, "user_oche", "user_ada", id, baseTime.Add(time.Duration(i)*time.Second)); err != nil {
+			t.Fatalf("Insert cursor fixture: %v", err)
+		}
+	}
+
+	firstID := messages[len(messages)-1].ID
+	afterReq := httptest.NewRequest(http.MethodGet, "/api/messages?peer_id=user_ada&after_id="+firstID, nil)
+	afterRec := httptest.NewRecorder()
+	authenticateTestRequest(t, afterReq, "user_oche")
+	handleMessages(afterRec, afterReq)
+	var newer []DirectMessageResponse
+	afterBody := afterRec.Body.Bytes()
+	if afterRec.Code != http.StatusOK || json.Unmarshal(afterBody, &newer) != nil || len(newer) != 2 {
+		t.Fatalf("Expected two newer messages after %s (initial %d), got status %d and body %s", firstID, len(messages), afterRec.Code, afterBody)
+	}
+
+	beforeReq := httptest.NewRequest(http.MethodGet, "/api/messages?peer_id=user_ada&before_id=cursor-message-3", nil)
+	beforeRec := httptest.NewRecorder()
+	authenticateTestRequest(t, beforeReq, "user_oche")
+	handleMessages(beforeRec, beforeReq)
+	var older []DirectMessageResponse
+	beforeBody := beforeRec.Body.Bytes()
+	if beforeRec.Code != http.StatusOK || json.Unmarshal(beforeBody, &older) != nil || len(older) != len(messages)+1 {
+		t.Fatalf("Expected %d older messages, got %d with status %d and body %s", len(messages)+1, len(older), beforeRec.Code, beforeBody)
 	}
 }
 
@@ -201,9 +264,9 @@ func TestLazyModuleProgression(t *testing.T) {
 	}
 
 	// Try to complete Track 3 (Proverbial Idioms) directly without completing Track 1 & 2
-	skipPayload := map[string]string{
-
+	skipPayload := map[string]any{
 		"track_id": "track_3_idioms",
+		"answers":  curriculumAnswerKeys["track_3_idioms"],
 	}
 	sBody, _ := json.Marshal(skipPayload)
 	sReq := httptest.NewRequest(http.MethodPost, "/api/learning/complete-track", bytes.NewReader(sBody))
@@ -218,9 +281,9 @@ func TestLazyModuleProgression(t *testing.T) {
 	}
 
 	// Now complete Track 1 (Daily Greetings)
-	t1Payload := map[string]string{
-
+	t1Payload := map[string]any{
 		"track_id": "track_1_greetings",
+		"answers":  curriculumAnswerKeys["track_1_greetings"],
 	}
 	t1Body, _ := json.Marshal(t1Payload)
 	t1Req := httptest.NewRequest(http.MethodPost, "/api/learning/complete-track", bytes.NewReader(t1Body))
@@ -251,9 +314,9 @@ func TestLazyModuleProgression(t *testing.T) {
 	}
 
 	// Complete Track 2 (Numerical Quantifiers)
-	t2Payload := map[string]string{
-
+	t2Payload := map[string]any{
 		"track_id": "track_2_numbers",
+		"answers":  curriculumAnswerKeys["track_2_numbers"],
 	}
 	t2Body, _ := json.Marshal(t2Payload)
 	t2Req := httptest.NewRequest(http.MethodPost, "/api/learning/complete-track", bytes.NewReader(t2Body))

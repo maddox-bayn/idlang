@@ -1,174 +1,96 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { useTranslationStore } from "../store/useTranslationStore";
 
 interface AudioRecorderProps {
   onAudioRecorded: (audioBlob: Blob) => void;
   maxDuration?: number;
   className?: string;
+  disabled?: boolean;
 }
 
-export default function AudioRecorder({
-  onAudioRecorded,
-  maxDuration = 30,
-  className = "",
-}: AudioRecorderProps) {
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
+export default function AudioRecorder({ onAudioRecorded, maxDuration = 30, className = "", disabled = false }: AudioRecorderProps) {
+  const [recording, setRecording] = useState(false);
+  const [pending, setPending] = useState(false);
+  const [seconds, setSeconds] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<number | null>(null);
+  const recorder = useRef<MediaRecorder | null>(null);
+  const stream = useRef<MediaStream | null>(null);
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mounted = useRef(true);
+  const requesting = useRef(false);
+  const discard = useRef(false);
+  const callback = useRef(onAudioRecorded);
+  callback.current = onAudioRecorded;
 
-  const startRecording = async () => {
-    try {
-      setError(null);
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-
-      mediaRecorderRef.current = new MediaRecorder(stream);
-      audioChunksRef.current = [];
-
-      mediaRecorderRef.current.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorderRef.current.onstop = () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: "audio/wav" });
-        onAudioRecorded(audioBlob);
-        stream.getTracks().forEach((track) => track.stop());
-      };
-
-      mediaRecorderRef.current.start(1000);
-      setIsRecording(true);
-      setRecordingTime(0);
-
-      // Start timer
-      timerRef.current = window.setInterval(() => {
-        setRecordingTime((prev) => {
-          if (prev >= maxDuration) {
-            stopRecording();
-            return maxDuration;
-          }
-          return prev + 1;
-        });
-      }, 1000);
-    } catch (err) {
-      console.error("Error accessing microphone:", err);
-      setError("Could not access microphone. Please check permissions.");
-    }
-  };
-
-  const stopRecording = useCallback(() => {
-    if (isRecording && mediaRecorderRef.current) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-    }
-  }, [isRecording]);
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-        mediaRecorderRef.current.stop();
-      }
-    };
+  const stop = useCallback((cancel = false) => {
+    discard.current = cancel;
+    if (timer.current) clearInterval(timer.current);
+    timer.current = null;
+    if (recorder.current?.state !== "inactive") recorder.current?.stop();
+    stream.current?.getTracks().forEach(track => track.stop());
+    stream.current = null;
+    useTranslationStore.getState().setIsRecording(false);
+    if (mounted.current) setRecording(false);
   }, []);
 
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
-  };
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; stop(true); };
+  }, [stop]);
 
-  return (
-    <div className={`flex flex-col gap-3 ${className}`}>
-      {/* Visual Feedback */}
-      <div className="flex items-center justify-center gap-2">
-        <div
-          className={`h-3 w-3 rounded-full transition-colors ${
-            isRecording ? "bg-red-600 animate-pulse" : "bg-neutral-600"
-          }`}
-        />
-        <span className="text-xs font-mono text-red-400">
-          {isRecording ? `Recording ${formatTime(recordingTime)}/${maxDuration}s` : "Ready to record"}
-        </span>
-      </div>
+  async function start() {
+    if (disabled || requesting.current || recorder.current?.state === "recording") return;
+    if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
+      setError("Audio recording is not supported in this browser. Use text translation instead."); return;
+    }
+    requesting.current = true;
+    setPending(true);
+    setError(null);
+    try {
+      const media = await navigator.mediaDevices.getUserMedia({ audio: true });
+      if (!mounted.current) { media.getTracks().forEach(track => track.stop()); return; }
+      stream.current = media;
+      const mimeType = ["audio/webm;codecs=opus", "audio/mp4", "audio/ogg;codecs=opus"].find(type => MediaRecorder.isTypeSupported(type));
+      const active = new MediaRecorder(media, mimeType ? { mimeType } : undefined);
+      recorder.current = active;
+      const chunks: Blob[] = [];
+      discard.current = false;
+      active.ondataavailable = event => { if (event.data.size) chunks.push(event.data); };
+      active.onerror = () => { stop(true); if (mounted.current) setError("Recording failed. Please try again."); };
+      active.onstop = () => {
+        if (!mounted.current || discard.current) return;
+        const blob = new Blob(chunks, { type: active.mimeType || chunks[0]?.type || "audio/webm" });
+        if (blob.size) callback.current(blob);
+        else setError("No audio was captured. Please record again.");
+      };
+      active.start(250);
+      setRecording(true);
+      useTranslationStore.getState().setIsRecording(true);
+      setSeconds(0);
+      const startedAt = performance.now();
+      timer.current = setInterval(() => {
+        const elapsed = Math.floor((performance.now() - startedAt) / 1000);
+        setSeconds(Math.min(elapsed, maxDuration));
+        if (elapsed >= maxDuration) stop();
+      }, 250);
+    } catch {
+      stop(true);
+      if (mounted.current) setError("Could not access the microphone. Check permission or use text translation.");
+    } finally {
+      requesting.current = false;
+      if (mounted.current) setPending(false);
+    }
+  }
 
-      {/* Recording Controls */}
-      <div className="flex items-center gap-4">
-        <button
-          onClick={isRecording ? stopRecording : startRecording}
-          disabled={isRecording && recordingTime >= maxDuration}
-          className={`flex items-center justify-center gap-2 rounded-lg px-6 py-3 font-semibold transition-all ${
-            isRecording
-              ? "bg-red-900 text-red-100 hover:bg-red-800"
-              : "bg-red-900 text-red-100 hover:bg-red-800 disabled:opacity-40"
-          }`}
-        >
-          {isRecording ? (
-            <>
-              <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                <rect x="6" y="6" width="12" height="12" />
-              </svg>
-              Stop
-            </>
-          ) : (
-            <>
-              <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 24 24">
-                <circle cx="12" cy="12" r="10" />
-              </svg>
-              Record
-            </>
-          )}
-        </button>
-
-        {isRecording && (
-          <button
-            onClick={() => {
-              if (mediaRecorderRef.current) {
-                mediaRecorderRef.current.stop();
-                mediaRecorderRef.current.stream.getTracks().forEach((track) => track.stop());
-                setIsRecording(false);
-                audioChunksRef.current = [];
-                setRecordingTime(0);
-              }
-            }}
-            className="rounded-lg px-4 py-2 text-xs font-medium text-red-400 hover:text-red-300"
-          >
-            Cancel
-          </button>
-        )}
-      </div>
-
-      {/* Error Message */}
-      {error && (
-        <div className="rounded-lg border border-red-800/50 bg-red-900/20 px-4 py-2 text-xs text-red-300">
-          {error}
-        </div>
-      )}
-
-      {/* Visualizer Simulation */}
-      {isRecording && (
-        <div className="flex h-8 items-center justify-center gap-1">
-          {Array.from({ length: 20 }).map((_, i) => (
-            <div
-              key={i}
-              className="w-1 rounded-full bg-red-500"
-              style={{
-                height: `${20 + Math.random() * 60}%`,
-                transition: "height 0.1s ease",
-              }}
-            />
-          ))}
-        </div>
-      )}
+  return <div className={`flex flex-col gap-3 ${className}`}>
+    <p role="status" className="text-sm text-neutral-300">{pending ? "Waiting for microphone permission…" : recording ? `Recording: ${seconds} / ${maxDuration} seconds` : `Ready to record · maximum ${maxDuration} seconds`}</p>
+    <div className="flex flex-wrap items-center gap-3">
+      <button type="button" onClick={() => recording ? stop() : void start()} disabled={disabled || pending}
+        className="min-h-11 rounded-lg bg-red-900 px-6 py-3 font-semibold text-red-100 hover:bg-red-800 disabled:opacity-50">
+        {recording ? "Stop recording" : "Record audio"}
+      </button>
+      {recording && <button type="button" onClick={() => stop(true)} className="min-h-11 rounded-lg px-4 py-2 text-sm text-red-300">Cancel recording</button>}
     </div>
-  );
+    {error && <p role="alert" className="rounded-lg border border-red-800 bg-red-950 p-3 text-sm text-red-200">{error}</p>}
+  </div>;
 }

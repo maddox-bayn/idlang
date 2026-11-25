@@ -9,6 +9,9 @@ interface LibraryViewProps {
 export default function LibraryView({ currentUser }: LibraryViewProps) {
   const [books, setBooks] = useState<Book[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [kindFilter, setKindFilter] = useState("");
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [viewingBook, setViewingBook] = useState<Book | null>(null);
 
@@ -23,13 +26,14 @@ export default function LibraryView({ currentUser }: LibraryViewProps) {
   const [readerLoading, setReaderLoading] = useState(false);
   const [readerError, setReaderError] = useState<string | null>(null);
 
-  const loadBooks = async () => {
+  const loadBooks = async (query = searchQuery, kind = kindFilter) => {
     setLoading(true);
+    setLoadError(null);
     try {
-      const data = await fetchBooks();
+      const data = await fetchBooks(query, kind);
       setBooks(data);
     } catch (err) {
-      console.error("Failed to load books:", err);
+      setLoadError(err instanceof Error ? err.message : "Could not load the library.");
     } finally {
       setLoading(false);
     }
@@ -49,8 +53,9 @@ export default function LibraryView({ currentUser }: LibraryViewProps) {
   };
 
   useEffect(() => {
-    loadBooks();
-  }, []);
+    const timer = setTimeout(() => { void loadBooks(searchQuery, kindFilter); }, 250);
+    return () => clearTimeout(timer);
+  }, [searchQuery, kindFilter]);
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,12 +115,23 @@ export default function LibraryView({ currentUser }: LibraryViewProps) {
         )}
       </div>
 
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <label className="sr-only" htmlFor="library-search">Search the archive</label>
+        <input id="library-search" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search titles, authors, or descriptions…" className="min-w-0 flex-1 rounded-lg border border-red-900/50 bg-neutral-950 px-4 py-3 text-sm text-red-100 placeholder-neutral-500" />
+        <label className="sr-only" htmlFor="library-kind">Filter by resource type</label>
+        <select id="library-kind" value={kindFilter} onChange={(event) => setKindFilter(event.target.value)} className="rounded-lg border border-red-900/50 bg-neutral-950 px-3 py-3 text-sm text-red-200">
+          <option value="">All resource types</option><option value="book">Books</option><option value="manuscript">Manuscripts</option><option value="audio">Audio</option><option value="dictionary">Dictionaries</option><option value="lesson">Lessons</option>
+        </select>
+      </div>
+
       {/* Grid of Books */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-red-600 border-t-transparent" />
           <p className="mt-3 text-xs text-red-400">Loading cataloged texts...</p>
         </div>
+      ) : loadError ? (
+        <div role="alert" className="rounded-xl border border-red-700 bg-red-950/40 p-8 text-center"><p className="text-sm text-red-200">{loadError}</p><button onClick={() => void loadBooks()} className="mt-3 rounded-lg border border-red-700 px-4 py-2 text-xs text-red-100">Retry</button></div>
       ) : books.length === 0 ? (
         <div className="rounded-xl border border-red-900/30 bg-neutral-950 p-12 text-center text-red-400">
           <p className="text-sm">No documents in the repository yet. Upload a manuscript to begin.</p>
@@ -206,12 +222,7 @@ export default function LibraryView({ currentUser }: LibraryViewProps) {
               {readerLoading ? "Loading document text..." : readerError ? readerError : viewingBook.content_text || "This file has no extracted text preview. Open or download the original document below."}
             </div>
 
-            <div className="flex justify-between items-center border-t border-red-900/30 pt-4">
-              {viewingBook.has_file || viewingBook.file_url ? (
-                <a href={libraryFileURL(viewingBook, true)} target="_blank" rel="noreferrer" className="text-xs text-red-300 underline">
-                  Open original file
-                </a>
-              ) : <span />}
+            <div className="flex justify-end items-center border-t border-red-900/30 pt-4">
               <button
                 onClick={() => setViewingBook(null)}
                 className="rounded-lg bg-red-900/60 border border-red-800 px-4 py-1.5 text-xs font-semibold text-red-200 hover:bg-red-800"

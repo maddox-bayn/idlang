@@ -8,7 +8,8 @@ avatar, post and library URLs resolve against the same backend base.
 ## Request flow and credentials
 
 1. Signup sends JSON to `/api/auth/signup`. `backend/auth.go` validates fields,
-   hashes the password with bcrypt (cost 12), and stores the hash in SQLite.
+   hashes the password with bcrypt (cost 12), and stores the hash in Turso/libSQL
+   when configured, or local SQLite otherwise.
    Login verifies that hash at `/api/auth/login`. Passwords are not stored in
    localStorage or returned in API responses. Use HTTPS in production.
 2. A successful login/signup creates a random 32-byte session token. Only its
@@ -57,7 +58,10 @@ Cross-site cookies use `SameSite=None; Secure`; browsers that block third-party
 cookies may still reject them. Prefer same-origin API routing when possible;
 then keep `CROSS_SITE_COOKIES=false` and use the default `SameSite=Lax`.
 
-Persist `DATABASE_PATH`, `LIBRARY_DIR`, and the backend's `uploads/` directory.
+See [Turso and admin setup](TURSO_AND_ADMIN.md) for remote database credentials,
+existing SQLite migration, the guest translation trial, and the separate `/admin` page.
+When using local SQLite, persist `DATABASE_PATH`. In either mode, persist
+`LIBRARY_DIR` and the backend's `uploads/` directory.
 Back up the database before deployment. Startup migrations preserve legacy users
 and books, add nullable timestamp columns (SQLite cannot add a nonconstant default
 to populated tables), then backfill timestamps. New databases use the same path.

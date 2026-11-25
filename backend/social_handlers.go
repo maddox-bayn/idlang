@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -20,12 +22,25 @@ import (
 // --- Timeline Engine ---
 
 type PostResponse struct {
+	ID           string    `json:"id"`
+	UserID       string    `json:"user_id"`
+	Author       *User     `json:"author"`
+	Content      string    `json:"content"`
+	MediaType    string    `json:"media_type"`
+	MediaURL     string    `json:"media_url"`
+	Tags         []string  `json:"tags"`
+	LikeCount    int       `json:"like_count"`
+	Liked        bool      `json:"liked"`
+	CommentCount int       `json:"comment_count"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+type PostComment struct {
 	ID        string    `json:"id"`
+	PostID    string    `json:"post_id"`
 	UserID    string    `json:"user_id"`
-	Author    *User     `json:"author"`
-	Content   string    `json:"content"`
-	MediaType string    `json:"media_type"`
-	MediaURL  string    `json:"media_url"`
+	Author    string    `json:"author"`
+	Body      string    `json:"body"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
@@ -52,21 +67,32 @@ func handleGetPosts(w http.ResponseWriter, r *http.Request) {
 	}
 	offset := (page - 1) * limit
 
+	viewer := currentUser(r)
+	viewerID := ""
+	if viewer != nil {
+		viewerID = viewer.ID
+	}
+	topic := normalizePostTopic(r.URL.Query().Get("topic"))
+	topicPattern := "%\"" + topic + "\"%"
 	var total int
-	if err := db.QueryRow("SELECT COUNT(*) FROM posts").Scan(&total); err != nil {
+	if err := db.QueryRow(`SELECT COUNT(*) FROM posts WHERE (? = '' OR tags LIKE ?)`, topic, topicPattern).Scan(&total); err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not load the feed.")
 		return
 	}
 
 	rows, err := db.Query(`
-		SELECT p.id, p.user_id, p.content, p.media_type, p.media_url, p.created_at,
+		SELECT p.id, p.user_id, p.content, p.media_type, p.media_url, p.created_at, COALESCE(p.tags, '[]'),
+		       (SELECT COUNT(*) FROM post_likes l WHERE l.post_id=p.id),
+	       EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.user_id=?),
+	       (SELECT COUNT(*) FROM post_comments c WHERE c.post_id=p.id),
 		       u.id, u.username, u.display_name, u.native_name, u.avatar_url, u.bio, u.dialect,
 		       u.native_speaker, u.role
 		FROM posts p
 		LEFT JOIN users u ON p.user_id = u.id
+		WHERE (? = '' OR p.tags LIKE ?)
 		ORDER BY p.created_at DESC
 		LIMIT ? OFFSET ?
-	`, limit, offset)
+	`, viewerID, topic, topicPattern, limit, offset)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not load the feed.")
 		return
@@ -80,14 +106,20 @@ func handleGetPosts(w http.ResponseWriter, r *http.Request) {
 			u          User
 			createdStr sql.NullString
 			authorID   sql.NullString
+			tagsJSON   string
 		)
 		err := rows.Scan(
-			&p.ID, &p.UserID, &p.Content, &p.MediaType, &p.MediaURL, &createdStr,
+			&p.ID, &p.UserID, &p.Content, &p.MediaType, &p.MediaURL, &createdStr, &tagsJSON,
+			&p.LikeCount, &p.Liked, &p.CommentCount,
 			&authorID, &u.Username, &u.DisplayName, &u.NativeName, &u.AvatarURL, &u.Bio, &u.Dialect,
 			&u.NativeSpeaker, &u.Role,
 		)
 		if err != nil {
 			continue
+		}
+		_ = json.Unmarshal([]byte(tagsJSON), &p.Tags)
+		if p.Tags == nil {
+			p.Tags = []string{}
 		}
 		if authorID.Valid {
 			u.ID = authorID.String
@@ -109,9 +141,10 @@ func handleCreatePost(w http.ResponseWriter, r *http.Request) {
 	author := currentUser(r)
 
 	var content, mediaType, mediaURL string
+	var tags []string
 
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
-		r.Body = http.MaxBytesReader(w, r.Body, 25<<20)
+		r.Body = http.MaxBytesReader(w, r.Body, maxLibraryUpload+(1<<20))
 		if err := r.ParseMultipartForm(4 << 20); err != nil {
 			writeError(w, http.StatusBadRequest, "Could not read that upload.")
 			return
@@ -119,6 +152,9 @@ func handleCreatePost(w http.ResponseWriter, r *http.Request) {
 		content = r.FormValue("content")
 		mediaType = r.FormValue("media_type")
 		mediaURL = r.FormValue("media_url")
+		if raw := r.FormValue("tags"); raw != "" {
+			_ = json.Unmarshal([]byte(raw), &tags)
+		}
 
 		file, header, err := r.FormFile("media_file")
 		if err == nil && file != nil {
@@ -132,9 +168,10 @@ func handleCreatePost(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		var req struct {
-			Content   string `json:"content"`
-			MediaType string `json:"media_type"`
-			MediaURL  string `json:"media_url"`
+			Content   string   `json:"content"`
+			MediaType string   `json:"media_type"`
+			MediaURL  string   `json:"media_url"`
+			Tags      []string `json:"tags"`
 		}
 		if err := decodeJSON(w, r, &req, 32<<10); err != nil {
 			writeError(w, http.StatusBadRequest, "Invalid JSON body.")
@@ -143,6 +180,7 @@ func handleCreatePost(w http.ResponseWriter, r *http.Request) {
 		content = req.Content
 		mediaType = req.MediaType
 		mediaURL = req.MediaURL
+		tags = req.Tags
 	}
 	if author == nil {
 		writeError(w, http.StatusUnauthorized, "Sign in to post.")
@@ -174,13 +212,15 @@ func handleCreatePost(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "media_url must be an http(s) URL or an uploaded file.")
 		return
 	}
+	tags = sanitizePostTags(tags)
+	tagsJSON, _ := json.Marshal(tags)
 
 	postID := uuid.New().String()
 	now := time.Now()
 	if _, err := db.Exec(`
-		INSERT INTO posts (id, user_id, content, media_type, media_url, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)
-	`, postID, author.ID, content, mediaType, mediaURL, now); err != nil {
+		INSERT INTO posts (id, user_id, content, media_type, media_url, created_at, tags)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, postID, author.ID, content, mediaType, mediaURL, now, string(tagsJSON)); err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not save that post.")
 		return
 	}
@@ -192,6 +232,7 @@ func handleCreatePost(w http.ResponseWriter, r *http.Request) {
 		Content:   content,
 		MediaType: mediaType,
 		MediaURL:  mediaURL,
+		Tags:      tags,
 		CreatedAt: now,
 	})
 }
@@ -225,6 +266,224 @@ func handleDeletePost(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+var postTopics = map[string]bool{"greetings": true, "dialects": true, "proverbs": true, "music": true, "oral-history": true, "culture": true}
+
+func normalizePostTopic(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if postTopics[value] {
+		return value
+	}
+	return ""
+}
+
+func sanitizePostTags(values []string) []string {
+	seen := make(map[string]bool)
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		tag := normalizePostTopic(value)
+		if tag != "" && !seen[tag] {
+			seen[tag] = true
+			result = append(result, tag)
+		}
+	}
+	if len(result) > 3 {
+		result = result[:3]
+	}
+	return result
+}
+
+func handlePostEngagement(w http.ResponseWriter, r *http.Request) {
+	path := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/posts/"), "/")
+	parts := strings.Split(path, "/")
+	if len(parts) != 2 || parts[0] == "" {
+		writeError(w, http.StatusNotFound, "Not found.")
+		return
+	}
+	postID := parts[0]
+	switch parts[1] {
+	case "likes":
+		if r.Method != http.MethodPost {
+			methodNotAllowed(w, http.MethodPost)
+			return
+		}
+		var req struct {
+			Liked bool `json:"liked"`
+		}
+		if err := decodeJSON(w, r, &req, 4<<10); err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid like request.")
+			return
+		}
+		user := currentUser(r)
+		var postExists int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM posts WHERE id=?`, postID).Scan(&postExists); err != nil || postExists == 0 {
+			writeError(w, http.StatusNotFound, "Post not found.")
+			return
+		}
+		if req.Liked {
+			_, err := db.Exec(`INSERT INTO post_likes(post_id,user_id) SELECT id, ? FROM posts WHERE id=? ON CONFLICT(post_id,user_id) DO NOTHING`, user.ID, postID)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "Could not like this post.")
+				return
+			}
+		} else if _, err := db.Exec(`DELETE FROM post_likes WHERE post_id=? AND user_id=?`, postID, user.ID); err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not update your reaction.")
+			return
+		}
+		var count int
+		if err := db.QueryRow(`SELECT COUNT(*) FROM post_likes WHERE post_id=?`, postID).Scan(&count); err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not load reactions.")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"liked": req.Liked, "like_count": count})
+	case "comments":
+		switch r.Method {
+		case http.MethodGet:
+			rows, err := db.Query(`SELECT c.id,c.post_id,c.user_id,u.display_name,c.body,c.created_at FROM post_comments c JOIN users u ON u.id=c.user_id WHERE c.post_id=? ORDER BY c.created_at ASC LIMIT 100`, postID)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "Could not load comments.")
+				return
+			}
+			defer rows.Close()
+			comments := make([]PostComment, 0)
+			for rows.Next() {
+				var c PostComment
+				var created string
+				if err := rows.Scan(&c.ID, &c.PostID, &c.UserID, &c.Author, &c.Body, &created); err != nil {
+					continue
+				}
+				c.CreatedAt = parseDBTime(created)
+				comments = append(comments, c)
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"comments": comments})
+		case http.MethodPost:
+			var req struct {
+				Body string `json:"body"`
+			}
+			if err := decodeJSON(w, r, &req, 8<<10); err != nil {
+				writeError(w, http.StatusBadRequest, "Invalid comment.")
+				return
+			}
+			body := strings.TrimSpace(req.Body)
+			if body == "" || len(body) > 1000 {
+				writeError(w, http.StatusBadRequest, "Comments must be between 1 and 1000 characters.")
+				return
+			}
+			user := currentUser(r)
+			if !allowRate(w, r, "comment:"+user.ID, 100, time.Hour) {
+				return
+			}
+			id := uuid.New().String()
+			result, err := db.Exec(`INSERT INTO post_comments(id,post_id,user_id,body) SELECT ?,id,?,? FROM posts WHERE id=?`, id, user.ID, body, postID)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "Could not add comment.")
+				return
+			}
+			if changed, _ := result.RowsAffected(); changed == 0 {
+				writeError(w, http.StatusNotFound, "Post not found.")
+				return
+			}
+			writeJSON(w, http.StatusCreated, map[string]any{"comment": PostComment{ID: id, PostID: postID, UserID: user.ID, Author: user.DisplayName, Body: body, CreatedAt: time.Now()}})
+		default:
+			methodNotAllowed(w, "GET, POST")
+		}
+	default:
+		writeError(w, http.StatusNotFound, "Not found.")
+	}
+}
+
+func handleFeedPrompt(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w, http.MethodGet)
+		return
+	}
+	prompts := []string{
+		"Share a greeting elders use in your community.",
+		"What Idoma word or phrase do you want the next generation to remember?",
+		"Share a song, proverb, or story and tell us where you learned it.",
+		"How does your family preserve an oral history?",
+	}
+	day := time.Now().UTC().YearDay()
+	writeJSON(w, http.StatusOK, map[string]string{"prompt": prompts[(day-1)%len(prompts)]})
+}
+
+type SavedItem struct {
+	Type      string    `json:"item_type"`
+	ID        string    `json:"item_id"`
+	Title     string    `json:"title"`
+	Body      string    `json:"body"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func handleSavedItems(w http.ResponseWriter, r *http.Request) {
+	user := currentUser(r)
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "Sign in to manage saved items.")
+		return
+	}
+	switch r.Method {
+	case http.MethodGet:
+		rows, err := db.Query(`SELECT item_type,item_id,title,body,created_at FROM saved_items WHERE user_id=? ORDER BY created_at DESC LIMIT 200`, user.ID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not load saved items.")
+			return
+		}
+		defer rows.Close()
+		items := make([]SavedItem, 0)
+		for rows.Next() {
+			var item SavedItem
+			var created string
+			if err := rows.Scan(&item.Type, &item.ID, &item.Title, &item.Body, &created); err != nil {
+				continue
+			}
+			item.CreatedAt = parseDBTime(created)
+			items = append(items, item)
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"items": items})
+	case http.MethodPost:
+		var item SavedItem
+		if err := decodeJSON(w, r, &item, 64<<10); err != nil {
+			writeError(w, http.StatusBadRequest, "Invalid saved item.")
+			return
+		}
+		item.Type = strings.TrimSpace(item.Type)
+		item.ID = strings.TrimSpace(item.ID)
+		item.Title = strings.TrimSpace(item.Title)
+		item.Body = strings.TrimSpace(item.Body)
+		if (item.Type != "translation" && item.Type != "post") || item.ID == "" || len(item.ID) > 200 || len(item.Title) > 300 || len(item.Body) > 32<<10 {
+			writeError(w, http.StatusBadRequest, "Saved item is invalid or too large.")
+			return
+		}
+		if item.Type == "post" {
+			var exists int
+			if err := db.QueryRow(`SELECT COUNT(*) FROM posts WHERE id=?`, item.ID).Scan(&exists); err != nil || exists == 0 {
+				writeError(w, http.StatusNotFound, "Post not found.")
+				return
+			}
+		}
+		_, err := db.Exec(`INSERT INTO saved_items(user_id,item_type,item_id,title,body) VALUES (?,?,?,?,?) ON CONFLICT(user_id,item_type,item_id) DO UPDATE SET title=excluded.title,body=excluded.body`, user.ID, item.Type, item.ID, item.Title, item.Body)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not save this item.")
+			return
+		}
+		writeJSON(w, http.StatusCreated, map[string]any{"saved": true})
+	case http.MethodDelete:
+		kind := r.URL.Query().Get("item_type")
+		id := r.URL.Query().Get("item_id")
+		if kind != "translation" && kind != "post" {
+			writeError(w, http.StatusBadRequest, "Invalid saved item type.")
+			return
+		}
+		_, err := db.Exec(`DELETE FROM saved_items WHERE user_id=? AND item_type=? AND item_id=?`, user.ID, kind, id)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not remove saved item.")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"saved": false})
+	default:
+		methodNotAllowed(w, "GET, POST, DELETE")
+	}
 }
 
 // --- Profile Engine Routing ---
@@ -653,6 +912,7 @@ type DirectMessageResponse struct {
 }
 
 func handleMessages(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	if currentUser(r) == nil {
 		writeError(w, http.StatusUnauthorized, "Sign in to continue.")
 		return
@@ -671,6 +931,7 @@ func sendMessage(w http.ResponseWriter, r *http.Request) {
 	sender := currentUser(r)
 
 	var req struct {
+		ClientID   string `json:"client_id"`
 		ReceiverID string `json:"receiver_id"`
 		Body       string `json:"body"`
 	}
@@ -708,7 +969,12 @@ func sendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if blocked, _ := isBlocked(sender.ID, receiverID); blocked {
+	connected, blocked, err := messagePeerAccess(sender.ID, receiverID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not verify messaging access.")
+		return
+	}
+	if blocked {
 		writeError(w, http.StatusForbidden, "You cannot message this user.")
 		return
 	}
@@ -719,23 +985,55 @@ func sendMessage(w http.ResponseWriter, r *http.Request) {
 
 	// CORE RULE 1: The DM Gateway Policy. Direct messaging is restricted to
 	// active connected peers. Enforced here, before any mutation.
-	connected, err := areUsersConnected(sender.ID, receiverID)
-	if err != nil || !connected {
+	if !connected {
 		writeError(w, http.StatusForbidden,
 			"Direct messaging is restricted to active connected peers.")
 		return
 	}
 
+	var clientID any
+	if req.ClientID != "" {
+		key, err := uuid.Parse(req.ClientID)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "client_id must be a UUID.")
+			return
+		}
+		clientID = key.String()
+	}
 	msgID := uuid.New().String()
-	now := time.Now()
-	if _, err := db.Exec(`
-		INSERT INTO messages (id, sender_id, receiver_id, body, is_read, created_at)
-		VALUES (?, ?, ?, ?, 0, ?)
-	`, msgID, sender.ID, receiverID, body, now); err != nil {
+	now := time.Now().UTC()
+	result, err := db.ExecContext(r.Context(), `
+		INSERT INTO messages (id, sender_id, receiver_id, body, is_read, created_at, client_id)
+		VALUES (?, ?, ?, ?, 0, ?, ?)
+		ON CONFLICT(sender_id, client_id) DO NOTHING
+	`, msgID, sender.ID, receiverID, body, now, clientID)
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not store that message.")
 		return
 	}
-
+	inserted, err := result.RowsAffected()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not verify message delivery.")
+		return
+	}
+	if inserted == 0 {
+		var saved DirectMessageResponse
+		var created string
+		err := db.QueryRowContext(r.Context(), `SELECT id, sender_id, receiver_id, body, is_read, created_at
+			FROM messages WHERE sender_id = ? AND client_id = ?`, sender.ID, clientID).
+			Scan(&saved.ID, &saved.SenderID, &saved.ReceiverID, &saved.Body, &saved.IsRead, &created)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not verify message delivery.")
+			return
+		}
+		if saved.ReceiverID != receiverID || saved.Body != body {
+			writeError(w, http.StatusConflict, "This send attempt already belongs to another message.")
+			return
+		}
+		saved.CreatedAt = parseDBTime(created)
+		writeJSON(w, http.StatusOK, saved)
+		return
+	}
 	writeJSON(w, http.StatusCreated, DirectMessageResponse{
 		ID: msgID, SenderID: sender.ID, ReceiverID: receiverID,
 		Body: body, IsRead: false, CreatedAt: now,
@@ -754,23 +1052,61 @@ func readMessages(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "peer_id is required.")
 		return
 	}
+	afterID := strings.TrimSpace(r.URL.Query().Get("after_id"))
+	beforeID := strings.TrimSpace(r.URL.Query().Get("before_id"))
+	if afterID != "" && beforeID != "" {
+		writeError(w, http.StatusBadRequest, "Use only one message cursor at a time.")
+		return
+	}
 
-	if blocked, _ := isBlocked(viewer.ID, peerID); blocked {
+	connected, blocked, err := messagePeerAccess(viewer.ID, peerID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not verify messaging access.")
+		return
+	}
+	if blocked {
 		writeError(w, http.StatusForbidden, "Messaging history is unavailable.")
 		return
 	}
-	connected, err := areUsersConnected(viewer.ID, peerID)
-	if err != nil || !connected {
+	if !connected {
 		writeError(w, http.StatusForbidden, "Messaging history is restricted to connected peers.")
 		return
 	}
 
-	rows, err := db.Query(`
-		SELECT id, sender_id, receiver_id, body, is_read, created_at
+	const pageSize = 100
+	query := `SELECT id, sender_id, receiver_id, body, is_read, created_at
 		FROM messages
-		WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)
-		ORDER BY created_at ASC
-	`, viewer.ID, peerID, peerID, viewer.ID)
+		WHERE ((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))`
+	args := []any{viewer.ID, peerID, peerID, viewer.ID}
+	descending := false
+	if afterID != "" || beforeID != "" {
+		cursorID := afterID
+		if beforeID != "" {
+			cursorID = beforeID
+			descending = true
+		}
+		var cursorTime string
+		err := db.QueryRow(`SELECT CAST(created_at AS TEXT) FROM messages WHERE id = ? AND
+			((sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?))`,
+			cursorID, viewer.ID, peerID, peerID, viewer.ID).Scan(&cursorTime)
+		if err != nil {
+			writeError(w, http.StatusBadRequest, "The message cursor is invalid for this conversation.")
+			return
+		}
+		operator := ">"
+		if descending {
+			operator = "<"
+		}
+		query += ` AND (created_at ` + operator + ` ? OR (created_at = ? AND id ` + operator + ` ?))`
+		args = append(args, cursorTime, cursorTime, cursorID)
+	}
+	if descending || afterID == "" {
+		query += ` ORDER BY created_at DESC, id DESC LIMIT ?`
+	} else {
+		query += ` ORDER BY created_at ASC, id ASC LIMIT ?`
+	}
+	args = append(args, pageSize)
+	rows, err := db.Query(query, args...)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not load messages.")
 		return
@@ -781,9 +1117,20 @@ func readMessages(w http.ResponseWriter, r *http.Request) {
 	for rows.Next() {
 		var m DirectMessageResponse
 		var cStr sql.NullString
-		if err := rows.Scan(&m.ID, &m.SenderID, &m.ReceiverID, &m.Body, &m.IsRead, &cStr); err == nil {
-			m.CreatedAt = parseDBTime(cStr.String)
-			messages = append(messages, m)
+		if err := rows.Scan(&m.ID, &m.SenderID, &m.ReceiverID, &m.Body, &m.IsRead, &cStr); err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not read messages.")
+			return
+		}
+		m.CreatedAt = parseDBTime(cStr.String)
+		messages = append(messages, m)
+	}
+	if err := rows.Err(); err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not read messages.")
+		return
+	}
+	if descending || afterID == "" {
+		for left, right := 0, len(messages)-1; left < right; left, right = left+1, right-1 {
+			messages[left], messages[right] = messages[right], messages[left]
 		}
 	}
 
@@ -793,6 +1140,7 @@ func readMessages(w http.ResponseWriter, r *http.Request) {
 // handleMarkMessagesRead is a mutation, so it is a POST rather than a side
 // effect of GET (which also let a reader flip the sender's unread flags).
 func handleMarkMessagesRead(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
 	if r.Method != http.MethodPost {
 		methodNotAllowed(w, http.MethodPost)
 		return
@@ -815,6 +1163,15 @@ func handleMarkMessagesRead(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "peer_id is required.")
 		return
 	}
+	connected, blocked, err := messagePeerAccess(viewer.ID, peerID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not verify messaging access.")
+		return
+	}
+	if blocked || !connected {
+		writeError(w, http.StatusForbidden, "Read receipts are restricted to connected peers.")
+		return
+	}
 
 	res, err := db.Exec(`
 		UPDATE messages SET is_read = 1
@@ -831,7 +1188,15 @@ func handleMarkMessagesRead(w http.ResponseWriter, r *http.Request) {
 // --- Gamified Learning Tracks API ---
 
 type CompleteTrackRequest struct {
-	TrackID string `json:"track_id"`
+	TrackID string            `json:"track_id"`
+	Answers map[string]string `json:"answers"`
+}
+
+var curriculumAnswerKeys = map[string]map[string]string{
+	"track_1_greetings": {"good-morning": "Nmaochi", "good-night": "Nmoo Gb'ochi", "goodbye": "Nmoo", "thank-you": "Ófé", "welcome": "Ainya Owa"},
+	"track_2_numbers":   {"one": "òyé", "two": "èpà", "three": "ɛ́mā", "four": "ɛ́lɛ̄", "five": "ɛ́hɔ̄"},
+	"track_3_idioms":    {"ancestors": "Alekwu", "tradition": "Ogwuchekwo", "masquerade": "Ekwu", "sacred": "Iho", "oracle": "Obochi"},
+	"track_4_folktales": {"please": "K'ocho", "hello": "Ówúrú", "yes": "Éhò", "no": "Kú", "sit-down": "Chíchẽ àjè"},
 }
 
 type CompleteTrackResponse struct {
@@ -913,7 +1278,6 @@ func handleCompleteLearningTrack(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "track_id is required.")
 		return
 	}
-
 	targetIndex := -1
 	for i := range CurriculumTracks {
 		if CurriculumTracks[i].ID == req.TrackID {
@@ -938,7 +1302,23 @@ func handleCompleteLearningTrack(w http.ResponseWriter, r *http.Request) {
 		completedMap[id] = true
 	}
 
-	// CORE RULE 3: Lazy Module Progression.
+	answerKey, hasAnswerKey := curriculumAnswerKeys[req.TrackID]
+	if !hasAnswerKey || len(req.Answers) != len(answerKey) {
+		writeError(w, http.StatusUnprocessableEntity, "Submit all answers for the linked lesson.")
+		return
+	}
+	correct := 0
+	for questionID, expected := range answerKey {
+		if strings.EqualFold(strings.TrimSpace(req.Answers[questionID]), expected) {
+			correct++
+		}
+	}
+	if correct*100/len(answerKey) < 80 {
+		writeError(w, http.StatusUnprocessableEntity, "Score at least 80% to pass this lesson and earn track XP.")
+		return
+	}
+
+	// CORE RULE 3: Linear progression is only advanced after the linked lesson passes.
 	for i := 0; i < targetIndex; i++ {
 		if !completedMap[CurriculumTracks[i].ID] {
 			writeJSON(w, http.StatusBadRequest, map[string]any{
@@ -959,18 +1339,46 @@ func handleCompleteLearningTrack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	previousXP := profile.XPPoints
 	profile.CompletedTracks = append(profile.CompletedTracks, targetTrack.ID)
 	profile.XPPoints += targetTrack.XPReward
 	profile.FluencyTier = calculateFluencyTier(profile.XPPoints)
 	profile.UpdatedAt = time.Now()
 
 	tracksJSON, _ := json.Marshal(profile.CompletedTracks)
-	if _, err := db.Exec(`
+	// XP only increases on track completion. Reject a write based on stale progress.
+	result, err := db.ExecContext(r.Context(), `
 		UPDATE learning_profiles
 		SET completed_tracks = ?, xp_points = ?, fluency_tier = ?, updated_at = ?
-		WHERE user_id = ?
-	`, string(tracksJSON), profile.XPPoints, string(profile.FluencyTier), profile.UpdatedAt, profile.UserID); err != nil {
+		WHERE user_id = ? AND xp_points = ?
+	`, string(tracksJSON), profile.XPPoints, string(profile.FluencyTier), profile.UpdatedAt, profile.UserID, previousXP)
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not save your progress.")
+		return
+	}
+
+	changed, err := result.RowsAffected()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not verify your progress.")
+		return
+	}
+	if changed == 0 {
+		current, err := getLearningProfile(user.ID)
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "Could not reload your progress.")
+			return
+		}
+		for _, id := range current.CompletedTracks {
+			if id == targetTrack.ID {
+				writeJSON(w, http.StatusOK, CompleteTrackResponse{
+					Success: true, Message: "Track was already completed",
+					LearningProfile: current, NewTier: current.FluencyTier,
+					Tracks: tracksWithStatus(current.CompletedTracks),
+				})
+				return
+			}
+		}
+		writeError(w, http.StatusConflict, "Progress changed. Reload the track and try again.")
 		return
 	}
 
@@ -982,6 +1390,121 @@ func handleCompleteLearningTrack(w http.ResponseWriter, r *http.Request) {
 		NewTier:         profile.FluencyTier,
 		Tracks:          tracksWithStatus(profile.CompletedTracks),
 	})
+}
+
+type DailyPracticeResponse struct {
+	Date      string `json:"date"`
+	Category  string `json:"category"`
+	Prompt    string `json:"prompt"`
+	Answer    string `json:"answer"`
+	Example   string `json:"example,omitempty"`
+	Completed bool   `json:"completed"`
+	Streak    int    `json:"streak"`
+}
+
+func handleGetDailyPractice(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		methodNotAllowed(w, http.MethodGet)
+		return
+	}
+	user := currentUser(r)
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "Sign in to practice.")
+		return
+	}
+	date := time.Now().UTC().Format("2006-01-02")
+	english, entry, ok := dailyPracticeEntry(date)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "Daily practice content is unavailable.")
+		return
+	}
+	completed, streak, err := practiceSummary(r.Context(), user.ID, date)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not load your practice streak.")
+		return
+	}
+	writeJSON(w, http.StatusOK, DailyPracticeResponse{Date: date, Category: "Greetings", Prompt: english, Answer: entry.Idoma, Example: entry.Example, Completed: completed, Streak: streak})
+}
+
+func handleCompleteDailyPractice(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w, http.MethodPost)
+		return
+	}
+	user := currentUser(r)
+	if user == nil {
+		writeError(w, http.StatusUnauthorized, "Sign in to record practice.")
+		return
+	}
+	var req struct {
+		Date   string `json:"date"`
+		Answer string `json:"answer"`
+	}
+	if err := decodeJSON(w, r, &req, 4<<10); err != nil {
+		writeError(w, http.StatusBadRequest, "Invalid practice request.")
+		return
+	}
+	date := time.Now().UTC().Format("2006-01-02")
+	if req.Date != date {
+		writeError(w, http.StatusConflict, "This daily practice has expired. Load today's practice and try again.")
+		return
+	}
+	_, expected, ok := dailyPracticeEntry(date)
+	if !ok {
+		writeError(w, http.StatusServiceUnavailable, "Daily practice content is unavailable.")
+		return
+	}
+	if !strings.EqualFold(strings.TrimSpace(req.Answer), strings.TrimSpace(expected.Idoma)) {
+		writeError(w, http.StatusUnprocessableEntity, "Answer today's prompt correctly before recording practice.")
+		return
+	}
+	_, err := db.ExecContext(r.Context(), `INSERT INTO learning_activity(user_id, activity_date) VALUES (?, ?) ON CONFLICT(user_id, activity_date) DO NOTHING`, user.ID, date)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not save your practice.")
+		return
+	}
+	_, streak, err := practiceSummary(r.Context(), user.ID, date)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Could not update your streak.")
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"completed": true, "streak": streak})
+}
+
+func dailyPracticeEntry(date string) (string, WordEntry, bool) {
+	entries := make([]string, 0, len(dict["greetings"]))
+	for english, entry := range dict["greetings"] {
+		if strings.TrimSpace(entry.Idoma) != "" {
+			entries = append(entries, english)
+		}
+	}
+	if len(entries) == 0 {
+		return "", WordEntry{}, false
+	}
+	sort.Strings(entries)
+	day, err := time.Parse("2006-01-02", date)
+	if err != nil {
+		return "", WordEntry{}, false
+	}
+	english := entries[(day.YearDay()-1)%len(entries)]
+	return english, dict["greetings"][english], true
+}
+
+// Read both values in one snapshot. A nested query would wait forever while
+// the outer cursor owns the only connection in the configured pool.
+func practiceSummary(ctx context.Context, userID, date string) (bool, int, error) {
+	const query = `WITH RECURSIVE streak(day) AS (
+		SELECT MAX(activity_date) FROM learning_activity
+		WHERE user_id = ?1 AND activity_date BETWEEN date(?2, '-1 day') AND ?2
+		UNION ALL
+		SELECT a.activity_date FROM streak s JOIN learning_activity a
+		  ON a.user_id = ?1 AND a.activity_date = date(s.day, '-1 day')
+	)
+	SELECT COALESCE(MAX(day) = ?2, 0), COUNT(day) FROM streak`
+	var completed bool
+	var length int
+	err := db.QueryRowContext(ctx, query, userID, date).Scan(&completed, &length)
+	return completed, length, err
 }
 
 // --- Media helpers ----------------------------------------------------------

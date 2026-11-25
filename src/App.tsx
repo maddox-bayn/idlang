@@ -1,11 +1,13 @@
-import { useState, useEffect } from "react";
+import { lazy, Suspense, useState, useEffect } from "react";
 import TranslateView from "./components/TranslateView";
-import LearnView from "./components/LearnView";
-import FeedView from "./components/FeedView";
-import LibraryView from "./components/LibraryView";
-import ProfileModal from "./components/ProfileModal";
+import { MenuIcon, MobileTabBar, SidebarNav, loadNavState, navLabel, saveNavState, type Tab } from "./components/Navigation";
+const LearnView = lazy(() => import("./components/LearnView"));
+const FeedView = lazy(() => import("./components/FeedView"));
+const LibraryView = lazy(() => import("./components/LibraryView"));
+const MessagesView = lazy(() => import("./components/MessagesView"));
+const ProfileModal = lazy(() => import("./components/ProfileModal"));
 import AuthModal from "./components/AuthModal";
-import ConnectionsModal from "./components/ConnectionsModal";
+const ConnectionsModal = lazy(() => import("./components/ConnectionsModal"));
 import type { User } from "./types";
 import {
   fetchCurrentUser,
@@ -13,10 +15,31 @@ import {
   fetchConnectionsList,
 } from "./api/socialClient";
 
-type Tab = "feed" | "library" | "learn" | "translate";
+function requestedTab(): Tab {
+  const view = new URLSearchParams(window.location.search).get("view");
+  return view === "feed" || view === "library" || view === "learn" || view === "messages" ? view : "translate";
+}
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<Tab>("feed");
+  const [activeTab, setActiveTab] = useState<Tab>(requestedTab);
+  function selectTab(view: Tab) {
+    const url = new URL(window.location.href);
+    if (view === "translate") url.searchParams.delete("view");
+    else url.searchParams.set("view", view);
+    if (url.href !== window.location.href) window.history.pushState(null, "", url);
+    setActiveTab(view);
+  }
+  useEffect(() => {
+    const onBack = () => setActiveTab(requestedTab());
+    window.addEventListener("popstate", onBack);
+    return () => window.removeEventListener("popstate", onBack);
+  }, []);
+
+  // Desktop sidebar layout (hidden / expanded / icon rail), persisted across visits
+  const [navState, setNavState] = useState(loadNavState);
+  useEffect(() => {
+    saveNavState(navState);
+  }, [navState]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [loadingAuth, setLoadingAuth] = useState(true);
 
@@ -59,6 +82,9 @@ export default function App() {
       await logoutUser();
       setCurrentUser(null);
       setPendingRequestsCount(0);
+      selectTab("translate");
+      setSelectedProfileUserId(null);
+      setShowConnectionsModal(false);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Could not sign out. Please try again.");
     }
@@ -80,75 +106,41 @@ export default function App() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-black text-red-100">
+    <div
+      className={`flex min-h-screen flex-col bg-black text-red-100 ${
+        currentUser && navState.open ? (navState.collapsed ? "lg:pl-16" : "lg:pl-64") : ""
+      }`}
+    >
+      <a href="#main-content" className="skip-link">Skip to content</a>
       {/* Header */}
-      <header className="sticky top-0 z-40 border-b border-red-900/30 bg-black/95 backdrop-blur-md px-4 sm:px-6 py-3">
-        <div className="mx-auto flex max-w-7xl flex-col md:flex-row items-center justify-between gap-3">
-          {/* Logo & Slogan */}
+      <header className="sticky top-0 z-40 border-b border-red-900/30 bg-black/95 backdrop-blur-md px-4 sm:px-6 py-3.5">
+        <div className="mx-auto flex max-w-6xl flex-col md:flex-row items-center justify-between gap-3">
+          {/* Menu toggle & active section label */}
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-900/80 border border-red-700 shadow-md">
-              <span className="text-lg">🪘</span>
-            </div>
-            <div>
-              <h1 className="font-heading text-xl font-bold tracking-wide text-red-100 flex items-center gap-2">
-                Idlang
-                <span className="text-[10px] font-sans font-medium px-2 py-0.5 rounded-full bg-red-950 border border-red-800 text-red-300">
-                  Otukpo Archive
-                </span>
-              </h1>
-              <p className="text-[11px] italic text-red-500">
-                The Guardian of History & Idoma Heritage
-              </p>
-            </div>
+            {/* Menu Toggle (desktop only — mobile uses the bottom icon bar) */}
+            {currentUser && (
+              <button
+                type="button"
+                onClick={() => setNavState((state) => ({ ...state, open: !state.open }))}
+                aria-expanded={navState.open}
+                aria-controls="app-sidebar"
+                aria-label="Toggle navigation menu"
+                title="Toggle navigation menu"
+                className="hidden rounded-lg border border-red-900/50 bg-neutral-950 p-2 text-red-400 transition-all hover:bg-red-900/40 hover:text-red-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 lg:block"
+              >
+                <MenuIcon className="h-5 w-5" />
+              </button>
+            )}
+            {/* Active section label — replaces the old logo/tagline, updates on tab change */}
+            <h1
+              aria-live="polite"
+              className="border-l-2 border-red-700 pl-3 font-heading text-lg font-bold uppercase tracking-widest text-red-100 sm:text-xl"
+            >
+              {navLabel(activeTab)}
+            </h1>
           </div>
 
-          {/* Navigation Tabs */}
-          <nav aria-label="Main navigation" className="flex w-full md:w-auto justify-start md:justify-center gap-1 overflow-x-auto rounded-lg border border-red-900/30 bg-neutral-950 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <button
-              aria-current={activeTab === "feed" ? "page" : undefined}
-              onClick={() => setActiveTab("feed")}
-              className={`whitespace-nowrap rounded-md px-3.5 py-2 text-xs font-semibold uppercase tracking-wider transition-all ${
-                activeTab === "feed"
-                  ? "bg-red-900 text-red-100 shadow"
-                  : "text-red-500 hover:text-red-300"
-              }`}
-            >
-              Feed
-            </button>
-            <button
-              aria-current={activeTab === "library" ? "page" : undefined}
-              onClick={() => setActiveTab("library")}
-              className={`whitespace-nowrap rounded-md px-3.5 py-2 text-xs font-semibold uppercase tracking-wider transition-all ${
-                activeTab === "library"
-                  ? "bg-red-900 text-red-100 shadow"
-                  : "text-red-500 hover:text-red-300"
-              }`}
-            >
-              E-Library
-            </button>
-            <button
-              aria-current={activeTab === "learn" ? "page" : undefined}
-              onClick={() => setActiveTab("learn")}
-              className={`whitespace-nowrap rounded-md px-3.5 py-2 text-xs font-semibold uppercase tracking-wider transition-all ${
-                activeTab === "learn"
-                  ? "bg-red-900 text-red-100 shadow"
-                  : "text-red-500 hover:text-red-300"
-              }`}
-            >
-              Learn & Tracks
-            </button>
-            <button
-              aria-current={activeTab === "translate" ? "page" : undefined}
-              onClick={() => setActiveTab("translate")}
-              className={`whitespace-nowrap rounded-md px-3.5 py-2 text-xs font-semibold uppercase tracking-wider transition-all ${
-                activeTab === "translate"
-                  ? "bg-red-900 text-red-100 shadow"
-                  : "text-red-500 hover:text-red-300"
-              }`}
-            >
-              Translate
-            </button>
-          </nav>
+          {/* Navigation lives in the desktop sidebar / mobile bottom bar */}
 
           {/* Authentication & User Identity Bar */}
           <div className="flex items-center gap-2">
@@ -158,11 +150,10 @@ export default function App() {
               /* REAL LOGGED IN USER PILL */
               <div className="flex items-center gap-2 rounded-xl border border-red-900/50 bg-neutral-950 p-1.5 text-xs shadow-md">
                 {/* User Avatar & Profile Click */}
-                <button
+                <div
                   onClick={() => setSelectedProfileUserId(currentUser.id)}
-                  className="flex items-center gap-2.5 cursor-pointer group pr-1 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-red-500"
+                  className="flex items-center gap-2.5 cursor-pointer group pr-1"
                   title="View / Edit your profile"
-                  aria-label={`View profile for ${currentUser.display_name}`}
                 >
                   <img
                     src={
@@ -185,7 +176,7 @@ export default function App() {
                     </div>
                     <p className="text-[10px] text-red-500">@{currentUser.username}</p>
                   </div>
-                </button>
+                </div>
 
                 {/* Friends & Connections Button (with incoming requests badge) */}
                 <button
@@ -242,43 +233,56 @@ export default function App() {
         </div>
       </header>
 
+      {/* Desktop: collapsible left sidebar */}
+      {currentUser && navState.open && (
+        <SidebarNav
+          activeTab={activeTab}
+          onSelect={selectTab}
+          collapsed={navState.collapsed}
+          onToggleCollapse={() => setNavState((state) => ({ ...state, collapsed: !state.collapsed }))}
+        />
+      )}
+
+      {/* Mobile: fixed bottom icon bar */}
+      {currentUser && <MobileTabBar activeTab={activeTab} onSelect={selectTab} />}
+
       {/* Decorative divider */}
       <div className="mx-auto h-px w-32 bg-gradient-to-r from-transparent via-red-800 to-transparent" />
 
       {/* Main Content */}
-      <main className="flex-1 py-8">
-        {activeTab === "feed" && <FeedView currentUser={effectiveUser} />}
-        {activeTab === "library" && <LibraryView currentUser={effectiveUser} />}
-        {activeTab === "learn" && <LearnView currentUser={effectiveUser} />}
-        {activeTab === "translate" && (
-          <TranslateView
-            isAuthenticated={!!currentUser}
-            onGuestLimitReached={() => openAuth("login")}
-          />
-        )}
+      <main id="main-content" tabIndex={-1} className="flex-1 pt-8 pb-28 lg:pb-8">
+        <Suspense fallback={<p role="status" className="p-6 text-center text-neutral-300">Loading section…</p>}>
+        {currentUser && activeTab === "feed" && <FeedView currentUser={effectiveUser} />}
+        {currentUser && activeTab === "library" && <LibraryView currentUser={effectiveUser} />}
+        {currentUser && activeTab === "learn" && <LearnView currentUser={effectiveUser} />}
+        {currentUser && activeTab === "messages" && <MessagesView currentUser={effectiveUser} />}
+        {(!currentUser || activeTab === "translate") && <TranslateView isAuthenticated={!!currentUser} authLoading={loadingAuth} onRequireAuth={() => openAuth("login")} />}
+        </Suspense>
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-red-900/20 bg-neutral-950/80 px-6 py-5 text-center">
-        <p className="text-xs text-red-600 font-medium">
+      <footer className="border-t border-red-900/20 bg-neutral-950/80 px-6 pt-5 pb-24 text-center lg:pb-5">
+        <p className="text-xs text-neutral-300 font-medium">
           Preserving Idoma — the sacred language and oral history of our ancestors
         </p>
-        <p className="text-[10px] text-neutral-600 mt-1">
+        <p className="text-[10px] text-neutral-400 mt-1">
           Idlang Heritage Preservation System • Benue Valley
         </p>
       </footer>
 
       {/* AUTH MODAL (Login & Signup with auto-route on missing account) */}
-      <AuthModal
-        isOpen={showAuthModal}
+      {showAuthModal && <AuthModal
+        key={authInitialMode}
+        isOpen={true}
         initialMode={authInitialMode}
         onClose={() => setShowAuthModal(false)}
         onSuccess={(user) => {
           setCurrentUser(user);
           refreshConnectionsCount();
         }}
-      />
+      />}
 
+      <Suspense fallback={<p role="status" className="p-4 text-neutral-300">Loading profile…</p>}>
       {/* FRIENDS & CONNECTIONS MODAL (Incoming requests, accepted mutual friends, discover) */}
       {showConnectionsModal && currentUser && (
         <ConnectionsModal
@@ -302,6 +306,7 @@ export default function App() {
           onProfileUpdated={refreshCurrentUser}
         />
       )}
+      </Suspense>
     </div>
   );
 }

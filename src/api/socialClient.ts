@@ -1,5 +1,8 @@
+import { fetchResponse } from "./request";
 import type {
   Post,
+  PostComment,
+  SavedItem,
   User,
   ProfileResponse,
   DirectMessage,
@@ -9,8 +12,6 @@ import type {
   ConnectionsResponse,
 } from "../types";
 import {
-  mockPosts,
-  mockBooks,
   mockCurriculumTracks,
 } from "../data/mockData";
 
@@ -44,7 +45,7 @@ async function readJSON(res: Response) {
 }
 
 async function requestJSON<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, { ...init, credentials: "include" });
+  const res = await fetchResponse(`${API_BASE}${path}`, { ...init, credentials: "include" });
   const data = await readJSON(res).catch(() => {
     if (res.ok) throw new Error("The service returned an invalid response. Please try again.");
     return {};
@@ -58,8 +59,6 @@ async function requestJSON<T>(path: string, init: RequestInit = {}): Promise<T> 
   return data;
 }
 
-const fallbackPosts = [...mockPosts];
-const fallbackBooks = [...mockBooks];
 const fallbackTracks = [...mockCurriculumTracks];
 
 // Custom error for auth actions
@@ -76,7 +75,7 @@ export async function loginUser(identifier: string, password: string): Promise<U
   const trimmed = identifier.trim();
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}/api/auth/login`, {
+    res = await fetchResponse(`${API_BASE}/api/auth/login`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -123,7 +122,7 @@ export async function signupUser(userData: {
 }): Promise<User> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}/api/auth/signup`, {
+    res = await fetchResponse(`${API_BASE}/api/auth/signup`, {
       method: "POST",
       credentials: "include",
       headers: { "Content-Type": "application/json" },
@@ -154,7 +153,7 @@ export async function logoutUser(): Promise<void> {
 
 export async function fetchCurrentUser(): Promise<User | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/auth/me`, {
+    const res = await fetchResponse(`${API_BASE}/api/auth/me`, {
       credentials: "include",
     });
     if (res.ok) {
@@ -209,7 +208,7 @@ export async function updateConnection(
   targetId: string,
   action: "connect" | "accept" | "reject" | "disconnect" | "block" | "unblock"
 ): Promise<{ status: string; message: string }> {
-  const res = await fetch(`${API_BASE}/api/connections`, {
+  const res = await fetchResponse(`${API_BASE}/api/connections`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -227,19 +226,26 @@ export async function searchRealUsers(query: string): Promise<User[]> {
   return data.users || [];
 }
 
-export async function fetchPosts(page = 1, limit = 10): Promise<{ posts: Post[]; total: number }> {
-  try {
-    const res = await fetch(`${API_BASE}/api/posts?page=${page}&limit=${limit}`, {
-      credentials: "include",
-    });
-    if (res.ok) {
-      const data = await readJSON(res);
-      return { posts: data.posts || [], total: data.total || 0 };
-    }
-  } catch (err) {
-    console.warn("Backend unavailable, using mock posts:", err);
+export async function fetchPosts(page = 1, limit = 10, topic = ""): Promise<{ posts: Post[]; total: number }> {
+  const query = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (topic) query.set("topic", topic);
+  const res = await fetchResponse(`${API_BASE}/api/posts?${query}`, {
+    credentials: "include",
+  });
+  const data = await readJSON(res).catch(() => {
+    if (res.ok) throw new Error("The feed returned an invalid response. Please try again.");
+    return {};
+  });
+  if (!res.ok) {
+    const error: ApiError = new Error(data.error || `Could not load the feed (HTTP ${res.status}). Please try again.`);
+    error.status = res.status;
+    error.code = data.code;
+    throw error;
   }
-  return { posts: fallbackPosts, total: fallbackPosts.length };
+  if (!Array.isArray(data.posts) || typeof data.total !== "number") {
+    throw new Error("The feed returned an invalid response. Please try again.");
+  }
+  return { posts: resolveMediaURLs(data.posts), total: data.total };
 }
 
 export async function createPost(post: {
@@ -248,48 +254,100 @@ export async function createPost(post: {
   media_type: string;
   media_url?: string;
   media_file?: File;
+  tags?: string[];
 }): Promise<Post> {
   if (post.media_file) {
     const form = new FormData();
     form.append("content", post.content);
     form.append("media_type", post.media_type);
+    if (post.tags?.length) form.append("tags", JSON.stringify(post.tags));
     if (post.media_url) form.append("media_url", post.media_url);
     form.append("media_file", post.media_file);
     return requestJSON("/api/posts", { method: "POST", body: form });
   }
   return requestJSON("/api/posts", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ content: post.content, media_type: post.media_type, media_url: post.media_url }),
+    body: JSON.stringify({ content: post.content, media_type: post.media_type, media_url: post.media_url, tags: post.tags || [] }),
   });
+}
+
+export async function deletePost(postId: string): Promise<void> {
+  await requestJSON(`/api/posts/${encodeURIComponent(postId)}`, { method: "DELETE" });
+}
+
+export async function setPostLike(postId: string, liked: boolean): Promise<{ liked: boolean; like_count: number }> {
+  return requestJSON(`/api/posts/${encodeURIComponent(postId)}/likes`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ liked }),
+  });
+}
+
+export async function fetchPostComments(postId: string): Promise<PostComment[]> {
+  const data = await requestJSON<{ comments: PostComment[] }>(`/api/posts/${encodeURIComponent(postId)}/comments`);
+  return data.comments || [];
+}
+
+export async function addPostComment(postId: string, body: string): Promise<PostComment> {
+  const data = await requestJSON<{ comment: PostComment }>(`/api/posts/${encodeURIComponent(postId)}/comments`, {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ body }),
+  });
+  return data.comment;
+}
+
+export async function fetchFeedPrompt(): Promise<string> {
+  const data = await requestJSON<{ prompt: string }>("/api/feed/prompt");
+  return data.prompt;
+}
+
+export async function fetchSavedItems(): Promise<SavedItem[]> {
+  const data = await requestJSON<{ items: SavedItem[] }>("/api/saved");
+  return data.items || [];
+}
+
+export async function saveItem(item: Omit<SavedItem, "created_at">): Promise<void> {
+  await requestJSON("/api/saved", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(item) });
+}
+
+export async function unsaveItem(type: SavedItem["item_type"], id: string): Promise<void> {
+  const query = new URLSearchParams({ item_type: type, item_id: id });
+  await requestJSON(`/api/saved?${query}`, { method: "DELETE" });
 }
 
 export async function fetchProfile(targetId: string, _viewerId: string): Promise<ProfileResponse> {
   return requestJSON(`/api/profile?id=${encodeURIComponent(targetId)}`);
 }
 
-export async function fetchMessages(_userId: string, peerId: string): Promise<DirectMessage[]> {
-  return requestJSON(`/api/messages?peer_id=${encodeURIComponent(peerId)}`);
+export async function fetchMessages(
+  _userId: string,
+  peerId: string,
+  cursor: { afterId?: string; beforeId?: string; signal?: AbortSignal } = {},
+): Promise<DirectMessage[]> {
+  const params = new URLSearchParams({ peer_id: peerId });
+  if (cursor.afterId) params.set("after_id", cursor.afterId);
+  if (cursor.beforeId) params.set("before_id", cursor.beforeId);
+  return requestJSON(`/api/messages?${params}`, { signal: cursor.signal });
 }
 
-export async function sendMessage(_senderId: string, receiverId: string, body: string): Promise<DirectMessage> {
-  return requestJSON("/api/messages", {
+export async function markMessagesRead(peerId: string): Promise<void> {
+  await requestJSON("/api/messages/read", {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ receiver_id: receiverId, body }),
+    body: JSON.stringify({ peer_id: peerId }),
   });
 }
 
-export async function fetchBooks(): Promise<Book[]> {
-  try {
-    const res = await fetch(`${API_BASE}/api/library`, { credentials: "include" });
-    if (res.ok) {
-      const data = await readJSON(res);
-      if (Array.isArray(data)) return data;
-      if (Array.isArray(data.items)) return data.items;
-    }
-  } catch (err) {
-    console.warn("Backend library unavailable, using fallback:", err);
-  }
-  return fallbackBooks;
+export async function sendMessage(_senderId: string, receiverId: string, body: string, clientId?: string): Promise<DirectMessage> {
+  return requestJSON("/api/messages", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ receiver_id: receiverId, body, client_id: clientId }),
+  });
+}
+
+export async function fetchBooks(query = "", kind = ""): Promise<Book[]> {
+  const params = new URLSearchParams();
+  if (query.trim()) params.set("q", query.trim());
+  if (kind) params.set("kind", kind);
+  const suffix = params.size ? `?${params}` : "";
+  const data = await requestJSON<{ items?: Book[] }>(`/api/library${suffix}`);
+  return data.items || [];
 }
 
 export async function createBook(book: {
@@ -320,7 +378,7 @@ export async function createBook(book: {
   if (book.consent_note) form.append("consent_note", book.consent_note);
   form.append("file", book.book_file);
 
-  const res = await fetch(`${API_BASE}/api/library`, {
+  const res = await fetchResponse(`${API_BASE}/api/library`, {
     method: "POST",
     credentials: "include",
     body: form,
@@ -333,7 +391,7 @@ export async function createBook(book: {
 }
 
 export async function fetchLibraryItem(id: string): Promise<Book> {
-  const res = await fetch(`${API_BASE}/api/library/${encodeURIComponent(id)}`, {
+  const res = await fetchResponse(`${API_BASE}/api/library/${encodeURIComponent(id)}`, {
     credentials: "include",
   });
   const data = await readJSON(res).catch(() => ({}));
@@ -362,13 +420,14 @@ export async function fetchLearningTracks(userId: string): Promise<{ profile: Le
 }
 
 export async function completeLearningTrack(
-  trackId: string
+  trackId: string,
+  answers: Record<string, string>,
 ): Promise<{ success: boolean; message: string; learning_profile: LearningProfile; tracks: LearningTrack[] }> {
-  const res = await fetch(`${API_BASE}/api/learning/complete-track`, {
+  const res = await fetchResponse(`${API_BASE}/api/learning/complete-track`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ track_id: trackId }),
+    body: JSON.stringify({ track_id: trackId, answers }),
   });
 
   if (!res.ok) {
@@ -379,6 +438,42 @@ export async function completeLearningTrack(
   return await readJSON(res);
 }
 
+export interface DailyPractice {
+  date: string;
+  category: string;
+  prompt: string;
+  answer: string;
+  example?: string;
+  completed: boolean;
+  streak: number;
+}
+
+export function fetchDailyPractice(): Promise<DailyPractice> {
+  return requestJSON("/api/learning/daily");
+}
+
+export function completeDailyPractice(date: string, answer: string): Promise<{ completed: boolean; streak: number }> {
+  return requestJSON("/api/learning/practice", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ date, answer }),
+  });
+}
+
 export async function fetchUsers(): Promise<User[]> {
   return searchRealUsers("");
+}
+
+export interface AdminOverview { users: number; posts: number; drafts: number; database: string }
+export interface AdminAccount { id: string; username: string; display_name: string; role: string; status: string; created_at: string }
+export function fetchAdminOverview(): Promise<AdminOverview> { return requestJSON("/api/admin/overview"); }
+export function fetchAdminUsers(page = 1): Promise<{ users: AdminAccount[]; total: number; page: number; limit: number }> {
+  return requestJSON(`/api/admin/users?page=${page}`);
+}
+export function fetchAdminLibrary(page = 1): Promise<{ items: Book[]; total: number; page: number; limit: number }> {
+  return requestJSON(`/api/admin/library?page=${page}`);
+}
+export function reviewLibraryItem(id: string, status: "published" | "rejected"): Promise<unknown> {
+  return requestJSON(`/api/library/${encodeURIComponent(id)}/status`, {
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
+  });
 }

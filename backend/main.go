@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -12,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 const omniRouteURL = "http://localhost:20128/v1/chat/completions"
@@ -130,6 +133,9 @@ var dictSource string
 var dictionaryFirst = true
 
 func main() {
+	if runAdminCommand() {
+		return
+	}
 	var err error
 	dictPath := os.Getenv("DICTIONARY_PATH")
 	if dictPath == "" {
@@ -182,19 +188,27 @@ func main() {
 	if dbPath == "" {
 		dbPath = "idlang.db"
 	}
-	db, err = initDB(dbPath)
+	db, err = openConfiguredDB()
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer db.Close()
-	log.Printf("Connected to database at %s", dbPath)
+	if os.Getenv("TURSO_DATABASE_URL") != "" {
+		log.Print("Connected to Turso libSQL")
+	} else {
+		log.Printf("Connected to SQLite at %s", dbPath)
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", handleRoot)
-	mux.HandleFunc("/api/translate", handleTranslate)
+	mux.HandleFunc("/api/translate", translationAccess(true, handleTranslate))
+	mux.HandleFunc("/api/translation/access", handleTranslationAccess)
+	mux.HandleFunc("/api/admin/overview", requireRole("admin", handleAdminOverview))
+	mux.HandleFunc("/api/admin/users", requireRole("admin", handleAdminUsers))
+	mux.HandleFunc("/api/admin/library", requireRole("admin", handleAdminLibrary))
 	mux.HandleFunc("/api/generate-lesson", handleGenerateLesson)
-	mux.HandleFunc("/api/transcribe", proxyAudioToTranslator("/transcribe"))
-	mux.HandleFunc("/api/pipeline", proxyAudioToTranslator("/pipeline"))
+	mux.HandleFunc("/api/transcribe", translationAccess(false, proxyAudioToTranslator("/transcribe")))
+	mux.HandleFunc("/api/pipeline", translationAccess(true, proxyAudioToTranslator("/pipeline")))
 	mux.HandleFunc("/health", handleHealth)
 
 	// --- Auth. Identity is established here and nowhere else. ---
@@ -222,7 +236,15 @@ func main() {
 			methodNotAllowed(w, "GET, POST")
 		}
 	}))
-	mux.HandleFunc("/api/posts/", requireAuth(handleDeletePost))
+	mux.HandleFunc("/api/posts/", requireAuth(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/posts/"), "/"), "/") {
+			handlePostEngagement(w, r)
+			return
+		}
+		handleDeletePost(w, r)
+	}))
+	mux.HandleFunc("/api/feed/prompt", requireAuth(handleFeedPrompt))
+	mux.HandleFunc("/api/saved", requireAuth(handleSavedItems))
 	mux.HandleFunc("/api/connections", requireAuth(handleConnections))
 	mux.HandleFunc("/api/messages", withUser(handleMessages))
 	mux.HandleFunc("/api/messages/read", withUser(handleMarkMessagesRead))
@@ -230,6 +252,8 @@ func main() {
 	// --- Learning ---
 	mux.HandleFunc("/api/learning/tracks", requireAuth(handleGetLearningTracks))
 	mux.HandleFunc("/api/learning/complete-track", requireAuth(handleCompleteLearningTrack))
+	mux.HandleFunc("/api/learning/daily", requireAuth(handleGetDailyPractice))
+	mux.HandleFunc("/api/learning/practice", requireAuth(handleCompleteDailyPractice))
 
 	// --- E-Library. Files are streamed through a handler, never a static
 	// FileServer, so type, disposition and visibility are controlled. ---
@@ -251,7 +275,8 @@ func main() {
 	}
 
 	log.Printf("Idlang backend listening on :%s", port)
-	log.Fatal(http.ListenAndServe(":"+port, handler))
+	server := &http.Server{Addr: ":" + port, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 30 * time.Second, WriteTimeout: 150 * time.Second, IdleTimeout: 60 * time.Second, MaxHeaderBytes: 1 << 20}
+	log.Fatal(server.ListenAndServe())
 }
 
 func translatorBaseURL() string {
@@ -302,13 +327,14 @@ func handleRoot(w http.ResponseWriter, r *http.Request) {
 			"hit in the curated Idoma dictionary is served directly, and only what the " +
 			"dictionary misses is routed to the neural model.",
 		"endpoints": map[string]string{
-			"GET /health":               "readiness, dictionary source and entry counts",
-			"POST /api/translate":       `{"text","source_lang","target_lang"}`,
-			"POST /api/transcribe":      "multipart audio -> text",
-			"POST /api/pipeline":        "multipart audio -> text -> translation -> speech",
-			"POST /api/generate-lesson": `{"ancestorId"}`,
+			"GET /health":                 "readiness, dictionary source and entry counts",
+			"GET /api/translation/access": "establish/check a guest translation trial",
+			"POST /api/translate":         `{"text","source_lang","target_lang"}`,
+			"POST /api/transcribe":        "multipart audio -> text",
+			"POST /api/pipeline":          "multipart audio -> text -> translation -> speech",
+			"POST /api/generate-lesson":   `{"ancestorId"}`,
 		},
-		"example": `curl -X POST $URL/api/translate -H 'Content-Type: application/json' ` +
+		"example": `curl -c cookies.txt $URL/api/translation/access && curl -b cookies.txt -X POST $URL/api/translate -H 'Content-Type: application/json' ` +
 			`-d '{"text":"house","source_lang":"English","target_lang":"Idoma"}'`,
 	})
 }
@@ -354,6 +380,13 @@ func proxyAudioToTranslator(upstreamPath string) http.HandlerFunc {
 			return
 		}
 
+		const maxAudioBytes = 10 << 20
+		if r.ContentLength > maxAudioBytes {
+			writeError(w, http.StatusRequestEntityTooLarge, "Audio must be 10 MiB or smaller.")
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, maxAudioBytes)
+
 		// Audio + model inference is slow; allow well beyond the text timeout.
 		client := &http.Client{Timeout: 120 * time.Second}
 		upstream := translatorBaseURL() + upstreamPath
@@ -367,6 +400,11 @@ func proxyAudioToTranslator(upstreamPath string) http.HandlerFunc {
 
 		resp, err := client.Do(req)
 		if err != nil {
+			var tooLarge *http.MaxBytesError
+			if errors.As(err, &tooLarge) {
+				writeError(w, http.StatusRequestEntityTooLarge, "Audio must be 10 MiB or smaller.")
+				return
+			}
 			log.Printf("translator %s unavailable: %v", upstreamPath, err)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusServiceUnavailable)
@@ -633,11 +671,21 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req TranslateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(w, r, &req, 32<<10); err != nil {
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			writeError(w, http.StatusRequestEntityTooLarge, "Request body exceeds 32 KiB.")
+			return
+		}
 		http.Error(w, `{"error":"Invalid request body"}`, http.StatusBadRequest)
 		return
 	}
 
+	req.Text = strings.TrimSpace(req.Text)
+	if utf8.RuneCountInString(req.Text) > 4000 {
+		writeError(w, http.StatusRequestEntityTooLarge, "Text must be 4,000 characters or fewer.")
+		return
+	}
 	if req.Text == "" {
 		http.Error(w, `{"error":"Text is required"}`, http.StatusBadRequest)
 		return
@@ -655,6 +703,11 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if (req.SourceLang != "English" && req.SourceLang != "Idoma") || (req.TargetLang != "English" && req.TargetLang != "Idoma") || req.SourceLang == req.TargetLang {
+		writeError(w, http.StatusBadRequest, "Choose English to Idoma or Idoma to English.")
+		return
+	}
+
 	// 1. First, try case-insensitive dictionary lookup
 	if dictionaryFirst {
 		if resp := lookupDictionary(req.Text, req.SourceLang, req.TargetLang); resp != nil {
@@ -665,37 +718,18 @@ func handleTranslate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 2. Not in dictionary — try Python NMT service
-	resp, err := callPythonNMT(req.Text, req.SourceLang, req.TargetLang)
-	if err == nil && resp.Translation != "" {
+	resp, err := callPythonNMT(r.Context(), req.Text, req.SourceLang, req.TargetLang)
+	if err == nil && resp != nil && strings.TrimSpace(resp.Translation) != "" {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 		return
 	}
 	log.Printf("Python NMT failed: %v", err)
 
-	// 3. AI gateway fallback with deferred recovery
-	(func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("OmniRoute panic recovered: %v", r)
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(&TranslateResponse{
-				Translation: "Missing from Idlang archives.",
-				Explanation: "This word or phrase is not yet documented in the Idlang Idoma dictionary archives.",
-			})
-		}()
-
-		resourceContext := buildResourceContext()
-		resp, err := callOmniRouteTranslate(req.Text, resourceContext)
-		if err != nil {
-			log.Printf("OmniRoute translate failed: %v", err)
-		}
-		if resp != nil {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(resp)
-		}
-	})()
+	// Failed inference must remain an error so guest quota can be refunded.
+	// The former gateway fallback ignored translation direction and could emit
+	// two JSON documents, including an archive placeholder with HTTP 200.
+	writeError(w, http.StatusServiceUnavailable, "Translation service is unavailable. Please try again.")
 }
 
 // idomaPlaceholder is the filler that filled half of the deleted
@@ -761,7 +795,18 @@ func lookupDictionary(text, sourceLang, targetLang string) *TranslateResponse {
 	return nil
 }
 
-func callPythonNMT(text, sourceLang, targetLang string) (*TranslateResponse, error) {
+// Keep cold inference requests from consuming unlimited gateway resources.
+// Each gateway replica has its own admission budget.
+var nmtSlots = make(chan struct{}, 8)
+
+func callPythonNMT(ctx context.Context, text, sourceLang, targetLang string) (*TranslateResponse, error) {
+	select {
+	case nmtSlots <- struct{}{}:
+		defer func() { <-nmtSlots }()
+	default:
+		return nil, errors.New("translator at capacity")
+	}
+
 	translatorURL := translatorBaseURL()
 
 	type PythonRequest struct {
@@ -783,16 +828,20 @@ func callPythonNMT(text, sourceLang, targetLang string) (*TranslateResponse, err
 	// "translator service unavailable", which reads as an outage rather than a
 	// cold start.
 	client := &http.Client{Timeout: 90 * time.Second}
-	resp, err := client.Post(fmt.Sprintf("%s/translate", translatorURL), "application/json", bytes.NewBuffer(b))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, fmt.Sprintf("%s/translate", translatorURL), bytes.NewBuffer(b))
+	if err != nil {
+		return nil, err
+	}
+	request.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("translator service unavailable: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		var msg map[string]interface{}
-		_ = json.NewDecoder(resp.Body).Decode(&msg)
-		return nil, fmt.Errorf("translator error: status %d: %v", resp.StatusCode, msg)
+		// Upstream error bodies can contain user text and must stay out of logs.
+		return nil, fmt.Errorf("translator error: status %d", resp.StatusCode)
 	}
 
 	type PythonResponse struct {
@@ -803,7 +852,15 @@ func callPythonNMT(text, sourceLang, targetLang string) (*TranslateResponse, err
 	}
 
 	var pr PythonResponse
-	if err := json.NewDecoder(resp.Body).Decode(&pr); err != nil {
+	const maxResponse = 128 << 10
+	payload, err := io.ReadAll(io.LimitReader(resp.Body, maxResponse+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(payload) > maxResponse {
+		return nil, errors.New("translator response exceeds size limit")
+	}
+	if err := json.Unmarshal(payload, &pr); err != nil {
 		return nil, err
 	}
 
