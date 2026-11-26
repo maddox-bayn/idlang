@@ -220,8 +220,8 @@ export default function App() {
                 </button>
               </div>
             ) : (
-              /* REAL SIGN IN & REGISTER BUTTONS FOR GUESTS */
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <button className="px-2 text-xs text-red-200 underline" onClick={() => selectTab(activeTab === "library" ? "translate" : "library")}>{activeTab === "library" ? "Translate" : "E-Library"}</button>
                 <button
                   onClick={() => openAuth("login")}
                   className="rounded-lg border border-red-900/60 bg-neutral-950 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider text-red-300 hover:bg-red-900/40 hover:text-red-100 transition-all shadow"
@@ -260,10 +260,10 @@ export default function App() {
       <main id="main-content" tabIndex={-1} className="flex-1 pt-8 pb-28 lg:pb-8">
         <Suspense fallback={<p role="status" className="p-6 text-center text-neutral-300">Loading section…</p>}>
         {currentUser && activeTab === "feed" && <FeedView currentUser={effectiveUser} />}
-        {currentUser && activeTab === "library" && <LibraryView currentUser={effectiveUser} />}
+        {activeTab === "library" && <LibraryView key={effectiveUser.id} currentUser={effectiveUser} />}
         {currentUser && activeTab === "learn" && <LearnView currentUser={effectiveUser} />}
         {currentUser && activeTab === "messages" && <MessagesView currentUser={effectiveUser} />}
-        {(!currentUser || activeTab === "translate") && <TranslateView isAuthenticated={!!currentUser} authLoading={loadingAuth} onRequireAuth={() => openAuth("login")} />}
+        {((!currentUser && activeTab !== "library") || activeTab === "translate") && <TranslateView isAuthenticated={!!currentUser} authLoading={loadingAuth} onRequireAuth={() => openAuth("login")} />}
         </Suspense>
       </main>
 
