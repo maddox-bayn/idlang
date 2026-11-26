@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -402,6 +403,25 @@ func TestELibraryAPI(t *testing.T) {
 	}
 	if item.UploadedBy != "user_oche" || item.Status != "draft" {
 		t.Fatalf("Unexpected upload: %+v", item)
+	}
+	guestFile := func(query string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		handleLibraryByID(rec, httptest.NewRequest(http.MethodGet, libraryFilePath(item.ID)+query, nil))
+		return rec
+	}
+	if guestFile("").Code != 404 {
+		t.Fatal("guest could read a draft")
+	}
+	if _, err := db.Exec("UPDATE library_items SET status='published' WHERE id=?", item.ID); err != nil {
+		t.Fatal(err)
+	}
+	// Changing the disk location simulates replacement of the running container.
+	t.Setenv("LIBRARY_DIR", t.TempDir())
+	for query, mode := range map[string]string{"": "attachment", "?inline=1": "inline"} {
+		result := guestFile(query)
+		if result.Code != 200 || result.Body.String() != "An Idoma language study." || !strings.HasPrefix(result.Header().Get("Content-Disposition"), mode) {
+			t.Fatalf("public %s failed: %d %s", mode, result.Code, result.Body)
+		}
 	}
 }
 

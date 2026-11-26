@@ -69,11 +69,14 @@ func (u *postUpload) save(ctx context.Context, tx *sql.Tx, id string) error {
 	return nil
 }
 
+const postChunkQuery = "SELECT data FROM post_media_chunks WHERE name=? AND part=?"
+
 type chunkReader struct {
-	ctx  context.Context
-	name string
-	part int64
-	data []byte
+	query string
+	ctx   context.Context
+	name  string
+	part  int64
+	data  []byte
 }
 
 func (c *chunkReader) ReadAt(p []byte, off int64) (int, error) {
@@ -81,7 +84,7 @@ func (c *chunkReader) ReadAt(p []byte, off int64) (int, error) {
 	for n < len(p) {
 		part := off / postMediaChunk
 		if c.part != part {
-			err := db.QueryRowContext(c.ctx, "SELECT data FROM post_media_chunks WHERE name=? AND part=?", c.name, part).Scan(&c.data)
+			err := db.QueryRowContext(c.ctx, c.query, c.name, part).Scan(&c.data)
 			if err != nil {
 				return n, err
 			}
@@ -116,7 +119,7 @@ func servePostMedia(w http.ResponseWriter, r *http.Request, name string) {
 	w.Header().Set("Cache-Control", "public, max-age=86400")
 	w.Header().Set("ETag", `"`+name+`"`)
 	// ServeContent handles HEAD and Range, so seeking a video reads only the requested chunks.
-	http.ServeContent(w, r, name, time.Time{}, io.NewSectionReader(&chunkReader{ctx: r.Context(), name: name, part: -1}, 0, size))
+	http.ServeContent(w, r, name, time.Time{}, io.NewSectionReader(&chunkReader{query: postChunkQuery, ctx: r.Context(), name: name, part: -1}, 0, size))
 }
 
 func restorePostMedia(w http.ResponseWriter, r *http.Request) {

@@ -1,6 +1,8 @@
-import { useState, useEffect } from "react";
+import { lazy, Suspense, useState, useEffect, useRef } from "react";
 import type { Book, User } from "../types";
 import { fetchBooks, fetchLibraryItem, createBook, libraryFileURL } from "../api/socialClient";
+
+const LibraryPDF = lazy(() => import("./LibraryPDF"));
 
 interface LibraryViewProps {
   currentUser: User;
@@ -39,16 +41,21 @@ export default function LibraryView({ currentUser }: LibraryViewProps) {
     }
   };
 
+  const readerRequest = useRef(0);
+  function closeReader() { readerRequest.current++; setViewingBook(null); }
+
   const openBook = async (book: Book) => {
+    const attempt = ++readerRequest.current;
     setViewingBook(book);
     setReaderError(null);
     setReaderLoading(true);
     try {
-      setViewingBook(await fetchLibraryItem(book.id));
+      const detail = await fetchLibraryItem(book.id);
+      if (attempt === readerRequest.current) setViewingBook(detail);
     } catch (err) {
-      setReaderError(err instanceof Error ? err.message : "Could not open this document.");
+      if (attempt === readerRequest.current) setReaderError(err instanceof Error ? err.message : "Could not open this document.");
     } finally {
-      setReaderLoading(false);
+      if (attempt === readerRequest.current) setReaderLoading(false);
     }
   };
 
@@ -146,7 +153,7 @@ export default function LibraryView({ currentUser }: LibraryViewProps) {
               <div>
                 <div className="flex items-start justify-between gap-2">
                   <span className="rounded bg-red-950/70 border border-red-900 px-2 py-0.5 text-[10px] font-semibold text-red-400">
-                    📜 Language Manuscript
+                    {book.status === "draft" ? "Awaiting review" : "Language Manuscript"}
                   </span>
                   <span className="text-[10px] text-neutral-500">
                     {book.created_at ? new Date(book.created_at).toLocaleDateString() : "Archived"}
@@ -211,7 +218,7 @@ export default function LibraryView({ currentUser }: LibraryViewProps) {
                 <p className="text-xs text-red-400">Author: {viewingBook.author}</p>
               </div>
               <button
-                onClick={() => setViewingBook(null)}
+                onClick={closeReader}
                 className="rounded p-1 text-neutral-400 hover:text-red-300"
               >
                 ✕
@@ -219,12 +226,18 @@ export default function LibraryView({ currentUser }: LibraryViewProps) {
             </div>
 
             <div className="my-6 min-h-32 rounded-lg border border-red-950 bg-black/70 p-5 font-serif text-sm leading-relaxed text-red-200 whitespace-pre-wrap">
-              {readerLoading ? "Loading document text..." : readerError ? readerError : viewingBook.content_text || "This file has no extracted text preview. Open or download the original document below."}
+              {readerLoading ? "Opening document…" : readerError ? readerError :
+                viewingBook.mime === "application/pdf" ? <Suspense fallback={<p>Opening PDF…</p>}><LibraryPDF key={viewingBook.id} title={viewingBook.title} url={libraryFileURL(viewingBook, true)} /></Suspense> :
+                viewingBook.mime?.startsWith("image/") ? <img src={libraryFileURL(viewingBook, true)} alt={viewingBook.title} className="max-w-full" /> :
+                viewingBook.mime?.startsWith("audio/") ? <audio controls src={libraryFileURL(viewingBook, true)} /> :
+                viewingBook.mime?.startsWith("text/plain") && viewingBook.has_file ? <iframe title={viewingBook.title} src={libraryFileURL(viewingBook, true)} className="h-[55vh] w-full bg-white" /> :
+                viewingBook.content_text || "A text preview is unavailable for this document."}
             </div>
 
-            <div className="flex justify-end items-center border-t border-red-900/30 pt-4">
+            <div className="flex justify-end items-center gap-4 border-t border-red-900/30 pt-4">
+              {viewingBook.has_file && <a className="underline" href={libraryFileURL(viewingBook)}>Download original</a>}
               <button
-                onClick={() => setViewingBook(null)}
+                onClick={closeReader}
                 className="rounded-lg bg-red-900/60 border border-red-800 px-4 py-1.5 text-xs font-semibold text-red-200 hover:bg-red-800"
               >
                 Close Viewer

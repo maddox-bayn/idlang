@@ -302,18 +302,7 @@ func createLibraryItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	id := uuid.New().String()
-	key := id + ext
-	dir := libraryDir()
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		writeError(w, http.StatusInternalServerError, "Could not store the file.")
-		return
-	}
-	if err := writeFileAtomic(filepath.Join(dir, key), data); err != nil {
-		log.Printf("library write failed: %v", err)
-		writeError(w, http.StatusInternalServerError, "Could not store the file.")
-		return
-	}
-
+	key := "db-" + id + ext
 	contentText, err := extractText(data, mime)
 	if err != nil {
 		log.Printf("library text extraction failed for %s: %v", key, err)
@@ -325,7 +314,13 @@ func createLibraryItem(w http.ResponseWriter, r *http.Request) {
 		status = "published"
 	}
 
-	if _, err := db.Exec(`
+	tx, err := db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeError(w, 503, "Document storage unavailable.")
+		return
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(r.Context(), `
 		INSERT INTO library_items
 			(id, title, author, uploaded_by, file_url, description, kind, language, dialect,
 			 license, source_url, consent_note, file_key, mime, size_bytes, sha256,
@@ -334,9 +329,18 @@ func createLibraryItem(w http.ResponseWriter, r *http.Request) {
 	`, id, title, author, viewer.ID, description, kind, language, dialect,
 		license, sourceURL, consentNote, key, mime, len(data), sha256Hex(data),
 		contentText, status, nullableReviewer(viewer, status), time.Now()); err != nil {
-		os.Remove(filepath.Join(dir, key))
 		log.Printf("library insert failed: %v", err)
 		writeError(w, http.StatusInternalServerError, "Could not save the record.")
+		return
+	}
+
+	// Never publish a record whose original bytes were only partly saved.
+	if err := saveLibraryChunks(tx, id, data); err != nil {
+		writeError(w, 503, "Could not save the document file.")
+		return
+	}
+	if err := tx.Commit(); err != nil {
+		writeError(w, 503, "Could not confirm document storage.")
 		return
 	}
 
@@ -458,8 +462,8 @@ func libraryFilePath(id string) string {
 }
 
 func serveLibraryFile(w http.ResponseWriter, r *http.Request, id string) {
-	if r.Method != http.MethodGet {
-		methodNotAllowed(w, http.MethodGet)
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		methodNotAllowed(w, "GET, HEAD")
 		return
 	}
 	viewer := currentUser(r)
@@ -483,6 +487,22 @@ func serveLibraryFile(w http.ResponseWriter, r *http.Request, id string) {
 		return
 	}
 
+	disposition := "attachment"
+	if r.URL.Query().Get("inline") == "1" {
+		disposition = "inline"
+	}
+
+	w.Header().Set("Content-Type", item.Mime)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Security-Policy", "sandbox")
+	w.Header().Set("Content-Disposition",
+		fmt.Sprintf(`%s; filename=%q`, disposition, safeFilename(item.Title)+extensionFor(item.Mime)))
+	w.Header().Set("Cache-Control", "private, no-store")
+	if strings.HasPrefix(key, "db-") {
+		reader := &chunkReader{query: libraryChunkQuery, ctx: r.Context(), name: id, part: -1}
+		http.ServeContent(w, r, key, time.Time{}, io.NewSectionReader(reader, 0, item.SizeBytes))
+		return
+	}
 	full := filepath.Join(libraryDir(), key)
 	f, err := os.Open(full)
 	if err != nil {
@@ -496,17 +516,6 @@ func serveLibraryFile(w http.ResponseWriter, r *http.Request, id string) {
 		return
 	}
 
-	disposition := "attachment"
-	if r.URL.Query().Get("inline") == "1" {
-		disposition = "inline"
-	}
-
-	w.Header().Set("Content-Type", item.Mime)
-	w.Header().Set("X-Content-Type-Options", "nosniff")
-	w.Header().Set("Content-Security-Policy", "sandbox")
-	w.Header().Set("Content-Disposition",
-		fmt.Sprintf(`%s; filename=%q`, disposition, safeFilename(item.Title)+extensionFor(item.Mime)))
-	w.Header().Set("Cache-Control", "private, max-age=300")
 	http.ServeContent(w, r, key, info.ModTime(), f)
 }
 
@@ -768,4 +777,79 @@ func handleBooks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	methodNotAllowed(w, "GET, POST")
+}
+
+const libraryChunkQuery = "SELECT data FROM library_file_chunks WHERE item_id=? AND part=?"
+
+func saveLibraryChunks(tx *sql.Tx, id string, data []byte) error {
+	for offset := 0; offset < len(data); offset += postMediaChunk {
+		end := min(offset+postMediaChunk, len(data))
+		if _, err := tx.Exec("INSERT INTO library_file_chunks(item_id,part,data) VALUES(?,?,?)", id, offset/postMediaChunk, data[offset:end]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func migrateLibraryFiles(database *sql.DB) error {
+	_, err := database.Exec(`CREATE TABLE IF NOT EXISTS library_file_chunks (
+		item_id TEXT NOT NULL REFERENCES library_items(id) ON DELETE CASCADE,
+		part INTEGER NOT NULL, data BLOB NOT NULL, PRIMARY KEY(item_id, part))`)
+	if err != nil {
+		return err
+	}
+	// Walk one record at a time so backfill fits in memory and releases the sole
+	// SQL connection before opening each transaction. Missing legacy files keep
+	// their old keys so restoring a filesystem backup still works.
+	var after string
+	for {
+		var id, key, digest string
+		err := database.QueryRow(`SELECT id,file_key,sha256 FROM library_items
+			WHERE id>? AND file_key!='' AND file_key NOT LIKE 'db-%' ORDER BY id LIMIT 1`, after).Scan(&id, &key, &digest)
+		if err == sql.ErrNoRows {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		after = id
+		if key != filepath.Base(key) || strings.ContainsAny(key, `/\`) {
+			continue
+		}
+		var data []byte
+		f, err := os.Open(filepath.Join(libraryDir(), key))
+		if os.IsNotExist(err) {
+			// Some text originals survive in the catalog itself. Only restore
+			// those whose bytes match the stored checksum exactly.
+			if digest == "" {
+				continue
+			}
+			var stored string
+			err = database.QueryRow("SELECT COALESCE(content_text,'') FROM library_items WHERE id=?", id).Scan(&stored)
+			data = []byte(stored)
+		} else if err == nil {
+			data, err = io.ReadAll(io.LimitReader(f, maxLibraryUpload+1))
+			f.Close()
+		}
+		if err != nil {
+			return err
+		}
+		if len(data) == 0 || len(data) > maxLibraryUpload || (digest != "" && digest != sha256Hex(data)) {
+			continue
+		}
+		tx, err := database.Begin()
+		if err != nil {
+			return err
+		}
+		if err = saveLibraryChunks(tx, id, data); err == nil {
+			_, err = tx.Exec("UPDATE library_items SET file_key=?, size_bytes=? WHERE id=?", "db-"+key, len(data), id)
+		}
+		if err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err = tx.Commit(); err != nil {
+			return err
+		}
+	}
 }
