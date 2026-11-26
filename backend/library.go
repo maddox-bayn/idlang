@@ -532,6 +532,7 @@ func updateLibraryStatus(w http.ResponseWriter, r *http.Request, id string) {
 
 	var req struct {
 		Status string `json:"status"`
+		From   string `json:"expected_status"`
 	}
 	if err := decodeJSON(w, r, &req, 4<<10); err != nil {
 		writeError(w, http.StatusBadRequest, "Could not read that request.")
@@ -544,14 +545,23 @@ func updateLibraryStatus(w http.ResponseWriter, r *http.Request, id string) {
 		return
 	}
 
-	res, err := db.Exec(`
-		UPDATE library_items SET status = ?, reviewed_by = ?, updated_at = ? WHERE id = ?
-	`, req.Status, viewer.ID, time.Now(), id)
+	res, err := db.ExecContext(r.Context(), `
+		UPDATE library_items SET status = ?, reviewed_by = ?, updated_at = ? WHERE id = ? AND (? = '' OR status = ?)
+	`, req.Status, viewer.ID, time.Now(), id, req.From, req.From)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not update the record.")
 		return
 	}
-	if n, _ := res.RowsAffected(); n == 0 {
+	n, err := res.RowsAffected()
+	if err != nil {
+		writeError(w, 500, "Could not verify review.")
+		return
+	}
+	if n == 0 {
+		if req.From != "" {
+			writeError(w, 409, "This submission changed. Refresh the review queue.")
+			return
+		}
 		writeError(w, http.StatusNotFound, "That record does not exist.")
 		return
 	}
