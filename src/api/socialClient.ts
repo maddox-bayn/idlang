@@ -271,6 +271,12 @@ export async function createPost(post: {
   });
 }
 
+export async function restorePostAttachment(postId: string, file: File): Promise<{ media_url: string }> {
+  const form = new FormData();
+  form.append("media_file", file);
+  return requestJSON(`/api/restore-post-media/${encodeURIComponent(postId)}`, { method: "POST", body: form });
+}
+
 export async function deletePost(postId: string): Promise<void> {
   await requestJSON(`/api/posts/${encodeURIComponent(postId)}`, { method: "DELETE" });
 }

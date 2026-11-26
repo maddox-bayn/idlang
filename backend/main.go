@@ -243,6 +243,7 @@ func main() {
 		}
 		handleDeletePost(w, r)
 	}))
+	mux.HandleFunc("/api/restore-post-media/", requireAuth(restorePostMedia))
 	mux.HandleFunc("/api/feed/prompt", requireAuth(handleFeedPrompt))
 	mux.HandleFunc("/api/saved", requireAuth(handleSavedItems))
 	mux.HandleFunc("/api/connections", requireAuth(handleConnections))
@@ -571,6 +572,11 @@ func handleUploadedFile(w http.ResponseWriter, r *http.Request) {
 	clean := filepath.Clean(rel)
 	if filepath.IsAbs(clean) || strings.HasPrefix(clean, "..") {
 		writeError(w, http.StatusNotFound, "Not found.")
+		return
+	}
+
+	if strings.HasPrefix(rel, "media/db-") {
+		servePostMedia(w, r, strings.TrimPrefix(rel, "media/"))
 		return
 	}
 
