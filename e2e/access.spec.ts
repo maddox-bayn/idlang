@@ -76,8 +76,11 @@ test('admin URL is separate and refuses an ordinary member', async ({ page }) =>
 test('administrator sees accounts and moderation at direct URL', async ({ page }) => {
   const api = await mockAPI(page, 'admin');
   await page.goto('/admin/');
-  await expect(page.getByRole('heading', { name: 'Registered accounts' })).toBeVisible();
   await expect(page.getByText('Database: Turso libSQL')).toBeVisible();
+  expect(api.adminCalls()).toBe(1);
+  await page.getByRole('link', { name: 'Accounts', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Registered accounts' })).toBeVisible();
+  await page.getByRole('link', { name: 'Library review', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Publish', exact: true })).toBeVisible();
   expect(api.adminCalls()).toBeGreaterThanOrEqual(3);
 });

@@ -480,6 +480,13 @@ export function fetchAdminLibrary(page = 1): Promise<{ items: Book[]; total: num
 }
 export function reviewLibraryItem(id: string, status: "published" | "rejected"): Promise<unknown> {
   return requestJSON(`/api/library/${encodeURIComponent(id)}/status`, {
-    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status, expected_status: "draft" }),
   });
+}
+
+export interface AdminEvent {
+  id: number; actor: string; target: string; previous: string; status: string; at: string;
+}
+export function fetchAdminActivity(before = 0): Promise<{ events: AdminEvent[]; more: boolean }> {
+  return requestJSON(`/api/admin/activity?before=${before}`);
 }

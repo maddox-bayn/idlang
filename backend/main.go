@@ -204,6 +204,7 @@ func main() {
 	mux.HandleFunc("/api/translate", translationAccess(true, handleTranslate))
 	mux.HandleFunc("/api/translation/access", handleTranslationAccess)
 	mux.HandleFunc("/api/admin/overview", requireRole("admin", handleAdminOverview))
+	mux.HandleFunc("/api/admin/activity", requireRole("admin", handleAdminActivity))
 	mux.HandleFunc("/api/admin/users", requireRole("admin", handleAdminUsers))
 	mux.HandleFunc("/api/admin/library", requireRole("admin", handleAdminLibrary))
 	mux.HandleFunc("/api/generate-lesson", handleGenerateLesson)

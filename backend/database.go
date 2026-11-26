@@ -244,6 +244,7 @@ var migrations = []migrationFunc{
 	migrateMessageRetries,  // v8 — sender-scoped send attempts
 	migratePostMedia,
 	migrateLibraryFiles,
+	migrateAdminActivity,
 }
 
 func runMigrations(database *sql.DB) error {
