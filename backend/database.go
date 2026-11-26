@@ -242,6 +242,7 @@ var migrations = []migrationFunc{
 	migrateGuestTrials,     // v6 — shared guest translation allowance
 	migrateLearningAndFeed, // v7 — earned practice, review, saves and feed engagement
 	migrateMessageRetries,  // v8 — sender-scoped send attempts
+	migratePostMedia,
 }
 
 func runMigrations(database *sql.DB) error {

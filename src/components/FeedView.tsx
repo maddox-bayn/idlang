@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import type { Post, PostComment, User } from "../types";
 import { fetchPosts, createPost, deletePost, updateConnection, setPostLike, fetchPostComments, addPostComment, fetchFeedPrompt, fetchSavedItems, saveItem, unsaveItem } from "../api/socialClient";
 import NativeAudioPlayer from "./NativeAudioPlayer";
+import FeedAttachment from "./FeedAttachment";
 import ProfileModal from "./ProfileModal";
 
 interface FeedViewProps {
@@ -321,15 +322,10 @@ export default function FeedView({ currentUser }: FeedViewProps) {
                 </div>
 
                 {/* Dynamic Multimedia Display */}
-                {post.media_type === "image" && post.media_url && (
-                  <div className="mt-4 overflow-hidden rounded-lg border border-red-900/40 bg-black">
-                    <img
-                      src={post.media_url}
-                      alt="Cultural media"
-                      className="max-h-96 w-full object-cover"
-                      loading="lazy"
-                    />
-                  </div>
+                {(post.media_type === "image" || post.media_type === "video") && post.media_url && (
+                  <FeedAttachment key={post.media_url} post={post} isOwner={isSelf} onRestored={(url) =>
+                    setPosts((items) => items.map((item) => item.id === post.id ? { ...item, media_url: url } : item))
+                  } />
                 )}
 
                 {post.media_type === "audio" && (
@@ -338,18 +334,6 @@ export default function FeedView({ currentUser }: FeedViewProps) {
                       audioUrl={post.media_url}
                       title="Native Idoma Audio Recording"
                     />
-                  </div>
-                )}
-
-                {post.media_type === "video" && post.media_url && (
-                  <div className="mt-4 overflow-hidden rounded-lg border border-red-900/40 bg-black">
-                    <video
-                      controls
-                      src={post.media_url}
-                      className="max-h-96 w-full"
-                    >
-                      Your browser does not support HTML5 video streaming.
-                    </video>
                   </div>
                 )}
 

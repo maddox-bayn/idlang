@@ -5,12 +5,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io"
-	"mime/multipart"
 	"net/http"
 	"net/url"
-	"os"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -140,6 +136,15 @@ func handleCreatePost(w http.ResponseWriter, r *http.Request) {
 
 	author := currentUser(r)
 
+	if author == nil {
+		writeError(w, http.StatusUnauthorized, "Sign in to post.")
+		return
+	}
+	if !allowRate(w, r, "post:"+author.ID, 30, time.Hour) {
+		return
+	}
+
+	var upload *postUpload
 	var content, mediaType, mediaURL string
 	var tags []string
 
@@ -156,15 +161,13 @@ func handleCreatePost(w http.ResponseWriter, r *http.Request) {
 			_ = json.Unmarshal([]byte(raw), &tags)
 		}
 
-		file, header, err := r.FormFile("media_file")
-		if err == nil && file != nil {
-			defer file.Close()
-			stored, err := storePostMedia(file, header)
-			if err != nil {
-				writeError(w, http.StatusUnsupportedMediaType, err.Error())
+		defer r.MultipartForm.RemoveAll()
+		if len(r.MultipartForm.File["media_file"]) > 0 {
+			upload = readPostUpload(w, r, mediaType)
+			if upload == nil {
 				return
 			}
-			mediaURL = stored
+			mediaURL = upload.url()
 		}
 	} else {
 		var req struct {
@@ -181,13 +184,6 @@ func handleCreatePost(w http.ResponseWriter, r *http.Request) {
 		mediaType = req.MediaType
 		mediaURL = req.MediaURL
 		tags = req.Tags
-	}
-	if author == nil {
-		writeError(w, http.StatusUnauthorized, "Sign in to post.")
-		return
-	}
-	if !allowRate(w, r, "post:"+author.ID, 30, time.Hour) {
-		return
 	}
 
 	content = strings.TrimSpace(content)
@@ -217,11 +213,27 @@ func handleCreatePost(w http.ResponseWriter, r *http.Request) {
 
 	postID := uuid.New().String()
 	now := time.Now()
-	if _, err := db.Exec(`
+	tx, err := db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeError(w, 503, "Storage unavailable.")
+		return
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(r.Context(), `
 		INSERT INTO posts (id, user_id, content, media_type, media_url, created_at, tags)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`, postID, author.ID, content, mediaType, mediaURL, now, string(tagsJSON)); err != nil {
-		writeError(w, http.StatusInternalServerError, "Could not save that post.")
+		writeError(w, 500, "Could not save that post.")
+		return
+	}
+	if upload != nil {
+		if err := upload.save(r.Context(), tx, postID); err != nil {
+			writeError(w, 503, "Could not save the attachment.")
+			return
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		writeError(w, 503, "Could not confirm post storage.")
 		return
 	}
 
@@ -1513,39 +1525,6 @@ var allowedUploadExt = map[string]bool{
 	".jpg": true, ".jpeg": true, ".png": true, ".webp": true,
 	".mp3": true, ".ogg": true, ".wav": true, ".m4a": true,
 	".mp4": true, ".webm": true,
-}
-
-// storePostMedia saves an uploaded attachment under uploads/media with a
-// generated name and a validated type. The client filename is never trusted and
-// never used as a path.
-func storePostMedia(file io.Reader, header *multipart.FileHeader) (string, error) {
-	data, err := io.ReadAll(io.LimitReader(file, maxLibraryUpload+1))
-	if err != nil {
-		return "", fmt.Errorf("could not read that file")
-	}
-	if len(data) == 0 {
-		return "", fmt.Errorf("that file is empty")
-	}
-	if len(data) > maxLibraryUpload {
-		return "", fmt.Errorf("that file is too large (25 MB maximum)")
-	}
-
-	mime, ext, ok := detectMediaMime(data)
-	if !ok {
-		return "", fmt.Errorf("unsupported media type; use an image, audio or video file")
-	}
-	_ = header
-
-	dir := filepath.Join("uploads", "media")
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return "", fmt.Errorf("could not store that file")
-	}
-	name := uuid.New().String() + ext
-	if err := writeFileAtomic(filepath.Join(dir, name), data); err != nil {
-		return "", fmt.Errorf("could not store that file")
-	}
-	_ = mime
-	return "/uploads/media/" + name, nil
 }
 
 func detectMediaMime(data []byte) (mime, ext string, ok bool) {
