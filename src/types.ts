@@ -8,6 +8,8 @@ export interface Question {
 }
 
 export interface Lesson {
+  revision?: number;
+  challenge?: string;
   id: string;
   title: string;
   track_id?: string;

@@ -462,3 +462,10 @@ func TestProfileEngineRouting(t *testing.T) {
 		t.Errorf("Expected is_owner = true when Oche views himself")
 	}
 }
+
+var curriculumAnswerKeys = map[string]map[string]string{
+	"track_1_greetings": {"good-morning": "Nmaochi", "good-night": "Nmoo Gb'ochi", "goodbye": "Nmoo", "thank-you": "Ófé", "welcome": "Ainya Owa"},
+	"track_2_numbers":   {"one": "òyé", "two": "èpà", "three": "ɛ́mā", "four": "ɛ́lɛ̄", "five": "ɛ́hɔ̄"},
+	"track_3_idioms":    {"ancestors": "Alekwu", "tradition": "Ogwuchekwo", "masquerade": "Ekwu", "sacred": "Iho", "oracle": "Obochi"},
+	"track_4_folktales": {"please": "K'ocho", "hello": "Ówúrú", "yes": "Éhò", "no": "Kú", "sit-down": "Chíchẽ àjè"},
+}

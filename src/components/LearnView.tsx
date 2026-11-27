@@ -7,13 +7,23 @@ import AudioPlayer from "./AudioPlayer";
 import NativeAudioPlayer from "./NativeAudioPlayer";
 import { completeDailyPractice, completeLearningTrack, fetchDailyPractice, fetchSavedItems, fetchPosts, unsaveItem, type DailyPractice } from "../api/socialClient";
 import type { SavedItem } from "../types";
-import { curriculumLessons } from "../data/curriculum";
+import ChallengeTasks from "./ChallengeTasks";
+import { fetchCourse } from "../api/socialClient";
 import { clearLessonProgress, getLessonProgress, getReviewItems, type ReviewItem } from "../data/learningProgress";
 
 interface LearnViewProps { currentUser: User }
-type LearnMode = "tracks" | "practice" | "review";
+type LearnMode = "tracks" | "practice" | "review" | "tasks";
 
 export default function LearnView({ currentUser }: LearnViewProps) {
+  const [curriculumLessons,setLessons]=useState<Lesson[]>([]);
+  const [catalogError,setCatalogError]=useState("");
+  const [reloadCatalog,setReloadCatalog]=useState(0);
+  useEffect(()=>{
+    let active=true;setCatalogError("");
+    fetchCourse().then(data=>{if(active)setLessons(data.map(unit=>unit.lesson));})
+      .catch(e=>{if(active)setCatalogError(e.message);});
+    return ()=>{active=false;};
+  },[reloadCatalog,currentUser.id]);
   const [activeLesson, setActiveLesson] = useState<Lesson | null>(null);
   const [activeMode, setActiveMode] = useState<LearnMode>("tracks");
   const [lessonStartIndex, setLessonStartIndex] = useState(0);
@@ -56,7 +66,7 @@ export default function LearnView({ currentUser }: LearnViewProps) {
 
   async function finishTrackLesson(answers: Record<string, string>) {
     if (!activeLesson?.track_id) return;
-    await completeLearningTrack(activeLesson.track_id, answers);
+    await completeLearningTrack(activeLesson.track_id, answers, activeLesson.revision);
     clearLessonProgress(currentUser.id);
     refreshSavedState();
     setActiveLesson(null);
@@ -120,6 +130,7 @@ export default function LearnView({ currentUser }: LearnViewProps) {
           lesson={activeLesson}
           currentUserId={currentUser.id}
           initialIndex={lessonStartIndex}
+          initialAnswers={lessonStartIndex ? savedProgress?.answers : undefined}
           onComplete={() => { setActiveLesson(null); refreshSavedState(); }}
           onPass={hasTrack ? finishTrackLesson : undefined}
         />
@@ -127,7 +138,7 @@ export default function LearnView({ currentUser }: LearnViewProps) {
     );
   }
 
-  const resumeLesson = savedProgress && curriculumLessons.find((lesson) => lesson.id === savedProgress.lessonId);
+  const resumeLesson = savedProgress && curriculumLessons.find((lesson) => lesson.id === savedProgress.lessonId && (savedProgress.revision ?? 1) === lesson.revision);
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 px-4">
@@ -154,18 +165,20 @@ export default function LearnView({ currentUser }: LearnViewProps) {
             <p className="mt-1 font-heading text-lg font-bold text-red-100">{resumeLesson.title}</p>
             <p className="text-xs text-neutral-400">Question {savedProgress.questionIndex + 1} of {resumeLesson.questions.length}</p>
           </div>
-          <button onClick={() => launchLesson(resumeLesson, savedProgress.questionIndex)} className="rounded-lg bg-red-800 px-4 py-2 text-xs font-semibold text-red-100 hover:bg-red-700">Continue lesson</button>
+          <button onClick={() => launchLesson(resumeLesson, savedProgress.answers ? savedProgress.questionIndex : 0)} className="rounded-lg bg-red-800 px-4 py-2 text-xs font-semibold text-red-100 hover:bg-red-700">Continue lesson</button>
         </section>
       )}
 
       <div className="flex flex-wrap justify-center gap-1 rounded-lg border border-red-900/40 bg-neutral-950 p-1">
-        {([ ["tracks", "Learning path"], ["practice", "Lessons"], ["review", `Review (${reviewItems.length + savedItems.length})`] ] as const).map(([mode, label]) => (
+        {([ ["tracks", "Learning path"], ["practice", "Lessons"], ["tasks","Challenges"], ["review", `Review (${reviewItems.length + savedItems.length})`] ] as const).map(([mode, label]) => (
           <button key={mode} onClick={() => setActiveMode(mode)} aria-pressed={activeMode === mode} className={`rounded-md px-4 py-2 text-xs font-semibold uppercase tracking-wider ${activeMode === mode ? "bg-red-900 text-red-100" : "text-neutral-300 hover:text-red-300"}`}>
             {label}
           </button>
         ))}
       </div>
 
+      {catalogError && <p role="alert">{catalogError} <button onClick={()=>setReloadCatalog(n=>n+1)}>Reload lessons</button></p>}
+      {activeMode === "tasks" && <ChallengeTasks lessons={curriculumLessons}/>}
       {activeMode === "tracks" && <LearningDashboard currentUser={currentUser} onLaunchLesson={(lessonId) => {
         const lesson = curriculumLessons.find((item) => item.id === lessonId);
         if (lesson) launchLesson(lesson);
@@ -173,7 +186,7 @@ export default function LearnView({ currentUser }: LearnViewProps) {
 
       {activeMode === "practice" && (
         <section className="space-y-3" aria-label="Lessons">
-          <p className="text-center text-xs uppercase tracking-widest text-neutral-400">Dictionary-sourced vocabulary and phrases; examples follow the bundled Idoma entries</p>
+          <p className="text-center text-xs uppercase tracking-widest text-neutral-400">Published lessons</p>
           {curriculumLessons.map((lesson) => (
             <button key={lesson.id} onClick={() => launchLesson(lesson)} className="card-glow flex w-full items-center justify-between rounded-xl border border-red-900/40 bg-neutral-950 p-5 text-left hover:border-red-600">
               <span><span className="block font-heading text-lg font-bold text-red-100">{lesson.title}</span><span className="text-xs text-neutral-400">{lesson.level} · {lesson.questions.length} questions · {lesson.topic}</span></span>

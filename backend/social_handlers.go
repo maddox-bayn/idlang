@@ -1200,15 +1200,9 @@ func handleMarkMessagesRead(w http.ResponseWriter, r *http.Request) {
 // --- Gamified Learning Tracks API ---
 
 type CompleteTrackRequest struct {
-	TrackID string            `json:"track_id"`
-	Answers map[string]string `json:"answers"`
-}
-
-var curriculumAnswerKeys = map[string]map[string]string{
-	"track_1_greetings": {"good-morning": "Nmaochi", "good-night": "Nmoo Gb'ochi", "goodbye": "Nmoo", "thank-you": "Ófé", "welcome": "Ainya Owa"},
-	"track_2_numbers":   {"one": "òyé", "two": "èpà", "three": "ɛ́mā", "four": "ɛ́lɛ̄", "five": "ɛ́hɔ̄"},
-	"track_3_idioms":    {"ancestors": "Alekwu", "tradition": "Ogwuchekwo", "masquerade": "Ekwu", "sacred": "Iho", "oracle": "Obochi"},
-	"track_4_folktales": {"please": "K'ocho", "hello": "Ówúrú", "yes": "Éhò", "no": "Kú", "sit-down": "Chíchẽ àjè"},
+	Revision int               `json:"revision"`
+	TrackID  string            `json:"track_id"`
+	Answers  map[string]string `json:"answers"`
 }
 
 type CompleteTrackResponse struct {
@@ -1238,20 +1232,22 @@ func handleGetLearningTracks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	units, err := readCourse(r.Context())
+	if err != nil {
+		writeError(w, 503, "Could not load the curriculum.")
+		return
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"profile": profile,
-		"tracks":  tracksWithStatus(profile.CompletedTracks),
+		"tracks":  tracksWithStatus(courseTracks(units), profile.CompletedTracks),
 	})
 }
 
-func tracksWithStatus(completed []string) []LearningTrack {
+func tracksWithStatus(tracks []LearningTrack, completed []string) []LearningTrack {
 	completedMap := make(map[string]bool, len(completed))
 	for _, id := range completed {
 		completedMap[id] = true
 	}
-
-	tracks := make([]LearningTrack, len(CurriculumTracks))
-	copy(tracks, CurriculumTracks)
 
 	foundActive := false
 	for i := range tracks {
@@ -1275,7 +1271,7 @@ func handleCompleteLearningTrack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req CompleteTrackRequest
-	if err := decodeJSON(w, r, &req, 4<<10); err != nil {
+	if err := decodeJSON(w, r, &req, 32<<10); err != nil {
 		writeError(w, http.StatusBadRequest, "Invalid JSON body.")
 		return
 	}
@@ -1290,9 +1286,15 @@ func handleCompleteLearningTrack(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "track_id is required.")
 		return
 	}
+	units, err := readCourse(r.Context())
+	if err != nil {
+		writeError(w, 503, "Could not load curriculum.")
+		return
+	}
+	tracks := courseTracks(units)
 	targetIndex := -1
-	for i := range CurriculumTracks {
-		if CurriculumTracks[i].ID == req.TrackID {
+	for i := range tracks {
+		if tracks[i].ID == req.TrackID {
 			targetIndex = i
 			break
 		}
@@ -1301,7 +1303,7 @@ func handleCompleteLearningTrack(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "That track does not exist.")
 		return
 	}
-	targetTrack := CurriculumTracks[targetIndex]
+	targetTrack := tracks[targetIndex]
 
 	profile, err := getLearningProfile(user.ID)
 	if err != nil {
@@ -1314,8 +1316,16 @@ func handleCompleteLearningTrack(w http.ResponseWriter, r *http.Request) {
 		completedMap[id] = true
 	}
 
-	answerKey, hasAnswerKey := curriculumAnswerKeys[req.TrackID]
-	if !hasAnswerKey || len(req.Answers) != len(answerKey) {
+	lesson := units[targetIndex].Lesson
+	if req.Revision != lesson.Revision && !(req.Revision == 0 && lesson.Revision == 1) {
+		writeError(w, 409, "This lesson changed. Reopen it to continue.")
+		return
+	}
+	answerKey := map[string]string{}
+	for _, q := range lesson.Questions {
+		answerKey[q.ID] = q.CorrectAnswer
+	}
+	if len(answerKey) == 0 || len(req.Answers) != len(answerKey) {
 		writeError(w, http.StatusUnprocessableEntity, "Submit all answers for the linked lesson.")
 		return
 	}
@@ -1332,9 +1342,9 @@ func handleCompleteLearningTrack(w http.ResponseWriter, r *http.Request) {
 
 	// CORE RULE 3: Linear progression is only advanced after the linked lesson passes.
 	for i := 0; i < targetIndex; i++ {
-		if !completedMap[CurriculumTracks[i].ID] {
+		if !completedMap[tracks[i].ID] {
 			writeJSON(w, http.StatusBadRequest, map[string]any{
-				"error":   fmt.Sprintf("Complete '%s' before unlocking '%s'.", CurriculumTracks[i].Title, targetTrack.Title),
+				"error":   fmt.Sprintf("Complete '%s' before unlocking '%s'.", tracks[i].Title, targetTrack.Title),
 				"status":  400,
 				"blocked": true,
 			})
@@ -1346,7 +1356,7 @@ func handleCompleteLearningTrack(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, CompleteTrackResponse{
 			Success: true, Message: "Track was already completed",
 			LearningProfile: profile, XPEarned: 0, NewTier: profile.FluencyTier,
-			Tracks: tracksWithStatus(profile.CompletedTracks),
+			Tracks: tracksWithStatus(courseTracks(units), profile.CompletedTracks),
 		})
 		return
 	}
@@ -1362,8 +1372,8 @@ func handleCompleteLearningTrack(w http.ResponseWriter, r *http.Request) {
 	result, err := db.ExecContext(r.Context(), `
 		UPDATE learning_profiles
 		SET completed_tracks = ?, xp_points = ?, fluency_tier = ?, updated_at = ?
-		WHERE user_id = ? AND xp_points = ?
-	`, string(tracksJSON), profile.XPPoints, string(profile.FluencyTier), profile.UpdatedAt, profile.UserID, previousXP)
+		WHERE user_id = ? AND xp_points = ? AND EXISTS (SELECT 1 FROM course_units WHERE track_id=? AND version=?)
+	`, string(tracksJSON), profile.XPPoints, string(profile.FluencyTier), profile.UpdatedAt, profile.UserID, previousXP, targetTrack.ID, lesson.Revision)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Could not save your progress.")
 		return
@@ -1385,7 +1395,7 @@ func handleCompleteLearningTrack(w http.ResponseWriter, r *http.Request) {
 				writeJSON(w, http.StatusOK, CompleteTrackResponse{
 					Success: true, Message: "Track was already completed",
 					LearningProfile: current, NewTier: current.FluencyTier,
-					Tracks: tracksWithStatus(current.CompletedTracks),
+					Tracks: tracksWithStatus(courseTracks(units), current.CompletedTracks),
 				})
 				return
 			}
@@ -1400,7 +1410,7 @@ func handleCompleteLearningTrack(w http.ResponseWriter, r *http.Request) {
 		LearningProfile: profile,
 		XPEarned:        targetTrack.XPReward,
 		NewTier:         profile.FluencyTier,
-		Tracks:          tracksWithStatus(profile.CompletedTracks),
+		Tracks:          tracksWithStatus(courseTracks(units), profile.CompletedTracks),
 	})
 }
 

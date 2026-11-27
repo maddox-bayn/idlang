@@ -1,0 +1,278 @@
+[
+  {
+    "id": "daily-greetings",
+    "title": "Daily Greetings",
+    "track_id": "track_1_greetings",
+    "level": "Beginner",
+    "topic": "Greetings",
+    "questions": [
+      {
+        "id": "good-morning",
+        "question": "How do you say “Good morning” in Idoma?",
+        "options": [
+          "Nmaochi",
+          "Nmoo Gb'ochi",
+          "Nmoo",
+          "Ófé"
+        ],
+        "correctAnswer": "Nmaochi",
+        "translation": "Nmaochi — Good morning"
+      },
+      {
+        "id": "good-night",
+        "question": "How do you say “Good night” in Idoma?",
+        "options": [
+          "Nmoo Gb'ochi",
+          "Nmaochi",
+          "Nmoo",
+          "Ófé"
+        ],
+        "correctAnswer": "Nmoo Gb'ochi",
+        "translation": "Nmoo Gb'ochi (Good Night); also: Ol'bonchi"
+      },
+      {
+        "id": "goodbye",
+        "question": "How do you say “Goodbye” in Idoma?",
+        "options": [
+          "Nmaochi",
+          "Nmoo",
+          "Nmoo Gb'ochi",
+          "Ófé"
+        ],
+        "correctAnswer": "Nmoo",
+        "translation": "Nmoo — Goodbye"
+      },
+      {
+        "id": "thank-you",
+        "question": "How do you say “Thank you” in Idoma?",
+        "options": [
+          "Ófé",
+          "Nmaochi",
+          "Nmoo Gb'ochi",
+          "Nmoo"
+        ],
+        "correctAnswer": "Ófé",
+        "translation": "Ófé (Thank you)"
+      },
+      {
+        "id": "welcome",
+        "question": "How do you say “Welcome” in Idoma?",
+        "options": [
+          "Ainya Owa",
+          "Nmaochi",
+          "Nmoo Gb'ochi",
+          "Nmoo"
+        ],
+        "correctAnswer": "Ainya Owa",
+        "translation": "Ainya Owa — Welcome"
+      }
+    ]
+  },
+  {
+    "id": "numbers-1-5",
+    "title": "Numbers One to Five",
+    "track_id": "track_2_numbers",
+    "level": "Beginner",
+    "topic": "Numbers",
+    "questions": [
+      {
+        "id": "one",
+        "question": "How do you say “One” in Idoma?",
+        "options": [
+          "èpà",
+          "ɛ́mā",
+          "òyé",
+          "ɛ́lɛ̄"
+        ],
+        "correctAnswer": "òyé",
+        "translation": "Òyé (One)"
+      },
+      {
+        "id": "two",
+        "question": "How do you say “Two” in Idoma?",
+        "options": [
+          "òyé",
+          "ɛ́mā",
+          "èpà",
+          "ɛ́lɛ̄"
+        ],
+        "correctAnswer": "èpà",
+        "translation": "Èpà (Two)"
+      },
+      {
+        "id": "three",
+        "question": "How do you say “Three” in Idoma?",
+        "options": [
+          "ɛ́mā",
+          "òyé",
+          "èpà",
+          "ɛ́lɛ̄"
+        ],
+        "correctAnswer": "ɛ́mā",
+        "translation": "Ɛ́mā (Three)"
+      },
+      {
+        "id": "four",
+        "question": "How do you say “Four” in Idoma?",
+        "options": [
+          "ɛ́lɛ̄",
+          "òyé",
+          "èpà",
+          "ɛ́mā"
+        ],
+        "correctAnswer": "ɛ́lɛ̄",
+        "translation": "Ɛ́lɛ̄ (Four)"
+      },
+      {
+        "id": "five",
+        "question": "How do you say “Five” in Idoma?",
+        "options": [
+          "òyé",
+          "èpà",
+          "ɛ́hɔ̄",
+          "ɛ́mā"
+        ],
+        "correctAnswer": "ɛ́hɔ̄",
+        "translation": "Ɛ́hɔ̄ (Five)"
+      }
+    ]
+  },
+  {
+    "id": "culture-heritage",
+    "title": "Culture & Heritage Words",
+    "track_id": "track_3_idioms",
+    "level": "Intermediate",
+    "topic": "Culture",
+    "questions": [
+      {
+        "id": "ancestors",
+        "question": "How do you say “Ancestors” in Idoma?",
+        "options": [
+          "Ogwuchekwo",
+          "Ekwu",
+          "Alekwu",
+          "Iho"
+        ],
+        "correctAnswer": "Alekwu",
+        "translation": "Alekwu — Ancestors"
+      },
+      {
+        "id": "tradition",
+        "question": "How do you say “Tradition” in Idoma?",
+        "options": [
+          "Alekwu",
+          "Ekwu",
+          "Ogwuchekwo",
+          "Iho"
+        ],
+        "correctAnswer": "Ogwuchekwo",
+        "translation": "Ogwuchekwo — Tradition"
+      },
+      {
+        "id": "masquerade",
+        "question": "How do you say “Masquerade” in Idoma?",
+        "options": [
+          "Ekwu",
+          "Alekwu",
+          "Ogwuchekwo",
+          "Iho"
+        ],
+        "correctAnswer": "Ekwu",
+        "translation": "Ekwu — Masquerade"
+      },
+      {
+        "id": "sacred",
+        "question": "How do you say “Sacred” in Idoma?",
+        "options": [
+          "Alekwu",
+          "Ogwuchekwo",
+          "Iho",
+          "Ekwu"
+        ],
+        "correctAnswer": "Iho",
+        "translation": "Iho — Sacred"
+      },
+      {
+        "id": "oracle",
+        "question": "How do you say “Oracle” in Idoma?",
+        "options": [
+          "Alekwu",
+          "Ogwuchekwo",
+          "Obochi",
+          "Ekwu"
+        ],
+        "correctAnswer": "Obochi",
+        "translation": "Obochi — Oracle"
+      }
+    ]
+  },
+  {
+    "id": "everyday-phrases",
+    "title": "Everyday Phrases",
+    "track_id": "track_4_folktales",
+    "level": "Intermediate",
+    "topic": "Phrases",
+    "questions": [
+      {
+        "id": "please",
+        "question": "How do you say “Please” in Idoma?",
+        "options": [
+          "Ówúrú",
+          "Éhò",
+          "K'ocho",
+          "Kú"
+        ],
+        "correctAnswer": "K'ocho",
+        "translation": "K'ocho (Please)"
+      },
+      {
+        "id": "hello",
+        "question": "How do you say “Hello” in Idoma?",
+        "options": [
+          "Ówúrú",
+          "K'ocho",
+          "Éhò",
+          "Kú"
+        ],
+        "correctAnswer": "Ówúrú",
+        "translation": "Ówúrú (Hello)"
+      },
+      {
+        "id": "yes",
+        "question": "How do you say “Yes” in Idoma?",
+        "options": [
+          "K'ocho",
+          "Éhò",
+          "Ówúrú",
+          "Kú"
+        ],
+        "correctAnswer": "Éhò",
+        "translation": "Éhò (Yes)"
+      },
+      {
+        "id": "no",
+        "question": "How do you say “No” in Idoma?",
+        "options": [
+          "K'ocho",
+          "Kú",
+          "Ówúrú",
+          "Éhò"
+        ],
+        "correctAnswer": "Kú",
+        "translation": "Kú (No)"
+      },
+      {
+        "id": "sit-down",
+        "question": "How do you say “Sit down” in Idoma?",
+        "options": [
+          "K'ocho",
+          "Chíchẽ àjè",
+          "Ówúrú",
+          "Éhò"
+        ],
+        "correctAnswer": "Chíchẽ àjè",
+        "translation": "Chíchẽ àjè (Sit down)"
+      }
+    ]
+  }
+]

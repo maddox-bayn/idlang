@@ -7,7 +7,7 @@ export interface ReviewItem {
   missedAt: string;
 }
 
-interface SavedProgress { lessonId: string; questionIndex: number }
+interface SavedProgress { lessonId: string; questionIndex: number; revision?: number; answers?: Record<string,string> }
 
 function read<T>(key: string, fallback: T): T {
   try {

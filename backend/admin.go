@@ -125,7 +125,11 @@ func handleAdminLibrary(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	query := r.URL.Query()
-	query.Set("status", "draft")
+	switch query.Get("status") {
+	case "published", "rejected", "removed":
+	default:
+		query.Set("status", "draft")
+	}
 	r.URL.RawQuery = query.Encode()
 	listLibrary(w, r)
 }
