@@ -8,6 +8,7 @@ import type {
   DirectMessage,
   Book,
   LearningTrack,
+  Lesson,
   LearningProfile,
   ConnectionsResponse,
 } from "../types";
@@ -271,6 +272,12 @@ export async function createPost(post: {
   });
 }
 
+export async function restorePostAttachment(postId: string, file: File): Promise<{ media_url: string }> {
+  const form = new FormData();
+  form.append("media_file", file);
+  return requestJSON(`/api/restore-post-media/${encodeURIComponent(postId)}`, { method: "POST", body: form });
+}
+
 export async function deletePost(postId: string): Promise<void> {
   await requestJSON(`/api/posts/${encodeURIComponent(postId)}`, { method: "DELETE" });
 }
@@ -421,13 +428,13 @@ export async function fetchLearningTracks(userId: string): Promise<{ profile: Le
 
 export async function completeLearningTrack(
   trackId: string,
-  answers: Record<string, string>,
+  answers: Record<string, string>, revision?: number,
 ): Promise<{ success: boolean; message: string; learning_profile: LearningProfile; tracks: LearningTrack[] }> {
   const res = await fetchResponse(`${API_BASE}/api/learning/complete-track`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ track_id: trackId, answers }),
+    body: JSON.stringify({ track_id: trackId, answers, revision }),
   });
 
   if (!res.ok) {
@@ -469,11 +476,37 @@ export function fetchAdminOverview(): Promise<AdminOverview> { return requestJSO
 export function fetchAdminUsers(page = 1): Promise<{ users: AdminAccount[]; total: number; page: number; limit: number }> {
   return requestJSON(`/api/admin/users?page=${page}`);
 }
-export function fetchAdminLibrary(page = 1): Promise<{ items: Book[]; total: number; page: number; limit: number }> {
-  return requestJSON(`/api/admin/library?page=${page}`);
+export function fetchAdminLibrary(page = 1, status = "draft"): Promise<{ items: Book[]; total: number; page: number; limit: number }> {
+  return requestJSON(`/api/admin/library?page=${page}&status=${encodeURIComponent(status)}`);
 }
 export function reviewLibraryItem(id: string, status: "published" | "rejected"): Promise<unknown> {
   return requestJSON(`/api/library/${encodeURIComponent(id)}/status`, {
-    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status }),
+    method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status, expected_status: "draft" }),
   });
+}
+
+export interface AdminEvent {
+  id: number; actor: string; target: string; previous: string; status: string; at: string;
+}
+export function fetchAdminActivity(before = 0): Promise<{ events: AdminEvent[]; more: boolean }> {
+  return requestJSON(`/api/admin/activity?before=${before}`);
+}
+
+export interface CourseUnit { track: LearningTrack; lesson: Lesson }
+export interface TaskEntry { id: number; learner: string; prompt: string; response: string; feedback: string; status: string }
+export const fetchCourse = () => requestJSON<CourseUnit[]>("/api/learning/curriculum");
+export const publishLesson = (unit: CourseUnit) => requestJSON("/api/admin/curriculum", {
+  method: unit.lesson.revision ? "PUT" : "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(unit)
+});
+export function fetchTasks(admin: boolean, before?: number) {
+  return requestJSON<{items: TaskEntry[]; more: boolean}>(`/api/${admin ? "admin" : "learning"}/challenges${before ? "?before="+before : ""}`);
+}
+export function submitTask(track: string, revision: number, response: string) {
+  return requestJSON("/api/learning/challenges",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({track,revision,response})});
+}
+export function decideTask(id: number, status: string, feedback: string) {
+  return requestJSON("/api/admin/challenges",{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({id,status,feedback})});
+}
+export function removeDocument(book: Book) {
+  return requestJSON(`/api/library/${encodeURIComponent(book.id)}/status`,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify({status:"removed",expected_status:book.status})});
 }

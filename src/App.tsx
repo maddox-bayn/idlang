@@ -21,16 +21,16 @@ function requestedTab(): Tab {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<Tab>(requestedTab);
+  const [requestedView, setRequestedView] = useState<Tab>(requestedTab);
   function selectTab(view: Tab) {
     const url = new URL(window.location.href);
     if (view === "translate") url.searchParams.delete("view");
     else url.searchParams.set("view", view);
     if (url.href !== window.location.href) window.history.pushState(null, "", url);
-    setActiveTab(view);
+    setRequestedView(view);
   }
   useEffect(() => {
-    const onBack = () => setActiveTab(requestedTab());
+    const onBack = () => setRequestedView(requestedTab());
     window.addEventListener("popstate", onBack);
     return () => window.removeEventListener("popstate", onBack);
   }, []);
@@ -41,6 +41,7 @@ export default function App() {
     saveNavState(navState);
   }, [navState]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const activeTab = currentUser || requestedView === "library" ? requestedView : "translate";
   const [loadingAuth, setLoadingAuth] = useState(true);
 
   // Modals state
@@ -131,12 +132,12 @@ export default function App() {
                 <MenuIcon className="h-5 w-5" />
               </button>
             )}
-            {/* Active section label — replaces the old logo/tagline, updates on tab change */}
+            {/* Keep the product name visible alongside the rendered section. */}
             <h1
               aria-live="polite"
               className="border-l-2 border-red-700 pl-3 font-heading text-lg font-bold uppercase tracking-widest text-red-100 sm:text-xl"
             >
-              {navLabel(activeTab)}
+              Idlang · {navLabel(activeTab)}
             </h1>
           </div>
 
@@ -213,8 +214,8 @@ export default function App() {
                 </button>
               </div>
             ) : (
-              /* REAL SIGN IN & REGISTER BUTTONS FOR GUESTS */
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <button className="px-2 text-xs text-red-200 underline" onClick={() => selectTab(activeTab === "library" ? "translate" : "library")}>{activeTab === "library" ? "Translate" : "E-Library"}</button>
                 <button
                   onClick={() => openAuth("login")}
                   className="rounded-lg border border-red-900/60 bg-neutral-950 px-3.5 py-1.5 text-xs font-semibold uppercase tracking-wider text-red-300 hover:bg-red-900/40 hover:text-red-100 transition-all shadow"
@@ -253,10 +254,10 @@ export default function App() {
       <main id="main-content" tabIndex={-1} className="flex-1 pt-8 pb-28 lg:pb-8">
         <Suspense fallback={<p role="status" className="p-6 text-center text-neutral-300">Loading section…</p>}>
         {currentUser && activeTab === "feed" && <FeedView currentUser={effectiveUser} />}
-        {currentUser && activeTab === "library" && <LibraryView currentUser={effectiveUser} />}
+        {activeTab === "library" && <LibraryView key={effectiveUser.id} currentUser={effectiveUser} />}
         {currentUser && activeTab === "learn" && <LearnView currentUser={effectiveUser} />}
         {currentUser && activeTab === "messages" && <MessagesView currentUser={effectiveUser} />}
-        {(!currentUser || activeTab === "translate") && <TranslateView isAuthenticated={!!currentUser} authLoading={loadingAuth} onRequireAuth={() => openAuth("login")} />}
+        {activeTab === "translate" && <TranslateView isAuthenticated={!!currentUser} authLoading={loadingAuth} onRequireAuth={() => openAuth("login")} />}
         </Suspense>
       </main>
 

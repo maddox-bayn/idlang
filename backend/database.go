@@ -242,6 +242,10 @@ var migrations = []migrationFunc{
 	migrateGuestTrials,     // v6 — shared guest translation allowance
 	migrateLearningAndFeed, // v7 — earned practice, review, saves and feed engagement
 	migrateMessageRetries,  // v8 — sender-scoped send attempts
+	migratePostMedia,
+	migrateLibraryFiles,
+	migrateAdminActivity,
+	migrateCourses,
 }
 
 func runMigrations(database *sql.DB) error {
@@ -742,11 +746,6 @@ func seedSampleLibrary(database *sql.DB) error {
 		return nil
 	}
 
-	dir := libraryDir()
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
-
 	samples := []struct {
 		Title, Description, Body, Kind, License string
 	}{
@@ -806,20 +805,30 @@ func seedSampleLibrary(database *sql.DB) error {
 
 	for i, s := range samples {
 		id := uuid.New().String()
-		key := fmt.Sprintf("sample-%d.txt", i+1)
+		key := fmt.Sprintf("db-sample-%d.txt", i+1)
 		body := []byte(s.Body)
 
-		if err := os.WriteFile(filepath.Join(dir, key), body, 0644); err != nil {
+		tx, err := database.Begin()
+		if err != nil {
 			return err
 		}
 
-		if _, err := database.Exec(`
+		if _, err := tx.Exec(`
 			INSERT INTO library_items
 				(id, title, author, uploaded_by, file_url, description, kind, language,
 				 license, file_key, mime, size_bytes, sha256, content_text, status)
 			VALUES (?, ?, ?, ?, '', ?, ?, 'idoma', ?, ?, 'text/plain', ?, ?, ?, 'published')
 		`, id, s.Title, "Idlang sample corpus", uploader, s.Description, s.Kind,
 			s.License, key, len(body), sha256Hex(body), s.Body); err != nil {
+			tx.Rollback()
+			return err
+		}
+
+		if err := saveLibraryChunks(tx, id, body); err != nil {
+			tx.Rollback()
+			return err
+		}
+		if err := tx.Commit(); err != nil {
 			return err
 		}
 

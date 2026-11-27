@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -403,6 +404,25 @@ func TestELibraryAPI(t *testing.T) {
 	if item.UploadedBy != "user_oche" || item.Status != "draft" {
 		t.Fatalf("Unexpected upload: %+v", item)
 	}
+	guestFile := func(query string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		handleLibraryByID(rec, httptest.NewRequest(http.MethodGet, libraryFilePath(item.ID)+query, nil))
+		return rec
+	}
+	if guestFile("").Code != 404 {
+		t.Fatal("guest could read a draft")
+	}
+	if _, err := db.Exec("UPDATE library_items SET status='published' WHERE id=?", item.ID); err != nil {
+		t.Fatal(err)
+	}
+	// Changing the disk location simulates replacement of the running container.
+	t.Setenv("LIBRARY_DIR", t.TempDir())
+	for query, mode := range map[string]string{"": "attachment", "?inline=1": "inline"} {
+		result := guestFile(query)
+		if result.Code != 200 || result.Body.String() != "An Idoma language study." || !strings.HasPrefix(result.Header().Get("Content-Disposition"), mode) {
+			t.Fatalf("public %s failed: %d %s", mode, result.Code, result.Body)
+		}
+	}
 }
 
 func TestProfileEngineRouting(t *testing.T) {
@@ -441,4 +461,11 @@ func TestProfileEngineRouting(t *testing.T) {
 	if !ownerResp.IsOwner {
 		t.Errorf("Expected is_owner = true when Oche views himself")
 	}
+}
+
+var curriculumAnswerKeys = map[string]map[string]string{
+	"track_1_greetings": {"good-morning": "Nmaochi", "good-night": "Nmoo Gb'ochi", "goodbye": "Nmoo", "thank-you": "Ófé", "welcome": "Ainya Owa"},
+	"track_2_numbers":   {"one": "òyé", "two": "èpà", "three": "ɛ́mā", "four": "ɛ́lɛ̄", "five": "ɛ́hɔ̄"},
+	"track_3_idioms":    {"ancestors": "Alekwu", "tradition": "Ogwuchekwo", "masquerade": "Ekwu", "sacred": "Iho", "oracle": "Obochi"},
+	"track_4_folktales": {"please": "K'ocho", "hello": "Ówúrú", "yes": "Éhò", "no": "Kú", "sit-down": "Chíchẽ àjè"},
 }

@@ -203,7 +203,12 @@ func main() {
 	mux.HandleFunc("/", handleRoot)
 	mux.HandleFunc("/api/translate", translationAccess(true, handleTranslate))
 	mux.HandleFunc("/api/translation/access", handleTranslationAccess)
+	mux.HandleFunc("/api/admin/curriculum", requireRole("admin", editCourse))
+	mux.HandleFunc("/api/admin/challenges", requireRole("admin", reviewTasks))
+	mux.HandleFunc("/api/learning/curriculum", requireAuth(courseCatalog))
+	mux.HandleFunc("/api/learning/challenges", requireAuth(learnerTasks))
 	mux.HandleFunc("/api/admin/overview", requireRole("admin", handleAdminOverview))
+	mux.HandleFunc("/api/admin/activity", requireRole("admin", handleAdminActivity))
 	mux.HandleFunc("/api/admin/users", requireRole("admin", handleAdminUsers))
 	mux.HandleFunc("/api/admin/library", requireRole("admin", handleAdminLibrary))
 	mux.HandleFunc("/api/generate-lesson", handleGenerateLesson)
@@ -243,6 +248,7 @@ func main() {
 		}
 		handleDeletePost(w, r)
 	}))
+	mux.HandleFunc("/api/restore-post-media/", requireAuth(restorePostMedia))
 	mux.HandleFunc("/api/feed/prompt", requireAuth(handleFeedPrompt))
 	mux.HandleFunc("/api/saved", requireAuth(handleSavedItems))
 	mux.HandleFunc("/api/connections", requireAuth(handleConnections))
@@ -571,6 +577,11 @@ func handleUploadedFile(w http.ResponseWriter, r *http.Request) {
 	clean := filepath.Clean(rel)
 	if filepath.IsAbs(clean) || strings.HasPrefix(clean, "..") {
 		writeError(w, http.StatusNotFound, "Not found.")
+		return
+	}
+
+	if strings.HasPrefix(rel, "media/db-") {
+		servePostMedia(w, r, strings.TrimPrefix(rel, "media/"))
 		return
 	}
 

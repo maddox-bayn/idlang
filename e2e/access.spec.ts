@@ -76,8 +76,11 @@ test('admin URL is separate and refuses an ordinary member', async ({ page }) =>
 test('administrator sees accounts and moderation at direct URL', async ({ page }) => {
   const api = await mockAPI(page, 'admin');
   await page.goto('/admin/');
-  await expect(page.getByRole('heading', { name: 'Registered accounts' })).toBeVisible();
   await expect(page.getByText('Database: Turso libSQL')).toBeVisible();
+  expect(api.adminCalls()).toBe(1);
+  await page.getByRole('link', { name: 'Accounts', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Registered accounts' })).toBeVisible();
+  await page.getByRole('link', { name: 'Library review', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Publish', exact: true })).toBeVisible();
   expect(api.adminCalls()).toBeGreaterThanOrEqual(3);
 });
@@ -193,4 +196,17 @@ test('recording auto-stops and cancelled recordings never become input', async (
   await page.getByRole('button', { name: 'Record audio', exact: true }).click();
   await page.getByRole('button', { name: 'Cancel recording', exact: true }).click();
   await expect(page.getByText('Recorded Audio', { exact: true })).toHaveCount(0);
+});
+
+test('guest deep links announce the section actually displayed', async ({ page }) => {
+  await mockAPI(page);
+  for (const view of ['feed', 'learn', 'messages']) {
+    await page.goto('/?view=' + view);
+    await expect(page.getByRole('button', { name: 'Sign In', exact: true })).toBeVisible();
+    await expect(page.locator('header h1')).toHaveText('Idlang · Translate');
+    await expect(page.getByRole('heading', { name: 'Keep the language close.' })).toBeVisible();
+  }
+  await page.goto('/?view=library');
+  await expect(page.locator('header h1')).toHaveText('Idlang · E-Library');
+  await expect(page.getByRole('heading', { name: 'Idoma E-Library & Manuscript Store' })).toBeVisible();
 });
