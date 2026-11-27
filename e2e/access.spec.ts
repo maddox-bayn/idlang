@@ -210,3 +210,17 @@ test('guest deep links announce the section actually displayed', async ({ page }
   await expect(page.locator('header h1')).toHaveText('Idlang · E-Library');
   await expect(page.getByRole('heading', { name: 'Idoma E-Library & Manuscript Store' })).toBeVisible();
 });
+
+test('signed-in header has one profile action and logout stays in responsive navigation', async ({ page }) => {
+  await mockAPI(page, 'member');
+  await page.goto('/');
+  const header = page.getByRole('banner');
+  await expect(header.getByRole('button', { name: 'Connections', exact: true })).toBeVisible();
+  await expect(header.getByRole('button', { name: 'My profile', exact: true })).toHaveCount(1);
+  await expect(header.getByRole('button', { name: 'Log Out' })).toHaveCount(0);
+  await expect(page.locator('#app-sidebar').getByRole('button', { name: 'Log Out' })).toBeVisible();
+  await page.setViewportSize({ width: 360, height: 740 });
+  await expect(header.getByRole('button', { name: 'My profile' })).toBeVisible();
+  await page.getByRole('navigation').getByRole('button', { name: 'Log Out' }).click();
+  await expect(header.getByRole('button', { name: 'Sign In', exact: true })).toBeVisible();
+});

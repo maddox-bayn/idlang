@@ -161,13 +161,18 @@ export function saveNavState(state: NavState): void {
 /* ------------------------------------------------------------------ */
 
 interface SidebarNavProps {
+  onLogout: () => void;
   activeTab: Tab;
   onSelect: (tab: Tab) => void;
   collapsed: boolean;
   onToggleCollapse: () => void;
 }
 
-export function SidebarNav({ activeTab, onSelect, collapsed, onToggleCollapse }: SidebarNavProps) {
+function LogoutIcon() {
+  return <svg aria-hidden="true" className="h-5 w-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M10 4H5v16h5m4-12 4 4-4 4m-6-4h10" /></svg>;
+}
+
+export function SidebarNav({ activeTab, onSelect, collapsed, onToggleCollapse, onLogout }: SidebarNavProps) {
   return (
     <aside
       id="app-sidebar"
@@ -234,6 +239,12 @@ export function SidebarNav({ activeTab, onSelect, collapsed, onToggleCollapse }:
           })}
         </ul>
       </nav>
+      <div className="shrink-0 border-t border-red-900/40 p-3">
+        <button onClick={onLogout} type="button" title="Log Out" aria-label="Log Out"
+          className={`flex w-full items-center gap-3 rounded-lg py-2.5 text-sm text-neutral-300 hover:bg-red-950 focus-visible:ring-2 focus-visible:ring-red-500 ${collapsed ? "justify-center" : "px-3"}`}>
+          <LogoutIcon />{!collapsed && "Log Out"}
+        </button>
+      </div>
     </aside>
   );
 }
@@ -243,11 +254,12 @@ export function SidebarNav({ activeTab, onSelect, collapsed, onToggleCollapse }:
 /* ------------------------------------------------------------------ */
 
 interface MobileTabBarProps {
+  onLogout: () => void;
   activeTab: Tab;
   onSelect: (tab: Tab) => void;
 }
 
-export function MobileTabBar({ activeTab, onSelect }: MobileTabBarProps) {
+export function MobileTabBar({ activeTab, onSelect, onLogout }: MobileTabBarProps) {
   return (
     <nav
       aria-label="Community"
@@ -276,6 +288,9 @@ export function MobileTabBar({ activeTab, onSelect }: MobileTabBarProps) {
             </li>
           );
         })}
+        <li className="min-w-0 flex-1">
+          <button type="button" onClick={onLogout} aria-label="Log Out" className="flex w-full flex-col items-center gap-0.5 py-2.5 text-[10px] font-semibold uppercase text-neutral-400 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-red-500"><LogoutIcon />Log Out</button>
+        </li>
       </ul>
     </nav>
   );

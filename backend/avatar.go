@@ -2,14 +2,14 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"image"
 	"image/color"
 	"image/jpeg"
 	"image/png"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
+
 	"time"
 
 	"github.com/google/uuid"
@@ -53,6 +53,11 @@ func handleUploadAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	cfg, _, err := image.DecodeConfig(bytes.NewReader(data))
+	if err != nil || cfg.Width <= 0 || cfg.Height <= 0 || cfg.Width > 24_000_000/cfg.Height {
+		writeError(w, http.StatusBadRequest, "Choose a readable image up to 24 megapixels.")
+		return
+	}
 	src, format, err := image.Decode(bytes.NewReader(data))
 	if err != nil {
 		writeError(w, http.StatusUnsupportedMediaType, "That file is not a readable image.")
@@ -83,23 +88,22 @@ func handleUploadAvatar(w http.ResponseWriter, r *http.Request) {
 		}
 		ext, mime = ".jpg", "image/jpeg"
 	}
-	_ = mime
-
-	dir := filepath.Join("uploads", "avatars")
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		writeError(w, http.StatusInternalServerError, "Could not store that image.")
-		return
-	}
-	name := uuid.New().String() + ext
-	if err := writeFileAtomic(filepath.Join(dir, name), encoded.Bytes()); err != nil {
-		writeError(w, http.StatusInternalServerError, "Could not store that image.")
-		return
-	}
-
+	// Publish the URL and its bytes together. A replacement gets a fresh cache key.
+	name := "db-" + uuid.NewString() + ext
 	avatarURL := "/uploads/avatars/" + name
-	if _, err := db.Exec(`UPDATE users SET avatar_url = ?, updated_at = ? WHERE id = ?`,
-		avatarURL, time.Now(), u.ID); err != nil {
-		writeError(w, http.StatusInternalServerError, "Could not save your avatar.")
+	tx, err := db.BeginTx(r.Context(), nil)
+	if err != nil {
+		writeError(w, 503, "Profile storage unavailable.")
+		return
+	}
+	defer tx.Rollback()
+	if _, err = tx.ExecContext(r.Context(), `INSERT INTO user_avatars(user_id,name,mime,data) VALUES(?,?,?,?)
+     ON CONFLICT(user_id) DO UPDATE SET name=excluded.name,mime=excluded.mime,data=excluded.data`,
+		u.ID, name, mime, encoded.Bytes()); err == nil {
+		_, err = tx.ExecContext(r.Context(), `UPDATE users SET avatar_url=?, updated_at=? WHERE id=?`, avatarURL, time.Now(), u.ID)
+	}
+	if err != nil || tx.Commit() != nil {
+		writeError(w, 503, "Could not save your avatar. Try again.")
 		return
 	}
 	u.AvatarURL = avatarURL
@@ -196,4 +200,30 @@ func hasTransparency(img *image.RGBA) bool {
 		}
 	}
 	return false
+}
+
+func migrateUserAvatars(database *sql.DB) error {
+	_, err := database.Exec(`CREATE TABLE IF NOT EXISTS user_avatars (
+ user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+ name TEXT NOT NULL UNIQUE, mime TEXT NOT NULL, data BLOB NOT NULL)`)
+	return err
+}
+
+func serveAvatar(w http.ResponseWriter, r *http.Request, name string) {
+	var mime string
+	var data []byte
+	err := db.QueryRowContext(r.Context(), "SELECT mime,data FROM user_avatars WHERE name=?", name).Scan(&mime, &data)
+	if err == sql.ErrNoRows {
+		writeError(w, 404, "Profile photo unavailable.")
+		return
+	}
+	if err != nil {
+		writeError(w, 503, "Profile storage unavailable.")
+		return
+	}
+	w.Header().Set("Content-Type", mime)
+	w.Header().Set("Cache-Control", "public, max-age=86400")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("ETag", `"`+name+`"`)
+	http.ServeContent(w, r, name, time.Time{}, bytes.NewReader(data))
 }

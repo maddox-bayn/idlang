@@ -1,3 +1,4 @@
+import UserAvatar from "./UserAvatar";
 import { useState, useEffect, useRef } from "react";
 import type { Post, PostComment, User } from "../types";
 import { fetchPosts, createPost, deletePost, updateConnection, setPostLike, fetchPostComments, addPostComment, fetchFeedPrompt, fetchSavedItems, saveItem, unsaveItem } from "../api/socialClient";
@@ -57,7 +58,10 @@ export default function FeedView({ currentUser }: FeedViewProps) {
     }
   }, [showCreateModal]);
 
+  const feedRequest = useRef(0);
+  const failedPage = useRef(1);
   const loadFeed = async (page = 1, append = false) => {
+    const request = ++feedRequest.current;
     setFeedError(null);
     if (append) setLoadingMore(true);
     else {
@@ -65,6 +69,7 @@ export default function FeedView({ currentUser }: FeedViewProps) {
     }
     try {
       const data = await fetchPosts(page, 20, selectedTopic);
+      if (request !== feedRequest.current) return;
       setPosts((prev) => {
         if (!append) return data.posts;
         const loaded = new Set(prev.map((post) => post.id));
@@ -73,14 +78,18 @@ export default function FeedView({ currentUser }: FeedViewProps) {
       setTotalPosts(data.total);
       setNextPage(page + 1);
     } catch (err) {
+      if (request !== feedRequest.current) return;
+      failedPage.current = page;
       setFeedError(err instanceof Error ? err.message : "Could not load the feed.");
     } finally {
-      setLoading(false);
-      setLoadingMore(false);
+      if (request === feedRequest.current) {
+        setLoading(false);
+        setLoadingMore(false);
+      }
     }
   };
 
-  useEffect(() => { void loadFeed(); }, [selectedTopic]);
+  useEffect(() => { setPosts([]); void loadFeed(); return () => { feedRequest.current++; }; }, [selectedTopic]);
 
   useEffect(() => { fetchFeedPrompt().then(setPrompt).catch(() => setPrompt("Share a word, phrase, or memory from your Idoma community.")); }, []);
   useEffect(() => { fetchSavedItems().then(items => setSavedPostIds(new Set(items.filter(item => item.item_type === "post").map(item => item.item_id)))).catch(() => {}); }, []);
@@ -247,7 +256,7 @@ export default function FeedView({ currentUser }: FeedViewProps) {
         </div>
       ) : (
         <div className="space-y-6">
-          {feedError && <div role="alert" className="rounded-xl border border-red-700 bg-red-950/40 p-4 text-center text-sm text-red-200">{feedError}<button onClick={() => void loadFeed(nextPage, true)} className="ml-3 underline">Retry</button></div>}
+          {feedError && <div role="alert" className="rounded-xl border border-red-700 bg-red-950/40 p-4 text-center text-sm text-red-200">{feedError}<button onClick={() => void loadFeed(failedPage.current, failedPage.current > 1)} className="ml-3 underline">Retry</button></div>}
           {posts.map((post) => {
             const author = post.author || {
               id: post.user_id,
@@ -264,12 +273,7 @@ export default function FeedView({ currentUser }: FeedViewProps) {
                 {/* Author Card Header */}
                 <div className="flex items-center justify-between border-b border-red-900/20 pb-3">
                   <button type="button" onClick={() => setSelectedAuthorId(author.id)} aria-label={`View ${author.display_name}'s profile`} className="flex items-center gap-3 cursor-pointer group text-left">
-                    <img
-                      src={
-                        author.avatar_url ||
-                        "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150"
-                      }
-                      alt={author.display_name}
+                    <UserAvatar url={author.avatar_url} name={author.display_name}
                       className="h-10 w-10 rounded-full border border-red-700 object-cover transition-transform group-hover:scale-105"
                     />
                     <div>

@@ -107,3 +107,54 @@ func TestFeedAttachmentSurvivesRestartAndSupportsVideoRanges(t *testing.T) {
 		t.Fatal("stored image did not round trip")
 	}
 }
+
+func TestAvatarSurvivesRestart(t *testing.T) {
+	setupTestDB(t)
+	defer cleanupTestDB()
+	var seq int
+	var schema, path string
+	if err := db.QueryRow("PRAGMA database_list").Scan(&seq, &schema, &path); err != nil {
+		t.Fatal(err)
+	}
+	var body bytes.Buffer
+	form := multipart.NewWriter(&body)
+	part, err := form.CreateFormFile("avatar", "portrait.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := png.Encode(part, image.NewGray(image.Rect(0, 0, 3, 2))); err != nil {
+		t.Fatal(err)
+	}
+	if err := form.Close(); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest("POST", "/api/profile/avatar", &body)
+	req.Header.Set("Content-Type", form.FormDataContentType())
+	authenticateTestRequest(t, req, "user_oche")
+	reply := httptest.NewRecorder()
+	handleUploadAvatar(reply, req)
+	var account credentialsResponse
+	if reply.Code != 200 || json.Unmarshal(reply.Body.Bytes(), &account) != nil || account.User == nil {
+		t.Fatalf("avatar upload: %d %s", reply.Code, reply.Body)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err = initDB(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var url string
+	if err := db.QueryRow("SELECT avatar_url FROM users WHERE id=?", "user_oche").Scan(&url); err != nil {
+		t.Fatal(err)
+	}
+	if url == "" || url != account.User.AvatarURL {
+		t.Fatal("profile did not retain uploaded URL")
+	}
+	reply = httptest.NewRecorder()
+	handleUploadedFile(reply, httptest.NewRequest("GET", url, nil))
+	cfg, _, err := image.DecodeConfig(reply.Body)
+	if reply.Code != 200 || err != nil || cfg.Width != 3 || cfg.Height != 2 {
+		t.Fatal("stored avatar did not round trip")
+	}
+}

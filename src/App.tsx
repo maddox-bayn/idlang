@@ -1,3 +1,4 @@
+import UserAvatar from "./components/UserAvatar";
 import { lazy, Suspense, useState, useEffect } from "react";
 import TranslateView from "./components/TranslateView";
 import { MenuIcon, MobileTabBar, SidebarNav, loadNavState, navLabel, saveNavState, type Tab } from "./components/Navigation";
@@ -148,69 +149,20 @@ export default function App() {
             {loadingAuth ? (
               <div className="h-6 w-6 animate-spin rounded-full border border-red-600 border-t-transparent" />
             ) : currentUser ? (
-              /* REAL LOGGED IN USER PILL */
-              <div className="flex items-center gap-2 rounded-xl border border-red-900/50 bg-neutral-950 p-1.5 text-xs shadow-md">
-                {/* User Avatar & Profile Click */}
-                <div
-                  onClick={() => setSelectedProfileUserId(currentUser.id)}
-                  className="flex items-center gap-2.5 cursor-pointer group pr-1"
-                  title="View / Edit your profile"
-                >
-                  <img
-                    src={
-                      currentUser.avatar_url ||
-                      `https://api.dicebear.com/7.x/bottts/svg?seed=${currentUser.username}`
-                    }
-                    alt={currentUser.display_name}
-                    className="h-8 w-8 rounded-full border border-red-600 object-cover group-hover:scale-105 transition-transform"
-                  />
-                  <div className="text-left hidden sm:block">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-red-100 group-hover:text-red-300 transition-colors">
-                        {currentUser.display_name}
-                      </span>
-                      {currentUser.native_name && (
-                        <span className="rounded bg-red-950 px-1 py-0.2 text-[10px] font-semibold text-red-300 border border-red-900">
-                          🪘 {currentUser.native_name}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[10px] text-red-500">@{currentUser.username}</p>
-                  </div>
-                </div>
-
-                {/* Friends & Connections Button (with incoming requests badge) */}
-                <button
-                  onClick={() => setShowConnectionsModal(true)}
-                  className="relative flex items-center gap-1.5 rounded-lg bg-neutral-900 border border-red-900/60 px-2.5 py-1 text-xs text-red-300 hover:bg-red-900/40 hover:text-red-100 transition-all"
-                  title="Manage friends and connection requests"
-                >
-                  <span>🤝 Friends</span>
-                  {pendingRequestsCount > 0 && (
-                    <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white animate-pulse">
-                      {pendingRequestsCount}
-                    </span>
-                  )}
+              <div className="flex min-w-0 items-center gap-2 sm:gap-4">
+                <button type="button" onClick={() => setShowConnectionsModal(true)}
+                  className="flex min-h-10 items-center gap-1.5 rounded-lg px-2 text-xs font-semibold text-red-100 hover:bg-red-950 focus-visible:ring-2 focus-visible:ring-red-500 sm:text-sm">
+                  Connections
+                  {pendingRequestsCount > 0 && <span aria-label={`${pendingRequestsCount} pending requests`} className="rounded-full bg-red-700 px-1.5 text-xs text-white">{pendingRequestsCount}</span>}
                 </button>
-
-                {/* Profile Modal Button */}
-                <button
-                  onClick={() => setSelectedProfileUserId(currentUser.id)}
-                  className="rounded-lg bg-red-900/40 p-1.5 text-red-300 hover:bg-red-800 hover:text-white transition-all"
-                  title="My Profile"
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                </button>
-
-                {/* Log Out Button */}
-                <button
-                  onClick={handleLogout}
-                  className="rounded-lg border border-red-950 bg-neutral-900 px-2 py-1 text-[11px] text-red-400 hover:bg-red-950 hover:text-red-200 transition-all"
-                  title="Sign out"
-                >
-                  Log Out
+                <div aria-hidden="true" className="h-6 w-px bg-red-900/60" />
+                <button type="button" aria-label="My profile" title="My profile" onClick={() => setSelectedProfileUserId(currentUser.id)}
+                  className="flex min-h-10 min-w-10 items-center justify-center gap-2 rounded-lg px-1 hover:bg-neutral-900 focus-visible:ring-2 focus-visible:ring-red-500">
+                  <UserAvatar url={currentUser.avatar_url} name={currentUser.display_name} className="h-8 w-8 rounded-full border border-red-800 object-cover text-xs" />
+                  <span className="hidden max-w-36 text-left sm:block">
+                    <span className="block truncate text-sm font-semibold text-red-100">{currentUser.display_name}</span>
+                    <span className="block truncate text-xs text-neutral-400">@{currentUser.username}</span>
+                  </span>
                 </button>
               </div>
             ) : (
@@ -237,6 +189,7 @@ export default function App() {
       {/* Desktop: collapsible left sidebar */}
       {currentUser && navState.open && (
         <SidebarNav
+          onLogout={handleLogout}
           activeTab={activeTab}
           onSelect={selectTab}
           collapsed={navState.collapsed}
@@ -245,7 +198,7 @@ export default function App() {
       )}
 
       {/* Mobile: fixed bottom icon bar */}
-      {currentUser && <MobileTabBar activeTab={activeTab} onSelect={selectTab} />}
+      {currentUser && <MobileTabBar onLogout={handleLogout} activeTab={activeTab} onSelect={selectTab} />}
 
       {/* Decorative divider */}
       <div className="mx-auto h-px w-32 bg-gradient-to-r from-transparent via-red-800 to-transparent" />

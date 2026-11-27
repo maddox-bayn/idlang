@@ -19,7 +19,11 @@ func openConfiguredDB() (*sql.DB, error) {
 	remoteURL := strings.TrimSpace(os.Getenv("TURSO_DATABASE_URL"))
 	token := strings.TrimSpace(os.Getenv("TURSO_AUTH_TOKEN"))
 	if remoteURL == "" && token == "" {
-		return initDB(os.Getenv("DATABASE_PATH"))
+		path := strings.TrimSpace(os.Getenv("DATABASE_PATH"))
+		if os.Getenv("RENDER") == "true" && path == "" {
+			return nil, errors.New("configure Turso or set DATABASE_PATH on a persistent Render disk before starting")
+		}
+		return initDB(path)
 	}
 	if err := validateTursoConfig(remoteURL, token); err != nil {
 		return nil, err

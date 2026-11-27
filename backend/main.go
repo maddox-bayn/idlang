@@ -580,6 +580,10 @@ func handleUploadedFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if strings.HasPrefix(rel, "avatars/db-") {
+		serveAvatar(w, r, strings.TrimPrefix(rel, "avatars/"))
+		return
+	}
 	if strings.HasPrefix(rel, "media/db-") {
 		servePostMedia(w, r, strings.TrimPrefix(rel, "media/"))
 		return

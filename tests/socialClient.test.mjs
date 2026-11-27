@@ -86,3 +86,8 @@ test('successful HTML responses cannot masquerade as saved posts', async () => {
 test('inline library links keep the preview query on backend file URLs', () => {
   assert.equal(client.libraryFileURL({ id: 'book', file_url: '/api/library/book/file' }, true), 'https://api.example.test/api/library/book/file?inline=1');
 });
+
+test('avatar upload reads the updated profile and resolves its media URL', async () => {
+  globalThis.fetch = async () => json({ user: { avatar_url: '/uploads/avatars/db-portrait.jpg' } });
+  assert.equal(await client.uploadUserAvatar(new Blob(['photo'])), 'https://api.example.test/uploads/avatars/db-portrait.jpg');
+});

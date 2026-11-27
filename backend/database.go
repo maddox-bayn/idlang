@@ -246,6 +246,7 @@ var migrations = []migrationFunc{
 	migrateLibraryFiles,
 	migrateAdminActivity,
 	migrateCourses,
+	migrateUserAvatars,
 }
 
 func runMigrations(database *sql.DB) error {
