@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, useEffect } from "react";
 import TranslateView from "./components/TranslateView";
-import { MenuIcon, MobileTabBar, SidebarNav, loadNavState, saveNavState, type Tab } from "./components/Navigation";
+import { MenuIcon, MobileTabBar, SidebarNav, loadNavState, navLabel, saveNavState, type Tab } from "./components/Navigation";
 const LearnView = lazy(() => import("./components/LearnView"));
 const FeedView = lazy(() => import("./components/FeedView"));
 const LibraryView = lazy(() => import("./components/LibraryView"));
@@ -21,16 +21,16 @@ function requestedTab(): Tab {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<Tab>(requestedTab);
+  const [requestedView, setRequestedView] = useState<Tab>(requestedTab);
   function selectTab(view: Tab) {
     const url = new URL(window.location.href);
     if (view === "translate") url.searchParams.delete("view");
     else url.searchParams.set("view", view);
     if (url.href !== window.location.href) window.history.pushState(null, "", url);
-    setActiveTab(view);
+    setRequestedView(view);
   }
   useEffect(() => {
-    const onBack = () => setActiveTab(requestedTab());
+    const onBack = () => setRequestedView(requestedTab());
     window.addEventListener("popstate", onBack);
     return () => window.removeEventListener("popstate", onBack);
   }, []);
@@ -41,6 +41,7 @@ export default function App() {
     saveNavState(navState);
   }, [navState]);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const activeTab = currentUser || requestedView === "library" ? requestedView : "translate";
   const [loadingAuth, setLoadingAuth] = useState(true);
 
   // Modals state
@@ -115,7 +116,7 @@ export default function App() {
       {/* Header */}
       <header className="sticky top-0 z-40 border-b border-red-900/30 bg-black/95 backdrop-blur-md px-4 sm:px-6 py-3.5">
         <div className="mx-auto flex max-w-6xl flex-col md:flex-row items-center justify-between gap-3">
-          {/* Logo, menu toggle & slogan */}
+          {/* Menu toggle & active section label */}
           <div className="flex items-center gap-3">
             {/* Menu Toggle (desktop only — mobile uses the bottom icon bar) */}
             {currentUser && (
@@ -131,20 +132,13 @@ export default function App() {
                 <MenuIcon className="h-5 w-5" />
               </button>
             )}
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-red-900/80 border border-red-700 shadow-md">
-              <span className="text-lg">🪘</span>
-            </div>
-            <div>
-              <h1 className="font-heading text-xl font-bold tracking-wide text-red-100 flex items-center gap-2">
-                Idlang
-                <span className="text-[10px] font-sans font-medium px-2 py-0.5 rounded-full bg-red-950 border border-red-800 text-red-300">
-                  Otukpo Archive
-                </span>
-              </h1>
-              <p className="text-[11px] italic text-red-500">
-                The Guardian of History & Idoma Heritage
-              </p>
-            </div>
+            {/* Keep the product name visible alongside the rendered section. */}
+            <h1
+              aria-live="polite"
+              className="border-l-2 border-red-700 pl-3 font-heading text-lg font-bold uppercase tracking-widest text-red-100 sm:text-xl"
+            >
+              Idlang · {navLabel(activeTab)}
+            </h1>
           </div>
 
           {/* Navigation lives in the desktop sidebar / mobile bottom bar */}
@@ -263,7 +257,7 @@ export default function App() {
         {activeTab === "library" && <LibraryView key={effectiveUser.id} currentUser={effectiveUser} />}
         {currentUser && activeTab === "learn" && <LearnView currentUser={effectiveUser} />}
         {currentUser && activeTab === "messages" && <MessagesView currentUser={effectiveUser} />}
-        {((!currentUser && activeTab !== "library") || activeTab === "translate") && <TranslateView isAuthenticated={!!currentUser} authLoading={loadingAuth} onRequireAuth={() => openAuth("login")} />}
+        {activeTab === "translate" && <TranslateView isAuthenticated={!!currentUser} authLoading={loadingAuth} onRequireAuth={() => openAuth("login")} />}
         </Suspense>
       </main>
 

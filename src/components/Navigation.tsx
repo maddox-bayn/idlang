@@ -115,6 +115,11 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "translate", label: "Translate", shortLabel: "Translate", Icon: LanguagesIcon },
 ];
 
+/** Display label for the currently active tab (used in the header). */
+export function navLabel(tab: Tab): string {
+  return NAV_ITEMS.find((item) => item.id === tab)?.label ?? "";
+}
+
 /* ------------------------------------------------------------------ */
 /* Sidebar layout preference (persisted)                               */
 /* ------------------------------------------------------------------ */

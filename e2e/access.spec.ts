@@ -197,3 +197,16 @@ test('recording auto-stops and cancelled recordings never become input', async (
   await page.getByRole('button', { name: 'Cancel recording', exact: true }).click();
   await expect(page.getByText('Recorded Audio', { exact: true })).toHaveCount(0);
 });
+
+test('guest deep links announce the section actually displayed', async ({ page }) => {
+  await mockAPI(page);
+  for (const view of ['feed', 'learn', 'messages']) {
+    await page.goto('/?view=' + view);
+    await expect(page.getByRole('button', { name: 'Sign In', exact: true })).toBeVisible();
+    await expect(page.locator('header h1')).toHaveText('Idlang · Translate');
+    await expect(page.getByRole('heading', { name: 'Keep the language close.' })).toBeVisible();
+  }
+  await page.goto('/?view=library');
+  await expect(page.locator('header h1')).toHaveText('Idlang · E-Library');
+  await expect(page.getByRole('heading', { name: 'Idoma E-Library & Manuscript Store' })).toBeVisible();
+});
