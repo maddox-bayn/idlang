@@ -7,21 +7,22 @@ interface DuolingoLessonProps {
   onComplete: () => void;
   currentUserId?: string;
   initialIndex?: number;
+  initialAnswers?: Record<string,string>;
   onPass?: (answers: Record<string, string>) => Promise<void>;
 }
 
 type FeedbackState = "idle" | "correct" | "incorrect";
 
-export default function DuolingoLesson({ lesson, onComplete, currentUserId, initialIndex = 0, onPass }: DuolingoLessonProps) {
+export default function DuolingoLesson({ lesson, onComplete, currentUserId, initialIndex = 0, initialAnswers = {}, onPass }: DuolingoLessonProps) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<FeedbackState>("idle");
-  const [score, setScore] = useState(0);
+  const [score, setScore] = useState(() => lesson.questions.slice(0,initialIndex).filter(q => initialAnswers[q.id] === q.correctAnswer).length);
   const [completed, setCompleted] = useState(false);
   const [shakeKey, setShakeKey] = useState(0);
   const [awardError, setAwardError] = useState<string | null>(null);
   const [awarding, setAwarding] = useState(false);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answers, setAnswers] = useState<Record<string, string>>(initialAnswers);
 
   const currentQuestion: Question | undefined = lesson.questions[currentIndex];
   const progress =
@@ -30,8 +31,8 @@ export default function DuolingoLesson({ lesson, onComplete, currentUserId, init
     100;
 
   useEffect(() => {
-    if (currentUserId && lesson.track_id && !completed) saveLessonProgress(currentUserId, { lessonId: lesson.id, questionIndex: currentIndex });
-  }, [currentUserId, lesson.id, lesson.track_id, currentIndex, completed]);
+    if (currentUserId && lesson.track_id && !completed) saveLessonProgress(currentUserId, { lessonId: lesson.id, questionIndex: currentIndex, revision: lesson.revision, answers });
+  }, [currentUserId, lesson.id, lesson.track_id, lesson.revision, currentIndex, completed, answers]);
 
   function handleOptionSelect(option: string) {
     if (feedback !== "idle") return;

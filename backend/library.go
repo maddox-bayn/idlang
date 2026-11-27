@@ -420,6 +420,9 @@ func getLibraryItem(id string, viewer *User) (*LibraryItem, error) {
 		return nil, err
 	}
 
+	if item.Status == "removed" && !canCurate(viewer) {
+		return nil, sql.ErrNoRows
+	}
 	if item.Status != "published" {
 		if viewer == nil || (viewer.ID != item.UploadedBy && !canCurate(viewer)) {
 			return nil, sql.ErrNoRows

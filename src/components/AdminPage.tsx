@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import CourseEditor from "./CourseEditor";
+import ChallengeTasks from "./ChallengeTasks";
 import AuthModal from "./AuthModal";
 import type { User, Book } from "../types";
-import { fetchAdminActivity, type AdminEvent, fetchCurrentUser, logoutUser, fetchAdminOverview, fetchAdminUsers, fetchAdminLibrary, reviewLibraryItem, libraryFileURL, type AdminOverview, type AdminAccount } from "../api/socialClient";
+import { removeDocument, fetchAdminActivity, type AdminEvent, fetchCurrentUser, logoutUser, fetchAdminOverview, fetchAdminUsers, fetchAdminLibrary, reviewLibraryItem, libraryFileURL, type AdminOverview, type AdminAccount } from "../api/socialClient";
 
-const sections = { overview: "Overview", accounts: "Accounts", library: "Library review", activity: "Review history" };
+const sections = { overview: "Overview", accounts: "Accounts", library: "Library review", activity: "Review history", curriculum:"Curriculum", tasks:"Learner tasks" };
 type Section = keyof typeof sections;
 
 function currentSection(): Section {
@@ -28,13 +30,18 @@ export default function AdminPage() {
   const [users, setUsers] = useState<AdminAccount[]>([]);
   const [drafts, setDrafts] = useState<Book[]>([]);
   const [userPage, setUserPage] = useState(1);
+  const [libraryStatus,setLibraryStatus]=useState("draft");
   const [draftPage, setDraftPage] = useState(1);
   const [userTotal, setUserTotal] = useState(0);
   const [draftTotal, setDraftTotal] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
-  useEffect(() => { fetchCurrentUser().then(setUser).finally(() => setChecking(false)); }, []);
+  useEffect(() => {
+    let active = true;
+    fetchCurrentUser().then(value => { if (active) setUser(value); }).finally(() => { if (active) setChecking(false); });
+    return () => { active = false; };
+  }, []);
   useEffect(() => {
     if (user?.role !== "admin") return;
     let cancelled = false;
@@ -52,7 +59,7 @@ export default function AdminPage() {
           break;
         }
         case "library": {
-          const result = await fetchAdminLibrary(draftPage);
+          const result = await fetchAdminLibrary(draftPage,libraryStatus);
           if (!cancelled) {
             if (draftPage > 1 && !result.items.length) setDraftPage(1);
             setDrafts(result.items); setDraftTotal(result.total);
@@ -73,7 +80,7 @@ export default function AdminPage() {
         }
       }).finally(() => { if (!cancelled) setBusy(false); });
     return () => { cancelled = true; };
-  }, [user, section, userPage, draftPage, cursor, revision]);
+  }, [user, section, userPage, draftPage, libraryStatus, cursor, revision]);
 
   async function signOut() {
     try { await logoutUser(); setUser(null); setOverview(null); setUsers([]); setDrafts([]); setEvents([]); setMore(false); }
@@ -109,9 +116,18 @@ export default function AdminPage() {
           <div className="overflow-x-auto rounded-xl border border-red-900/40"><table className="w-full text-left text-sm"><thead className="bg-neutral-950 text-neutral-400"><tr>{["Name", "Username", "Role", "Status"].map(label => <th key={label} className="p-3">{label}</th>)}</tr></thead><tbody>{users.map(account => <tr key={account.id} className="border-t border-red-950"><td className="p-3">{account.display_name}</td><td className="p-3">@{account.username}</td><td className="p-3">{account.role}</td><td className="p-3">{account.status}</td></tr>)}</tbody></table></div>
           <div className="flex items-center gap-3"><button className={button} disabled={busy || userPage === 1} onClick={() => setUserPage(value => value - 1)}>Previous</button><span className="text-sm">Page {userPage}</span><button className={button} disabled={busy || userPage * 25 >= userTotal} onClick={() => setUserPage(value => value + 1)}>Next</button></div>
         </section>}
+        {section === "curriculum" && <CourseEditor/>}
+        {section === "tasks" && <ChallengeTasks admin/>}
         {section === "library" && <section className="space-y-4"><h2 className="font-heading text-xl">Library submissions</h2>
-          {!busy && !error && !drafts.length && <p className="text-neutral-400">No submissions awaiting review on this page.</p>}
-          {drafts.map(book => <article key={book.id} className="rounded-xl border border-red-900/40 bg-neutral-950 p-5 space-y-3"><h3 className="font-heading text-lg">{book.title}</h3><p className="text-sm text-neutral-400">{book.author} · {book.license}</p><p className="text-sm">{book.description}</p><div className="flex flex-wrap gap-3"><a className={button} href={libraryFileURL(book, true)} target="_blank" rel="noreferrer">Review document</a><button className={button} disabled={busy} onClick={() => review(book.id, "published")}>Publish</button><button className={button} disabled={busy} onClick={() => review(book.id, "rejected")}>Reject</button></div></article>)}
+          <label>Document status <select className="bg-neutral-950" value={libraryStatus} onChange={e=>{setLibraryStatus(e.target.value);setDrafts([]);setDraftPage(1);}}>{["draft","published","rejected","removed"].map(s=><option key={s}>{s}</option>)}</select></label>
+          {!busy && !error && !drafts.length && <p className="text-neutral-400">No documents on this page.</p>}
+          {drafts.map(book => <article key={book.id} className="rounded-xl border border-red-900/40 bg-neutral-950 p-5 space-y-3"><h3 className="font-heading text-lg">{book.title}</h3><p className="text-sm text-neutral-400">{book.author} · {book.license}</p><p className="text-sm">{book.description}</p><div className="flex flex-wrap gap-3"><a className={button} href={libraryFileURL(book, true)} target="_blank" rel="noreferrer">Review document</a>{libraryStatus==="draft" && <><button className={button} disabled={busy} onClick={() => review(book.id, "published")}>Publish</button><button className={button} disabled={busy} onClick={() => review(book.id, "rejected")}>Reject</button></>}
+            {libraryStatus!=="removed" && <button className={button} disabled={busy} onClick={async()=>{
+              if(!window.confirm(`Remove “${book.title}” from the library and disable reader downloads?`)) return;
+              setBusy(true);setError(null);
+              try {await removeDocument({...book,status:libraryStatus});setRevision(n=>n+1);}
+              catch(e){setError(e instanceof Error?e.message:"Could not remove document.");setBusy(false);}
+            }}>Remove document</button>}</div></article>)}
           <div className="flex items-center gap-3"><button className={button} disabled={busy || draftPage === 1} onClick={() => setDraftPage(value => value - 1)}>Previous</button><span className="text-sm">Page {draftPage}</span><button className={button} disabled={busy || draftPage * 24 >= draftTotal} onClick={() => setDraftPage(value => value + 1)}>Next</button></div>
         </section>}
         {section === "activity" && <section className="space-y-4">
