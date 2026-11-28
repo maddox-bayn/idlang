@@ -568,3 +568,9 @@ reasoning and the Secret File alternative if you would rather not redistribute i
 
 Also: `.clauderc` contains a bearer token. It is gitignored, but it has existed on
 disk in plaintext — rotate it.
+
+## Preserve accounts, posts and uploads across Render deploys
+
+Before deploying the Go service, confirm it points to the existing production database. For Turso, set both `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` on the backend. For local SQLite on Render, mount a persistent disk and set `DATABASE_PATH` to a file on that mount. The service refuses to start on Render with neither option. An explicit path on an ephemeral filesystem still loses data.
+
+If the current service uses local SQLite, back up its live database and its `uploads` directory before replacing the instance. Move the data to the persistent store and verify post counts there before switching traffic. New profile photos and uploaded feed attachments live in the database. Legacy disk-only URLs still require the original files. For a missing attachment on an existing post, its author can use the feed’s restore action with the original file.

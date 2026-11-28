@@ -196,9 +196,9 @@ export async function updateUserProfile(data: {
 export async function uploadUserAvatar(file: File): Promise<string> {
   const form = new FormData();
   form.append("avatar", file);
-  const data = await requestJSON<{ avatar_url: string }>("/api/profile/avatar", { method: "POST", body: form });
-  if (!data.avatar_url) throw new Error("Avatar upload returned no URL.");
-  return data.avatar_url;
+  const data = await requestJSON<{ user: User }>("/api/profile/avatar", { method: "POST", body: form });
+  if (!data.user?.avatar_url) throw new Error("Avatar upload returned no URL.");
+  return data.user.avatar_url;
 }
 
 export async function fetchConnectionsList(): Promise<ConnectionsResponse> {

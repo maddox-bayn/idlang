@@ -76,17 +76,17 @@ func handleGetPosts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	rows, err := db.Query(`
-		SELECT p.id, p.user_id, p.content, p.media_type, p.media_url, p.created_at, COALESCE(p.tags, '[]'),
+	rows, err := db.QueryContext(r.Context(), `
+		SELECT p.id, p.user_id, p.content, p.media_type, COALESCE(p.media_url, ''), p.created_at, COALESCE(p.tags, '[]'),
 		       (SELECT COUNT(*) FROM post_likes l WHERE l.post_id=p.id),
 	       EXISTS(SELECT 1 FROM post_likes l WHERE l.post_id=p.id AND l.user_id=?),
 	       (SELECT COUNT(*) FROM post_comments c WHERE c.post_id=p.id),
-		       u.id, u.username, u.display_name, u.native_name, u.avatar_url, u.bio, u.dialect,
-		       u.native_speaker, u.role
+		       u.id, COALESCE(u.username, ''), COALESCE(u.display_name, ''), COALESCE(u.native_name, ''), COALESCE(u.avatar_url, ''), COALESCE(u.bio, ''), COALESCE(u.dialect, ''),
+		       COALESCE(u.native_speaker,0), COALESCE(u.role,'')
 		FROM posts p
 		LEFT JOIN users u ON p.user_id = u.id
 		WHERE (? = '' OR p.tags LIKE ?)
-		ORDER BY p.created_at DESC
+		ORDER BY p.created_at DESC, p.id DESC
 		LIMIT ? OFFSET ?
 	`, viewerID, topic, topicPattern, limit, offset)
 	if err != nil {
@@ -111,7 +111,8 @@ func handleGetPosts(w http.ResponseWriter, r *http.Request) {
 			&u.NativeSpeaker, &u.Role,
 		)
 		if err != nil {
-			continue
+			writeError(w, 500, "Could not read the feed.")
+			return
 		}
 		_ = json.Unmarshal([]byte(tagsJSON), &p.Tags)
 		if p.Tags == nil {
@@ -125,6 +126,10 @@ func handleGetPosts(w http.ResponseWriter, r *http.Request) {
 		posts = append(posts, p)
 	}
 
+	if err := rows.Err(); err != nil {
+		writeError(w, 503, "Could not finish loading the feed.")
+		return
+	}
 	writeJSON(w, http.StatusOK, PostsListResponse{Posts: posts, Total: total, Page: page, Limit: limit})
 }
 

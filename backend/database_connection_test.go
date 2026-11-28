@@ -11,6 +11,17 @@ import (
 	"testing"
 )
 
+func TestRenderRejectsImplicitLocalDatabase(t *testing.T) {
+	t.Setenv("RENDER", "true")
+	t.Setenv("DATABASE_PATH", "")
+	t.Setenv("TURSO_DATABASE_URL", "")
+	t.Setenv("TURSO_AUTH_TOKEN", "")
+	if database, err := openConfiguredDB(); err == nil {
+		database.Close()
+		t.Fatal("started with an implicit ephemeral database")
+	}
+}
+
 func TestTursoConfigurationValidation(t *testing.T) {
 	for _, entry := range []struct {
 		url, token string

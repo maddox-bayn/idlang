@@ -1,3 +1,4 @@
+import UserAvatar from "./UserAvatar";
 import { useState, useEffect, useRef } from "react";
 import type { ProfileResponse } from "../types";
 import {
@@ -213,16 +214,12 @@ export default function ProfileModal({
                 <div className="relative group">
                   <button
                     type="button"
-                    onClick={() => setAvatarPreviewUrl(profile.user.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${profile.user.username}`)}
+                    disabled={!profile.user.avatar_url}
+                    onClick={() => setAvatarPreviewUrl(profile.user.avatar_url || null)}
                     className="block rounded-full focus:outline-none focus:ring-2 focus:ring-red-500"
                     aria-label={`Open ${profile.user.display_name}'s profile picture`}
                   >
-                    <img
-                      src={
-                        profile.user.avatar_url ||
-                        `https://api.dicebear.com/7.x/bottts/svg?seed=${profile.user.username}`
-                      }
-                      alt={profile.user.display_name}
+                    <UserAvatar url={profile.user.avatar_url} name={profile.user.display_name}
                       className="h-20 w-20 rounded-full border-2 border-red-600 object-cover shadow-lg bg-neutral-900"
                     />
                   </button>
@@ -576,7 +573,7 @@ export default function ProfileModal({
           onClick={() => setAvatarPreviewUrl(null)}
         >
           <div className="relative flex max-h-[90vh] max-w-[90vw] items-center justify-center" onClick={(event) => event.stopPropagation()}>
-            <img src={avatarPreviewUrl} alt={`${profile?.user.display_name ?? "User"}'s profile picture`} className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain shadow-2xl" />
+            <img onError={() => setAvatarDownloadError("This profile picture is unavailable.")} src={avatarPreviewUrl} alt={`${profile?.user.display_name ?? "User"}'s profile picture`} className="max-h-[85vh] max-w-[90vw] rounded-xl object-contain shadow-2xl" />
             <a
               href={avatarPreviewUrl}
               target="_blank"
